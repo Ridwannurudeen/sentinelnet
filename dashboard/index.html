@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelNet Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a0f; color: #e0e0e0; }
+        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px 32px; border-bottom: 1px solid #2a2a4a; }
+        .header h1 { font-size: 24px; color: #00d4ff; }
+        .header p { color: #888; font-size: 14px; margin-top: 4px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding: 24px 32px; }
+        .card { background: #12121f; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; }
+        .card .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .card .value { font-size: 32px; font-weight: 700; color: #00d4ff; margin-top: 8px; }
+        .card .sub { font-size: 13px; color: #666; margin-top: 4px; }
+        .scores-table { margin: 0 32px 32px; background: #12121f; border: 1px solid #2a2a4a; border-radius: 12px; overflow: hidden; }
+        .scores-table table { width: 100%; border-collapse: collapse; }
+        .scores-table th { background: #1a1a2e; padding: 12px 16px; text-align: left; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .scores-table td { padding: 12px 16px; border-top: 1px solid #1a1a2e; font-size: 14px; }
+        .verdict-trust { color: #00ff88; }
+        .verdict-caution { color: #ffaa00; }
+        .verdict-reject { color: #ff4444; }
+        .refresh-bar { text-align: center; padding: 12px; color: #444; font-size: 12px; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SentinelNet</h1>
+        <p>Autonomous Agent Reputation Watchdog &mdash; ERC-8004 on Base</p>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="label">Agents Scored</div>
+            <div class="value" id="agents-count">--</div>
+        </div>
+        <div class="card">
+            <div class="label">Avg Trust Score</div>
+            <div class="value" id="avg-score">--</div>
+        </div>
+        <div class="card">
+            <div class="label">Status</div>
+            <div class="value pulse" id="status" style="font-size:18px;">Sweeping...</div>
+            <div class="sub" id="next-sweep">Next sweep in --:--</div>
+        </div>
+        <div class="card">
+            <div class="label">Sybil Clusters</div>
+            <div class="value" id="sybil-count">0</div>
+        </div>
+    </div>
+
+    <div class="scores-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Agent ID</th>
+                    <th>Wallet</th>
+                    <th>Trust Score</th>
+                    <th>Verdict</th>
+                    <th>Longevity</th>
+                    <th>Activity</th>
+                    <th>Counterparty</th>
+                    <th>Contract Risk</th>
+                    <th>Scored At</th>
+                </tr>
+            </thead>
+            <tbody id="scores-body">
+                <tr><td colspan="9" style="text-align:center;color:#666;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="refresh-bar">Auto-refreshes every 15 seconds</div>
+
+    <script>
+        async function fetchStats() {
+            try {
+                const r = await fetch('/api/stats');
+                const data = await r.json();
+                document.getElementById('agents-count').textContent = data.agents_scored || 0;
+                document.getElementById('avg-score').textContent = Math.round(data.avg_trust_score || 0);
+            } catch (e) {
+                console.error('Stats fetch failed:', e);
+            }
+        }
+
+        async function fetchScores() {
+            try {
+                const r = await fetch('/api/stats');
+                const stats = await r.json();
+                // Fetch individual scores would need a list endpoint
+                // For now, stats gives us the overview
+                document.getElementById('agents-count').textContent = stats.agents_scored || 0;
+                document.getElementById('avg-score').textContent = Math.round(stats.avg_trust_score || 0);
+            } catch (e) {
+                console.error('Scores fetch failed:', e);
+            }
+        }
+
+        function verdictClass(verdict) {
+            return 'verdict-' + (verdict || '').toLowerCase();
+        }
+
+        // Initial load + auto-refresh
+        fetchStats();
+        fetchScores();
+        setInterval(() => { fetchStats(); fetchScores(); }, 15000);
+
+        // Countdown timer
+        let countdown = 15;
+        setInterval(() => {
+            countdown = countdown <= 0 ? 15 : countdown - 1;
+            document.getElementById('next-sweep').textContent = `Refreshing in ${countdown}s`;
+        }, 1000);
+    </script>
+</body>
+</html>
