@@ -3,17 +3,21 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # RPC
-    BASE_RPC_URL: str
+    BASE_RPC_URL: str = "https://mainnet.base.org"
     ETH_RPC_URL: str = "https://eth.llamarpc.com"
 
     # ERC-8004
     IDENTITY_REGISTRY: str = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
-    REPUTATION_REGISTRY: str = ""
+    REPUTATION_REGISTRY: str = "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
     VALIDATION_REGISTRY: str = ""
     SENTINELNET_AGENT_ID: int = 31253
 
     # Wallet
     PRIVATE_KEY: str = ""
+
+    # Block explorer APIs
+    BASESCAN_API_KEY: str = ""
+    ETHERSCAN_API_KEY: str = ""
 
     # IPFS
     PINATA_API_KEY: str = ""
@@ -21,6 +25,7 @@ class Settings(BaseSettings):
 
     # Staking
     STAKE_AMOUNT_ETH: float = 0.001
+    STAKING_CONTRACT: str = "0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9"
 
     # Sweep
     SWEEP_INTERVAL_SECONDS: int = 1800

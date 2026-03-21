@@ -13,7 +13,7 @@ def test_settings_defaults():
     assert s.STAKE_AMOUNT_ETH == 0.001
     assert s.RESCORE_AFTER_HOURS == 24
 
-def test_settings_requires_base_rpc():
-    import pytest
-    with pytest.raises(Exception):
-        Settings()
+def test_settings_has_defaults():
+    s = Settings()
+    assert s.BASE_RPC_URL == "https://mainnet.base.org"
+    assert s.REPUTATION_REGISTRY == "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"

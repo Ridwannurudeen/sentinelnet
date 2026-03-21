@@ -24,7 +24,11 @@ class SentinelNetAgent:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.db = Database()
-        self.chain = ChainFetcher(settings.BASE_RPC_URL, settings.ETH_RPC_URL)
+        self.chain = ChainFetcher(
+            settings.BASE_RPC_URL, settings.ETH_RPC_URL,
+            basescan_api_key=settings.BASESCAN_API_KEY,
+            etherscan_api_key=settings.ETHERSCAN_API_KEY,
+        )
         self.engine = TrustEngine()
         self.sybil = SybilDetector()
         self.alerts = AlertChecker()

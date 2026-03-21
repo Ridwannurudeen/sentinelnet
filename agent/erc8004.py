@@ -1,6 +1,15 @@
+import asyncio
 import json
-from typing import Optional, List
+import logging
+from typing import Optional
 from web3 import Web3
+
+logger = logging.getLogger(__name__)
+
+# Minimal ABIs for ERC-8004 contracts (behind ERC1967 proxies)
+IDENTITY_ABI = json.loads('[{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"ownerOf","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"tokenURI","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getAgentWallet","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]')
+
+REPUTATION_ABI = json.loads('[{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getClients","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"address","name":"client","type":"address"}],"name":"getLastIndex","outputs":[{"internalType":"uint64","name":"","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"address","name":"client","type":"address"},{"internalType":"uint64","name":"index","type":"uint64"}],"name":"readFeedback","outputs":[{"internalType":"int128","name":"value","type":"int128"},{"internalType":"uint8","name":"decimals","type":"uint8"},{"internalType":"string","name":"tag1","type":"string"},{"internalType":"string","name":"tag2","type":"string"},{"internalType":"bool","name":"isRevoked","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"int128","name":"value","type":"int128"},{"internalType":"uint8","name":"valueDecimals","type":"uint8"},{"internalType":"string","name":"tag1","type":"string"},{"internalType":"string","name":"tag2","type":"string"},{"internalType":"string","name":"endpoint","type":"string"},{"internalType":"string","name":"feedbackURI","type":"string"},{"internalType":"bytes32","name":"feedbackHash","type":"bytes32"}],"name":"giveFeedback","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"getIdentityRegistry","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"address[]","name":"clients","type":"address[]"},{"internalType":"string","name":"tag1","type":"string"},{"internalType":"string","name":"tag2","type":"string"}],"name":"getSummary","outputs":[{"internalType":"uint64","name":"count","type":"uint64"},{"internalType":"int128","name":"summaryValue","type":"int128"},{"internalType":"uint8","name":"decimals","type":"uint8"}],"stateMutability":"view","type":"function"}]')
 
 
 class ERC8004Client:
@@ -15,29 +24,128 @@ class ERC8004Client:
         self.agent_id = agent_id
         self.account = w3.eth.account.from_key(private_key) if private_key else None
 
+        self.identity = w3.eth.contract(address=self.identity_addr, abi=IDENTITY_ABI)
+        if self.reputation_addr:
+            self.reputation = w3.eth.contract(address=self.reputation_addr, abi=REPUTATION_ABI)
+        else:
+            self.reputation = None
+
     async def get_total_agents(self) -> int:
-        """Get total registered agents from Identity Registry."""
-        return 0
+        """Get total registered agents from Identity Registry via totalSupply."""
+        try:
+            total = await asyncio.to_thread(self.identity.functions.totalSupply().call)
+            return total
+        except Exception as e:
+            logger.warning(f"totalSupply failed, falling back to estimate: {e}")
+            # Fallback: try to binary search for the highest valid tokenId
+            return await self._estimate_total_agents()
+
+    async def _estimate_total_agents(self) -> int:
+        """Binary search for highest valid agent ID."""
+        low, high = 1, 40000
+        while low < high:
+            mid = (low + high + 1) // 2
+            try:
+                await asyncio.to_thread(self.identity.functions.ownerOf(mid).call)
+                low = mid
+            except Exception:
+                high = mid - 1
+        return low
 
     async def get_agent_wallet(self, agent_id: int) -> Optional[str]:
-        """Get wallet address for an agent from Identity Registry."""
+        """Get wallet address for an agent. Tries getAgentWallet first, falls back to ownerOf."""
+        try:
+            wallet = await asyncio.to_thread(
+                self.identity.functions.getAgentWallet(agent_id).call
+            )
+            if wallet and wallet != "0x0000000000000000000000000000000000000000":
+                return wallet
+        except Exception:
+            pass
+
+        try:
+            owner = await asyncio.to_thread(
+                self.identity.functions.ownerOf(agent_id).call
+            )
+            if owner and owner != "0x0000000000000000000000000000000000000000":
+                return owner
+        except Exception as e:
+            logger.warning(f"Failed to get wallet for agent {agent_id}: {e}")
         return None
 
     async def get_agent_uri(self, agent_id: int) -> Optional[str]:
         """Get registration URI for an agent."""
-        return None
+        try:
+            uri = await asyncio.to_thread(
+                self.identity.functions.tokenURI(agent_id).call
+            )
+            return uri
+        except Exception as e:
+            logger.warning(f"Failed to get URI for agent {agent_id}: {e}")
+            return None
+
+    async def get_existing_feedback(self, agent_id: int) -> dict:
+        """Check if we already gave feedback to this agent."""
+        if not self.reputation or not self.account:
+            return {"count": 0}
+        try:
+            last_idx = await asyncio.to_thread(
+                self.reputation.functions.getLastIndex(agent_id, self.account.address).call
+            )
+            return {"count": last_idx}
+        except Exception:
+            return {"count": 0}
 
     async def give_feedback(self, agent_id: int, value: int, tag1: str,
                            tag2: str, feedback_uri: str, feedback_hash: bytes) -> str:
         """Post feedback to Reputation Registry. Returns tx hash."""
-        params = self._build_feedback_params(agent_id, value, tag1, tag2,
-                                              feedback_uri, feedback_hash)
-        return ""
+        if not self.reputation or not self.account:
+            logger.warning("No reputation registry or account configured")
+            return ""
+
+        try:
+            # Ensure feedback_hash is bytes32
+            if isinstance(feedback_hash, bytes) and len(feedback_hash) < 32:
+                feedback_hash = feedback_hash.ljust(32, b'\x00')
+            elif isinstance(feedback_hash, bytes) and len(feedback_hash) > 32:
+                feedback_hash = feedback_hash[:32]
+
+            nonce = await asyncio.to_thread(
+                self.w3.eth.get_transaction_count, self.account.address
+            )
+
+            tx = self.reputation.functions.giveFeedback(
+                agent_id,
+                value,       # int128 value
+                0,           # uint8 decimals
+                tag1,
+                tag2,
+                "",          # endpoint
+                feedback_uri,
+                feedback_hash,
+            ).build_transaction({
+                "from": self.account.address,
+                "nonce": nonce,
+                "gas": 300000,
+                "maxFeePerGas": self.w3.to_wei(0.1, "gwei"),
+                "maxPriorityFeePerGas": self.w3.to_wei(0.01, "gwei"),
+            })
+
+            signed = self.w3.eth.account.sign_transaction(tx, self.private_key)
+            tx_hash = await asyncio.to_thread(
+                self.w3.eth.send_raw_transaction, signed.raw_transaction
+            )
+            logger.info(f"Feedback tx sent for agent {agent_id} tag={tag1}: {tx_hash.hex()}")
+            return tx_hash.hex()
+        except Exception as e:
+            logger.error(f"Failed to send feedback for agent {agent_id}: {e}")
+            return ""
 
     async def validation_response(self, request_hash: bytes, response: int,
                                   response_uri: str, response_hash: bytes,
                                   tag: str) -> str:
         """Post validation response. Returns tx hash."""
+        logger.info("Validation Registry not deployed yet")
         return ""
 
     def _parse_registration_json(self, raw: str) -> dict:

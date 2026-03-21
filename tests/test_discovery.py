@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock
+from datetime import datetime, timezone, timedelta
 from agent.discovery import Discovery
 
 
@@ -24,9 +25,10 @@ async def test_find_new_agents():
 async def test_find_stale_agents():
     discovery = Discovery.__new__(Discovery)
     discovery.db = AsyncMock()
+    recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     discovery.db.get_all_scores = AsyncMock(return_value=[
         {"agent_id": 1, "scored_at": "2026-01-01T00:00:00+00:00"},
-        {"agent_id": 2, "scored_at": "2026-03-15T00:00:00+00:00"},
+        {"agent_id": 2, "scored_at": recent},
     ])
     discovery.rescore_after_hours = 24
 
