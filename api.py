@@ -107,7 +107,82 @@ def _explain_score(score_dict: dict) -> dict:
     else:
         summary = f"Agent is REJECTED with a score of {trust}. Avoid interaction."
 
-    return {"summary": summary, "factors": explanations}
+    # Recovery recommendations for CAUTION/REJECT agents
+    recommendations = _recovery_recommendations(s)
+
+    result = {"summary": summary, "factors": explanations}
+    if recommendations:
+        result["recovery"] = recommendations
+    return result
+
+
+def _recovery_recommendations(s: dict) -> list:
+    """Generate actionable recommendations for agents to improve their trust score."""
+    verdict = s.get("verdict", "UNSCORED")
+    if verdict == "TRUST":
+        return []
+
+    recs = []
+    lon = s.get("longevity", 0)
+    act = s.get("activity", 0)
+    cp = s.get("counterparty", 0)
+    cr = s.get("contract_risk", 0)
+    ai = s.get("agent_identity", 0)
+
+    # Find weakest dimensions and give specific advice
+    dims = [("longevity", lon), ("activity", act), ("counterparty", cp),
+            ("contract_risk", cr), ("agent_identity", ai)]
+    dims.sort(key=lambda x: x[1])
+
+    for name, val in dims:
+        if val >= 70:
+            continue
+        if name == "longevity" and val < 70:
+            if val < 30:
+                recs.append({"dimension": "longevity", "score": val, "priority": "high",
+                             "action": "Wallet is very new. Maintain consistent on-chain activity over the next 30+ days to build history."})
+            else:
+                recs.append({"dimension": "longevity", "score": val, "priority": "medium",
+                             "action": "Continue regular on-chain activity. Score improves naturally as wallet ages past 90 days."})
+        elif name == "activity" and val < 70:
+            if val < 30:
+                recs.append({"dimension": "activity", "score": val, "priority": "high",
+                             "action": "Very low on-chain activity. Execute regular transactions on Base — interact with verified protocols like Uniswap, USDC, or WETH."})
+            else:
+                recs.append({"dimension": "activity", "score": val, "priority": "medium",
+                             "action": "Increase transaction frequency and maintain an ETH balance on Base. Active 60%+ of days maximizes this dimension."})
+        elif name == "counterparty" and val < 70:
+            if val < 30:
+                recs.append({"dimension": "counterparty", "score": val, "priority": "high",
+                             "action": "Interact with verified protocols (Uniswap, USDC, WETH). Avoid transactions with flagged or unknown addresses."})
+            else:
+                recs.append({"dimension": "counterparty", "score": val, "priority": "medium",
+                             "action": "Diversify interactions — engage with 30+ unique verified counterparties to maximize diversity bonus."})
+        elif name == "contract_risk" and val < 70:
+            if val < 30:
+                recs.append({"dimension": "contract_risk", "score": val, "priority": "high",
+                             "action": "High exposure to unverified or malicious contracts detected. Only interact with audited, verified protocols."})
+            else:
+                recs.append({"dimension": "contract_risk", "score": val, "priority": "medium",
+                             "action": "Reduce interactions with unverified contracts. Stick to established protocols with verified source code."})
+        elif name == "agent_identity" and val < 70:
+            if val < 30:
+                recs.append({"dimension": "agent_identity", "score": val, "priority": "high",
+                             "action": "Register complete ERC-8004 metadata: name, description, image, service endpoint, operator, and capabilities. Request positive reputation feedback from other agents."})
+            else:
+                recs.append({"dimension": "agent_identity", "score": val, "priority": "medium",
+                             "action": "Add more ERC-8004 metadata fields and build positive on-chain reputation through reliable service."})
+
+    if s.get("sybil_flagged"):
+        recs.insert(0, {"dimension": "sybil", "score": 0, "priority": "critical",
+                        "action": "Agent is flagged as part of a sybil cluster (-20 penalty). Use a unique wallet not shared with other agents and avoid closed interaction loops."})
+
+    contagion = s.get("contagion_adjustment", 0)
+    if contagion and contagion < -3:
+        recs.append({"dimension": "contagion", "score": contagion, "priority": "high",
+                     "action": f"Score reduced by {abs(contagion)} from trust contagion. Stop interacting with low-trust/REJECT agents to prevent further score erosion."})
+
+    return recs
 
 
 def _badge_svg(agent_id: int, score: int, verdict: str) -> str:
@@ -132,7 +207,7 @@ async def lifespan(app):
 
 app = FastAPI(
     title="SentinelNet",
-    version="2.1.0",
+    version="2.2.0",
     description="Autonomous reputation immune system for ERC-8004 agents on Base. "
                 "5-dimensional trust scoring with trust contagion, sybil detection, "
                 "threat intelligence, IPFS evidence, and EAS attestations.",
@@ -142,7 +217,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -184,7 +259,7 @@ async def leaderboard_page():
 @app.get("/api/health", tags=["System"])
 async def health():
     """Health check endpoint. Returns service status and version."""
-    return {"status": "ok", "service": "sentinelnet", "version": "2.1.0"}
+    return {"status": "ok", "service": "sentinelnet", "version": "2.2.0"}
 
 
 @app.get("/api/scores", tags=["Scores"])
@@ -516,6 +591,228 @@ async def get_eas_attestation(agent_id: int):
         "explorer": f"https://base.easscan.org/attestation/view/{uid}" if uid.startswith("0x") else None,
         "schema_uid": _settings.EAS_SCHEMA_UID or None,
     }
+
+
+# ─── Simulation ───
+
+@app.post("/api/simulate", tags=["Simulation"])
+async def simulate_interaction(request: Request):
+    """Predict how Agent A's score would change if they interact with Agent B.
+    Body: {"agent_id": 123, "interact_with": 456}"""
+    body = await request.json()
+    agent_a = body.get("agent_id")
+    agent_b = body.get("interact_with")
+    if not agent_a or not agent_b:
+        raise HTTPException(400, "Provide agent_id and interact_with")
+
+    score_a = await db.get_score(agent_a)
+    score_b = await db.get_score(agent_b)
+    if not score_a:
+        raise HTTPException(404, f"Agent {agent_a} not scored yet")
+    if not score_b:
+        raise HTTPException(404, f"Agent {agent_b} not scored yet")
+
+    score_a = _apply_decay(score_a)
+    score_b = _apply_decay(score_b)
+    a_score = score_a["trust_score"]
+    b_score = score_b["trust_score"]
+
+    # Simulate contagion effect: how B's trust level would affect A
+    if b_score >= 55:  # TRUST
+        contagion_effect = min(round((b_score - 55) / 45 * 10), 10)
+        direction = "positive"
+        message = f"Interacting with TRUSTED Agent #{agent_b} (score {b_score}) would boost your score by up to +{contagion_effect} points via trust contagion."
+    elif b_score >= 40:  # CAUTION
+        contagion_effect = 0
+        direction = "neutral"
+        message = f"Interacting with CAUTION Agent #{agent_b} (score {b_score}) would have minimal impact on your score."
+    else:  # REJECT
+        contagion_effect = max(round((40 - b_score) / 40 * -15), -15)
+        direction = "negative"
+        message = f"Interacting with REJECTED Agent #{agent_b} (score {b_score}) could reduce your score by up to {contagion_effect} points via negative contagion."
+
+    projected = max(0, min(100, a_score + contagion_effect))
+    projected_verdict = engine._verdict(projected)
+
+    # Check if verdict would change
+    verdict_change = None
+    if projected_verdict != score_a["verdict"]:
+        verdict_change = {"from": score_a["verdict"], "to": projected_verdict}
+
+    return {
+        "agent_id": agent_a,
+        "current_score": a_score,
+        "current_verdict": score_a["verdict"],
+        "interact_with": agent_b,
+        "target_score": b_score,
+        "target_verdict": score_b["verdict"],
+        "predicted_contagion": contagion_effect,
+        "predicted_score": projected,
+        "predicted_verdict": projected_verdict,
+        "direction": direction,
+        "verdict_change": verdict_change,
+        "message": message,
+        "warning": "This is a prediction based on the contagion model. Actual impact depends on the full interaction graph." if direction == "negative" else None,
+    }
+
+
+# ─── Agent Classification ───
+
+KNOWN_DEFI_PROTOCOLS = {
+    "0x2626664c2603336e57b271c5c0b26f421741e481",  # Uniswap V3
+    "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad",  # Uniswap Universal
+    "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",  # USDC
+    "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",  # USDbC
+    "0x4200000000000000000000000000000000000006",  # WETH
+}
+
+KNOWN_BRIDGE_CONTRACTS = {
+    "0x4200000000000000000000000000000000000010",  # L2StandardBridge
+    "0x49048044d57e1c92a77f79988d21fa8faf74e97e",  # Base Portal
+}
+
+KNOWN_ERC8004 = {
+    "0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",  # Identity
+    "0x8004baa17c55a88189ae136b182e5fda19de9b63",  # Reputation
+}
+
+
+def _classify_agent(score_dict: dict, edges: list) -> dict:
+    """Classify an agent's behavior based on on-chain patterns."""
+    labels = []
+    counterparty_addrs = {e["counterparty"].lower() for e in edges}
+
+    # DeFi activity
+    defi_overlap = counterparty_addrs & KNOWN_DEFI_PROTOCOLS
+    if defi_overlap:
+        labels.append("defi_user")
+
+    # Bridge usage
+    bridge_overlap = counterparty_addrs & KNOWN_BRIDGE_CONTRACTS
+    if bridge_overlap:
+        labels.append("bridge_user")
+
+    # ERC-8004 ecosystem participant
+    erc8004_overlap = counterparty_addrs & KNOWN_ERC8004
+    if erc8004_overlap:
+        labels.append("erc8004_native")
+
+    # Activity patterns
+    act = score_dict.get("activity", 0)
+    lon = score_dict.get("longevity", 0)
+    total_edges = len(edges)
+
+    if act <= 10 and lon >= 30:
+        labels.append("dormant")
+    elif act >= 70 and total_edges >= 20:
+        labels.append("power_user")
+    elif act >= 60 and total_edges < 5:
+        labels.append("narrow_focus")
+
+    # Bot signals
+    if score_dict.get("sybil_flagged"):
+        labels.append("sybil_suspect")
+    contagion = score_dict.get("contagion_adjustment", 0)
+    if contagion and contagion <= -10:
+        labels.append("toxic_neighborhood")
+
+    # High-value participant
+    if score_dict.get("trust_score", 0) >= 75 and score_dict.get("agent_identity", 0) >= 70:
+        labels.append("high_trust_verified")
+
+    if not labels:
+        labels.append("unclassified")
+
+    # Primary category
+    if "sybil_suspect" in labels:
+        primary = "sybil_suspect"
+    elif "high_trust_verified" in labels:
+        primary = "high_trust_verified"
+    elif "defi_user" in labels:
+        primary = "defi_user"
+    elif "bridge_user" in labels:
+        primary = "bridge_user"
+    elif "dormant" in labels:
+        primary = "dormant"
+    else:
+        primary = labels[0]
+
+    return {"primary": primary, "labels": labels, "interactions_analyzed": total_edges}
+
+
+@app.get("/api/classify/{agent_id}", tags=["Classification"])
+async def classify_agent(agent_id: int):
+    """Classify an agent's behavior based on on-chain interaction patterns."""
+    score = await db.get_score(agent_id)
+    if not score:
+        raise HTTPException(404, f"Agent {agent_id} not scored yet")
+    edges = await db.get_edges(agent_id)
+    classification = _classify_agent(score, edges)
+    return {
+        "agent_id": agent_id,
+        "classification": classification,
+        "score": score["trust_score"],
+        "verdict": score["verdict"],
+    }
+
+
+# ─── Webhooks ───
+
+# In-memory webhook store (persists until restart — lightweight for hackathon)
+_webhooks = {}  # id -> {url, events, created_at}
+_webhook_counter = 0
+
+
+@app.post("/api/webhooks", tags=["Webhooks"])
+async def register_webhook(request: Request):
+    """Register a webhook URL to receive trust alerts.
+    Body: {"url": "https://...", "events": ["trust_degraded", "sybil_detected", "verdict_changed"]}
+    If events is omitted, all events are subscribed."""
+    global _webhook_counter
+    body = await request.json()
+    url = body.get("url", "")
+    if not url or not url.startswith("http"):
+        raise HTTPException(400, "Provide a valid webhook URL")
+    events = body.get("events", ["trust_degraded", "sybil_detected", "verdict_changed"])
+    _webhook_counter += 1
+    wh_id = f"wh_{_webhook_counter}"
+    _webhooks[wh_id] = {
+        "url": url,
+        "events": events,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return {"webhook_id": wh_id, "url": url, "events": events, "status": "registered"}
+
+
+@app.get("/api/webhooks", tags=["Webhooks"])
+async def list_webhooks():
+    """List all registered webhooks."""
+    return {"webhooks": [{"id": k, **v} for k, v in _webhooks.items()], "total": len(_webhooks)}
+
+
+@app.delete("/api/webhooks/{webhook_id}", tags=["Webhooks"])
+async def delete_webhook(webhook_id: str):
+    """Remove a registered webhook."""
+    if webhook_id not in _webhooks:
+        raise HTTPException(404, f"Webhook {webhook_id} not found")
+    del _webhooks[webhook_id]
+    return {"status": "deleted", "webhook_id": webhook_id}
+
+
+async def _fire_webhooks(event: str, payload: dict):
+    """Fire webhooks for a given event (called internally by the agent)."""
+    import httpx
+    for wh_id, wh in _webhooks.items():
+        if event in wh["events"]:
+            try:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    await client.post(wh["url"], json={
+                        "event": event,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        **payload,
+                    })
+            except Exception:
+                pass  # Fire and forget
 
 
 # ─── Admin ───

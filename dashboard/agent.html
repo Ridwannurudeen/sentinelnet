@@ -67,14 +67,16 @@
         async function load() {
             const container = document.getElementById('content');
             try {
-                const [scoreRes, histRes, graphRes] = await Promise.allSettled([
+                const [scoreRes, histRes, graphRes, classRes] = await Promise.allSettled([
                     fetch(`/trust/${agentId}`).then(r => r.ok ? r.json() : null),
                     fetch(`/trust/${agentId}/history`).then(r => r.ok ? r.json() : null),
                     fetch(`/trust/graph/${agentId}`).then(r => r.ok ? r.json() : null),
+                    fetch(`/api/classify/${agentId}`).then(r => r.ok ? r.json() : null),
                 ]);
                 const s = scoreRes.value;
                 const hist = histRes.value;
                 const graph = graphRes.value;
+                const classData = classRes.value;
 
                 if (!s) { container.innerHTML = `<div class="loading">Agent #${agentId} has not been scored yet.</div>`; return; }
 
@@ -176,6 +178,56 @@
                     <div style="font-size:11px;color:var(--muted);margin-top:10px">Projected using exponential decay (λ=${DECAY_LAMBDA}). Rescore resets decay.</div>
                 `;
 
+                // Classification badge
+                let classHtml = '';
+                if (classData && classData.classification) {
+                    const cl = classData.classification;
+                    const labelMap = {
+                        'defi_user': 'DeFi User', 'bridge_user': 'Bridge User', 'erc8004_native': 'ERC-8004 Native',
+                        'power_user': 'Power User', 'dormant': 'Dormant', 'narrow_focus': 'Narrow Focus',
+                        'sybil_suspect': 'Sybil Suspect', 'high_trust_verified': 'Verified', 'toxic_neighborhood': 'Toxic Network',
+                        'unclassified': 'Unclassified',
+                    };
+                    const labelColors = {
+                        'defi_user': 'var(--blue)', 'bridge_user': 'var(--cyan)', 'erc8004_native': 'var(--trust)',
+                        'power_user': 'var(--trust)', 'dormant': 'var(--muted)', 'narrow_focus': 'var(--caution)',
+                        'sybil_suspect': 'var(--sybil)', 'high_trust_verified': 'var(--trust)', 'toxic_neighborhood': 'var(--reject)',
+                        'unclassified': 'var(--muted)',
+                    };
+                    const tags = cl.labels.map(l => {
+                        const c = labelColors[l] || 'var(--sec)';
+                        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid ${c};color:${c};background:${c}11;margin-right:6px">${labelMap[l] || l}</span>`;
+                    }).join('');
+                    classHtml = `
+                        <div class="section">
+                            <h2>Agent Classification</h2>
+                            <div style="margin-bottom:8px">${tags}</div>
+                            <div style="font-size:12px;color:var(--muted)">${cl.interactions_analyzed} interactions analyzed</div>
+                        </div>
+                    `;
+                }
+
+                // Recovery recommendations
+                let recoveryHtml = '';
+                const recovery = exp.recovery || [];
+                if (recovery.length > 0) {
+                    const recItems = recovery.map(r => {
+                        const pColor = r.priority === 'critical' ? 'var(--reject)' : r.priority === 'high' ? 'var(--caution)' : 'var(--blue)';
+                        return `<li style="padding:10px 0;border-bottom:1px solid var(--border)">
+                            <span style="display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;color:${pColor};border:1px solid ${pColor};margin-right:8px;text-transform:uppercase">${r.priority}</span>
+                            <span style="font-size:11px;color:var(--muted)">${r.dimension} (${r.score}/100)</span>
+                            <div style="font-size:13px;color:var(--sec);margin-top:4px">${r.action}</div>
+                        </li>`;
+                    }).join('');
+                    recoveryHtml = `
+                        <div class="section" style="border-color:var(--caution);border-width:1px">
+                            <h2 style="color:var(--caution)">Recovery Path</h2>
+                            <div style="font-size:13px;color:var(--sec);margin-bottom:12px">Actions this agent can take to improve their trust score:</div>
+                            <ul class="explanation">${recItems}</ul>
+                        </div>
+                    `;
+                }
+
                 container.innerHTML = `
                     <div class="hero">
                         <div class="hero-left">
@@ -195,11 +247,15 @@
 
                     <div class="grid">${dimCards}</div>
 
+                    ${classHtml}
+
                     <div class="section">
                         <h2>Trust Analysis</h2>
                         <div style="font-size:14px;color:var(--text);margin-bottom:12px">${exp.summary || ''}</div>
                         <ul class="explanation">${factors}</ul>
                     </div>
+
+                    ${recoveryHtml}
 
                     <div class="section">
                         <h2>Trust Decay Projector</h2>

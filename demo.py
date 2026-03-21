@@ -177,6 +177,55 @@ def main():
         print(f"  {DIM}EAS not configured: {e}{RESET}")
     pause()
 
+    # 12. Agent classification
+    section("12. Agent behavior classification")
+    try:
+        cl = client.get("/api/classify/31253").json()
+        labels = cl.get("classification", {}).get("labels", [])
+        primary = cl.get("classification", {}).get("primary", "unknown")
+        print(f"  Agent 31253 classification:")
+        print(f"    Primary:  {BOLD}{primary}{RESET}")
+        print(f"    Labels:   {', '.join(labels)}")
+        print(f"    Edges:    {cl.get('classification', {}).get('interactions_analyzed', 0)} analyzed")
+    except Exception as e:
+        print(f"  {DIM}Classification failed: {e}{RESET}")
+    pause()
+
+    # 13. Interaction simulation
+    section("13. Trust interaction simulator")
+    try:
+        sim = client.post("/api/simulate", json={"agent_id": 31253, "interact_with": 1}).json()
+        print(f"  What if Agent #31253 interacts with Agent #1?")
+        print(f"    Current:   {BOLD}{sim['current_score']}{RESET} ({color_verdict(sim['current_verdict'])})")
+        print(f"    Target:    {BOLD}{sim['target_score']}{RESET} ({color_verdict(sim['target_verdict'])})")
+        print(f"    Predicted: {BOLD}{sim['predicted_score']}{RESET} ({color_verdict(sim['predicted_verdict'])})")
+        print(f"    Impact:    {sim['predicted_contagion']:+d} ({sim['direction']})")
+        if sim.get("verdict_change"):
+            vc = sim["verdict_change"]
+            print(f"    {RED}VERDICT CHANGE: {vc['from']} -> {vc['to']}{RESET}")
+        print(f"    {DIM}{sim['message']}{RESET}")
+    except Exception as e:
+        print(f"  {DIM}Simulation failed: {e}{RESET}")
+    pause()
+
+    # 14. Recovery recommendations
+    section("14. Trust recovery path")
+    try:
+        score = client.get("/trust/1").json()
+        recovery = score.get("explanation", {}).get("recovery", [])
+        if recovery:
+            print(f"  Agent #1 recovery recommendations ({len(recovery)} items):\n")
+            for r in recovery[:3]:
+                pcolor = RED if r['priority'] == 'critical' else YELLOW if r['priority'] == 'high' else BLUE
+                print(f"  [{pcolor}{r['priority'].upper()}{RESET}] {r['dimension']} ({r['score']}/100)")
+                print(f"    {DIM}{r['action']}{RESET}")
+                print()
+        else:
+            print(f"  {GREEN}Agent #1 is TRUSTED — no recovery needed{RESET}")
+    except Exception as e:
+        print(f"  {DIM}Recovery path not available: {e}{RESET}")
+    pause()
+
     # Summary
     section("SentinelNet — The immune system for the agent economy")
     print(f"  {BOLD}Live dashboard:{RESET}  {CYAN}{API}/dashboard{RESET}")
