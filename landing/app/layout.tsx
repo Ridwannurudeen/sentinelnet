@@ -23,6 +23,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="scroll-smooth">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.addEventListener('error', function(e) {
+  document.title = 'ERR: ' + e.message;
+  var d = document.createElement('pre');
+  d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#080810;color:#ff3344;padding:2rem;font-size:14px;white-space:pre-wrap;max-height:100vh;overflow:auto';
+  d.textContent = 'ERROR: ' + e.message + '\\n\\nFILE: ' + e.filename + ':' + e.lineno + ':' + e.colno + '\\n\\nSTACK: ' + (e.error && e.error.stack || 'none');
+  document.body.prepend(d);
+});`,
+          }}
+        />
+      </head>
       <body className={inter.className}>{children}</body>
     </html>
   );
