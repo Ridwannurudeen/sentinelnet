@@ -17,10 +17,12 @@ class Publisher:
 
     async def publish(self, agent_id: int, wallet: str, trust_score: int,
                       longevity: int, activity: int, counterparty: int,
-                      contract_risk: int, verdict: str) -> dict:
+                      contract_risk: int, verdict: str,
+                      agent_identity: int = 0) -> dict:
         evidence = self._build_evidence(
             agent_id, wallet, trust_score, longevity, activity,
-            counterparty, contract_risk, verdict, ["base", "ethereum"]
+            counterparty, contract_risk, verdict, ["base", "ethereum"],
+            agent_identity=agent_identity,
         )
         evidence_hash = hashlib.sha256(json.dumps(evidence).encode()).digest()
 
@@ -80,7 +82,8 @@ class Publisher:
             return r.json()
 
     def _build_evidence(self, agent_id, wallet, trust_score, longevity,
-                        activity, counterparty, contract_risk, verdict, chains):
+                        activity, counterparty, contract_risk, verdict, chains,
+                        agent_identity=0):
         return {
             "agent_id": agent_id,
             "wallet": wallet,
@@ -90,6 +93,7 @@ class Publisher:
                 "activity": activity,
                 "counterparty_quality": counterparty,
                 "contract_risk": contract_risk,
+                "agent_identity": agent_identity,
             },
             "verdict": verdict,
             "chains_analyzed": chains,

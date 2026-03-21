@@ -16,9 +16,15 @@ async def main():
     settings = Settings()
     agent = SentinelNetAgent(settings)
 
-    # Share the agent's db with the API
+    # Share the agent's db with the API and MCP
     import api as api_module
     api_module.db = agent.db
+    try:
+        import mcp.server as mcp_module
+        mcp_module.db = agent.db
+        mcp_module._agent_ref = agent
+    except Exception:
+        pass
 
     # Start agent
     await agent.start()

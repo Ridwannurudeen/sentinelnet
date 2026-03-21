@@ -9,12 +9,13 @@ def test_build_evidence_json():
         agent_id=42, wallet="0xabc",
         trust_score=73, longevity=85, activity=68,
         counterparty=79, contract_risk=62, verdict="TRUST",
-        chains=["base", "ethereum"],
+        chains=["base", "ethereum"], agent_identity=80,
     )
     assert evidence["agent_id"] == 42
     assert evidence["trust_score"] == 73
     assert "scored_at" in evidence
     assert evidence["scorer"] == "sentinelnet-v1"
+    assert evidence["breakdown"]["agent_identity"] == 80
 
 
 @pytest.mark.asyncio

@@ -7,13 +7,15 @@ logger = logging.getLogger(__name__)
 
 class Discovery:
     def __init__(self, erc8004, db, pipeline, self_agent_id: int,
-                 sweep_interval: int = 1800, rescore_after_hours: int = 24):
+                 sweep_interval: int = 1800, rescore_after_hours: int = 24,
+                 on_sweep_complete=None):
         self.erc8004 = erc8004
         self.db = db
         self.pipeline = pipeline
         self.self_agent_id = self_agent_id
         self.sweep_interval = sweep_interval
         self.rescore_after_hours = rescore_after_hours
+        self.on_sweep_complete = on_sweep_complete
         self._running = False
 
     async def find_new_agents(self) -> list:
@@ -64,6 +66,12 @@ class Discovery:
             except Exception as e:
                 logger.error(f"Failed to score agent {agent_id}: {e}")
             await asyncio.sleep(2)  # Rate limit: avoid hammering RPCs/APIs
+        # Run post-sweep analysis (sybil detection)
+        if self.on_sweep_complete:
+            try:
+                await self.on_sweep_complete()
+            except Exception as e:
+                logger.error(f"Post-sweep analysis failed: {e}")
         logger.info("Discovery sweep complete")
 
     async def run_loop(self):
