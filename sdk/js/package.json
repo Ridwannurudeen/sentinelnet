@@ -1,0 +1,15 @@
+{
+  "name": "sentinelnet",
+  "version": "0.1.0",
+  "description": "JavaScript SDK for SentinelNet — autonomous reputation scoring for ERC-8004 agents on Base",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "files": ["src/"],
+  "keywords": ["erc-8004", "trust", "reputation", "agents", "base", "blockchain", "web3"],
+  "license": "MIT",
+  "homepage": "https://sentinelnet.gudman.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ridwannurudeen/sentinelnet"
+  }
+}

@@ -50,6 +50,8 @@
             <tr><td><code>/badge/{agent_id}.svg</code></td><td>GET</td><td>Embeddable SVG trust badge</td></tr>
             <tr><td><code>/api/scores</code></td><td>GET</td><td>All scored agents</td></tr>
             <tr><td><code>/api/stats</code></td><td>GET</td><td>Ecosystem statistics</td></tr>
+            <tr><td><code>/api/threats</code></td><td>GET</td><td>Real-time threat intelligence feed</td></tr>
+            <tr><td><code>/api/graph-data</code></td><td>GET</td><td>Full agent graph for visualization</td></tr>
             <tr><td><code>/api/health</code></td><td>GET</td><td>Health check</td></tr>
         </table>
 
@@ -99,6 +101,49 @@ Content-Type: application/json
         <h3>Trust Badge</h3>
         <p>Embed a live trust badge on any site:</p>
 <pre>&lt;img src="https://sentinelnet.gudman.xyz/badge/31253.svg" alt="Trust Score"&gt;</pre>
+
+        <h2>Python SDK</h2>
+        <p>Install: <code>pip install sentinelnet</code></p>
+<pre>from sentinelnet import SentinelNet
+
+sn = SentinelNet()
+
+# Get trust score
+score = sn.get_trust(31253)
+print(f"Verdict: {score['verdict']}")
+
+# Gate an interaction
+if sn.trust_gate(agent_id=42, min_score=55):
+    print("Safe to interact")
+
+# Batch query
+results = sn.batch_trust([1, 2, 3, 100])
+
+# Async usage
+from sentinelnet import AsyncSentinelNet
+async with AsyncSentinelNet() as sn:
+    score = await sn.get_trust(31253)</pre>
+
+        <h2>JavaScript SDK</h2>
+        <p>Install: <code>npm install sentinelnet</code></p>
+<pre>import SentinelNet from "sentinelnet";
+
+const sn = new SentinelNet();
+
+// Get trust score
+const score = await sn.getTrust(31253);
+console.log(`Verdict: ${score.verdict}`);
+
+// Gate an interaction
+if (await sn.trustGate(42, 55)) {
+  console.log("Safe to interact");
+}
+
+// Batch query
+const results = await sn.batchTrust([1, 2, 3, 100]);
+
+// Threat intelligence
+const threats = await sn.getThreats(10);</pre>
 
         <h2>Smart Contract Integration</h2>
         <p>Use <code>TrustGate.sol</code> to gate on-chain interactions by trust score.</p>
@@ -154,7 +199,7 @@ contract RiskChecker {
         </table>
 
         <h2>MCP Integration</h2>
-        <p>4 tools available via Model Context Protocol for agent-to-agent trust queries:</p>
+        <p>5 tools available via Model Context Protocol for agent-to-agent trust queries:</p>
 
         <table>
             <tr><th>Tool</th><th>Input</th><th>Description</th></tr>
@@ -162,6 +207,7 @@ contract RiskChecker {
             <tr><td><code>list_scored_agents</code></td><td><code>verdict?</code>, <code>limit?</code></td><td>Browse all scored agents</td></tr>
             <tr><td><code>get_ecosystem_stats</code></td><td>none</td><td>Aggregate trust statistics</td></tr>
             <tr><td><code>get_score_history</code></td><td><code>agent_id</code>, <code>limit?</code></td><td>Score trends over time</td></tr>
+            <tr><td><code>get_threat_feed</code></td><td><code>limit?</code></td><td>Real-time threat intelligence feed</td></tr>
         </table>
 
         <div class="note">
@@ -178,9 +224,33 @@ contract RiskChecker {
             <tr><td>Agent Identity</td><td>25%</td><td>ERC-8004 metadata, reputation, wallet exclusivity</td></tr>
         </table>
 
-        <p><strong>Sybil penalty:</strong> -20 points for agents in coordinated clusters (3+ agents interacting only with each other).</p>
-        <p><strong>Trust decay:</strong> <code>effective_score = base_score * e^(-0.01 * days)</code>. Applied at query time.</p>
+        <p><strong>Trust contagion:</strong> PageRank-style recursive propagation. Interacting with REJECT agents reduces your score; interacting with TRUST agents can boost it. Adjustments capped at -15 to +10.</p>
+        <p><strong>Sybil detection:</strong> Dual-method: (1) wallet-sharing clusters (3+ agents on same wallet) and (2) interaction graph clique detection. Penalty: -20 points.</p>
+        <p><strong>Trust decay:</strong> <code>effective_score = base_score * e^(-0.01 * days)</code>. Applied at query time. Stale after 7 days.</p>
         <p><strong>Verdicts:</strong> TRUST (&ge;55) | CAUTION (40-54) | REJECT (&lt;40)</p>
+
+        <h2>Threat Intelligence</h2>
+        <p>Real-time feed of ecosystem threats detected by the autonomous agent:</p>
+        <table>
+            <tr><th>Threat Type</th><th>Description</th></tr>
+            <tr><td><code>SYBIL_CLUSTER</code></td><td>Cluster of agents sharing wallets or forming closed interaction loops</td></tr>
+            <tr><td><code>TRUST_DEGRADED</code></td><td>Agent's trust score dropped significantly between rescores</td></tr>
+            <tr><td><code>CONTAGION_NEGATIVE</code></td><td>Agent's score penalized due to interactions with low-trust neighbors</td></tr>
+        </table>
+<pre>GET /api/threats?limit=5
+
+{
+  "threats": [
+    {
+      "threat_type": "SYBIL_CLUSTER",
+      "severity": "HIGH",
+      "agent_id": 42,
+      "details": "Cluster of 5 agents sharing wallet 0xabc...",
+      "created_at": "2026-03-21T12:00:00"
+    }
+  ],
+  "count": 1
+}</pre>
     </div>
 </body>
 </html>
