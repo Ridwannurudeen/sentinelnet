@@ -29,6 +29,8 @@ class ERC8004Client:
             self.reputation = w3.eth.contract(address=self.reputation_addr, abi=REPUTATION_ABI)
         else:
             self.reputation = None
+        self._nonce_lock = asyncio.Lock()
+        self._current_nonce = None
 
     async def get_total_agents(self) -> int:
         """Get total registered agents from Identity Registry via totalSupply."""
@@ -110,9 +112,13 @@ class ERC8004Client:
             elif isinstance(feedback_hash, bytes) and len(feedback_hash) > 32:
                 feedback_hash = feedback_hash[:32]
 
-            nonce = await asyncio.to_thread(
-                self.w3.eth.get_transaction_count, self.account.address
-            )
+            async with self._nonce_lock:
+                if self._current_nonce is None:
+                    self._current_nonce = await asyncio.to_thread(
+                        self.w3.eth.get_transaction_count, self.account.address
+                    )
+                nonce = self._current_nonce
+                self._current_nonce += 1
 
             tx = self.reputation.functions.giveFeedback(
                 agent_id,
