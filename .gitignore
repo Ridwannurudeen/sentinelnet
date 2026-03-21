@@ -8,3 +8,4 @@ artifacts/
 cache/
 .pytest_cache/
 submit.py
+publish.py

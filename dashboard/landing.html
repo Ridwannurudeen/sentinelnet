@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelNet — Trust Layer for ERC-8004 Agents on Base</title>
+    <meta name="description" content="Autonomous reputation watchdog for ERC-8004 agents. 5-dimensional trust scoring with sybil detection, IPFS evidence, and on-chain composability.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
+    <style>
+        :root { --bg: #080810; --card: #0f0f1a; --border: #1e1e3a; --text: #e8e8f0; --muted: #555570; --sec: #8888aa; --blue: #0088ff; --cyan: #00ccff; --trust: #00dd77; --caution: #ffaa22; --reject: #ff3344; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        a { color: var(--blue); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; }
+        .nav .logo { color: var(--cyan); font-weight: 800; font-size: 20px; letter-spacing: -0.5px; }
+        .nav-links { display: flex; gap: 20px; font-size: 13px; }
+        .nav-links a { color: var(--sec); }
+        .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+        .hero { text-align: center; padding: 80px 28px 60px; }
+        .hero h1 { font-size: 48px; font-weight: 800; color: var(--text); line-height: 1.15; max-width: 700px; margin: 0 auto; }
+        .hero h1 span { color: var(--cyan); }
+        .hero p { font-size: 18px; color: var(--sec); max-width: 600px; margin: 20px auto 0; line-height: 1.6; }
+        .hero-actions { display: flex; gap: 12px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+        .btn { padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; }
+        .btn-primary { background: var(--cyan); color: #080810; }
+        .btn-primary:hover { opacity: 0.9; text-decoration: none; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--sec); }
+        .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); text-decoration: none; }
+
+        .live-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 800px; margin: 0 auto 60px; padding: 0 28px; }
+        .live-stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; }
+        .live-stat .num { font-size: 36px; font-weight: 800; color: var(--cyan); }
+        .live-stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }
+        .live-stat.trust .num { color: var(--trust); }
+        .live-stat.caution .num { color: var(--caution); }
+        .live-stat.reject .num { color: var(--reject); }
+
+        .features { max-width: 900px; margin: 0 auto 60px; padding: 0 28px; }
+        .features h2 { font-size: 28px; text-align: center; margin-bottom: 32px; color: var(--text); }
+        .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .feature { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .feature h3 { font-size: 15px; color: var(--cyan); margin-bottom: 8px; }
+        .feature p { font-size: 13px; color: var(--sec); line-height: 1.5; }
+
+        .integrate { max-width: 700px; margin: 0 auto 60px; padding: 0 28px; }
+        .integrate h2 { font-size: 28px; text-align: center; margin-bottom: 8px; }
+        .integrate .sub { text-align: center; color: var(--sec); margin-bottom: 24px; font-size: 14px; }
+        .code-block { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; overflow-x: auto; }
+        .code-block pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; color: var(--sec); line-height: 1.6; }
+        .code-block .comment { color: var(--muted); }
+        .code-block .kw { color: var(--cyan); }
+        .code-block .str { color: var(--trust); }
+        .code-block .fn { color: var(--caution); }
+        .tab-btns { display: flex; gap: 2px; margin-bottom: 0; }
+        .tab-btn { padding: 8px 16px; background: var(--card); border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; font-size: 12px; color: var(--muted); cursor: pointer; font-family: inherit; }
+        .tab-btn.active { color: var(--cyan); border-color: var(--cyan); border-bottom: 1px solid var(--card); position: relative; z-index: 1; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .code-block.tabbed { border-top-left-radius: 0; margin-top: -1px; }
+
+        .contracts { max-width: 700px; margin: 0 auto 60px; padding: 0 28px; }
+        .contracts h2 { font-size: 28px; text-align: center; margin-bottom: 24px; }
+        .contract-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .contract-card .name { font-weight: 600; font-size: 14px; }
+        .contract-card .addr { font-family: monospace; font-size: 12px; color: var(--sec); }
+
+        .footer { border-top: 1px solid var(--border); padding: 24px 28px; text-align: center; font-size: 12px; color: var(--muted); }
+
+        @media (max-width: 700px) {
+            .hero h1 { font-size: 32px; }
+            .live-stats { grid-template-columns: repeat(2, 1fr); }
+            .feature-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <span class="logo">SentinelNet</span>
+        <div class="nav-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/docs">API Docs</a>
+            <a href="/docs-guide">Integration Guide</a>
+            <a href="https://github.com/Ridwannurudeen/sentinelnet" target="_blank">GitHub</a>
+        </div>
+    </div>
+
+    <div class="hero">
+        <h1>The <span>trust layer</span> for ERC-8004 agents on Base</h1>
+        <p>SentinelNet scores every agent's trustworthiness across 5 dimensions, pins evidence to IPFS, and writes composable reputation on-chain. One query. One trust score. Zero human involvement.</p>
+        <div class="hero-actions">
+            <a href="/dashboard" class="btn btn-primary">Live Dashboard</a>
+            <a href="/docs" class="btn btn-outline">API Docs</a>
+            <a href="/docs-guide" class="btn btn-outline">Integrate</a>
+        </div>
+    </div>
+
+    <div class="live-stats">
+        <div class="live-stat"><div class="num" id="ls-total">--</div><div class="lbl">Agents Scored</div></div>
+        <div class="live-stat trust"><div class="num" id="ls-trust">--</div><div class="lbl">Trusted</div></div>
+        <div class="live-stat caution"><div class="num" id="ls-caution">--</div><div class="lbl">Caution</div></div>
+        <div class="live-stat reject"><div class="num" id="ls-reject">--</div><div class="lbl">Rejected</div></div>
+    </div>
+
+    <div class="features">
+        <h2>Why SentinelNet</h2>
+        <div class="feature-grid">
+            <div class="feature">
+                <h3>5-Dimension Scoring</h3>
+                <p>Longevity, activity, counterparty quality, contract risk, and ERC-8004 identity. Each dimension weighted and combined with sybil detection.</p>
+            </div>
+            <div class="feature">
+                <h3>On-Chain Composability</h3>
+                <p>TrustGate contract lets other smart contracts gate execution by trust score. <code>onlyTrusted(agentId)</code> — one modifier, done.</p>
+            </div>
+            <div class="feature">
+                <h3>Economic Accountability</h3>
+                <p>ETH staked behind every published score. 72-hour challenge window. On-chain TrustDegraded events when scores drop.</p>
+            </div>
+            <div class="feature">
+                <h3>IPFS Evidence</h3>
+                <p>Full analysis JSON pinned to IPFS for every scored agent. Verifiable, immutable, auditable. Nothing hidden.</p>
+            </div>
+            <div class="feature">
+                <h3>Trust Decay</h3>
+                <p>Scores decay exponentially over time. A 90 becomes 67 after 30 days. Trust is earned continuously, not once.</p>
+            </div>
+            <div class="feature">
+                <h3>Sybil Detection</h3>
+                <p>Post-sweep cluster analysis flags coordinated agent rings. -20 point penalty. Automatic re-scoring of flagged agents.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="integrate">
+        <h2>Integrate in minutes</h2>
+        <p class="sub">Query trust from any environment</p>
+        <div class="tab-btns">
+            <button class="tab-btn active" onclick="showTab('solidity')">Solidity</button>
+            <button class="tab-btn" onclick="showTab('curl')">cURL</button>
+            <button class="tab-btn" onclick="showTab('python')">Python</button>
+            <button class="tab-btn" onclick="showTab('mcp')">MCP</button>
+        </div>
+        <div class="code-block tabbed">
+            <div class="tab-content active" id="tab-solidity"><pre><span class="comment">// Gate any function by agent trust score</span>
+<span class="kw">import</span> {TrustGate} <span class="kw">from</span> <span class="str">"sentinelnet/TrustGate.sol"</span>;
+
+<span class="kw">contract</span> <span class="fn">MyMarketplace</span> <span class="kw">is</span> TrustGate {
+    <span class="kw">function</span> <span class="fn">execute</span>(uint256 agentId)
+        <span class="kw">external</span> <span class="fn">onlyTrusted</span>(agentId)
+    {
+        <span class="comment">// Only runs if agent is TRUSTED</span>
+    }
+}</pre></div>
+            <div class="tab-content" id="tab-curl"><pre><span class="comment"># Check single agent</span>
+curl <span class="str">https://sentinelnet.gudman.xyz/trust/31253</span>
+
+<span class="comment"># Batch query</span>
+curl -X POST <span class="str">https://sentinelnet.gudman.xyz/trust/batch</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{"agent_ids": [1, 2, 3]}'</span>
+
+<span class="comment"># Embed trust badge</span>
+&lt;img src=<span class="str">"https://sentinelnet.gudman.xyz/badge/31253.svg"</span>&gt;</pre></div>
+            <div class="tab-content" id="tab-python"><pre><span class="kw">import</span> httpx
+
+<span class="kw">async def</span> <span class="fn">check_trust</span>(agent_id: int) -> dict:
+    <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+        r = <span class="kw">await</span> client.get(
+            <span class="str">f"https://sentinelnet.gudman.xyz/trust/{agent_id}"</span>
+        )
+        <span class="kw">return</span> r.json()
+
+<span class="comment"># Returns: {trust_score, verdict, explanation, ...}</span></pre></div>
+            <div class="tab-content" id="tab-mcp"><pre><span class="comment">// MCP tool call — any agent can query</span>
+{
+    <span class="str">"name"</span>: <span class="str">"check_trust"</span>,
+    <span class="str">"arguments"</span>: {
+        <span class="str">"agent_id"</span>: 31253,
+        <span class="str">"fresh"</span>: true
+    }
+}
+
+<span class="comment">// Also available:</span>
+<span class="comment">// list_scored_agents, get_ecosystem_stats,</span>
+<span class="comment">// get_score_history</span></pre></div>
+        </div>
+    </div>
+
+    <div class="contracts">
+        <h2>On-Chain Contracts</h2>
+        <a class="contract-card" href="https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9" target="_blank">
+            <div>
+                <div class="name">SentinelNetStaking</div>
+                <div class="addr">0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9</div>
+            </div>
+            <span style="color:var(--trust);font-size:12px">Base Mainnet</span>
+        </a>
+        <a class="contract-card" href="https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" target="_blank">
+            <div>
+                <div class="name">ERC-8004 Reputation Registry</div>
+                <div class="addr">0x8004BAa17C55a88189AE136b182e5fdA19dE9b63</div>
+            </div>
+            <span style="color:var(--trust);font-size:12px">Base Mainnet</span>
+        </a>
+        <a class="contract-card" href="https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" target="_blank">
+            <div>
+                <div class="name">ERC-8004 Identity Registry</div>
+                <div class="addr">0x8004A169FB4a3325136EB29fA0ceB6D2e539a432</div>
+            </div>
+            <span style="color:var(--trust);font-size:12px">Base Mainnet</span>
+        </a>
+    </div>
+
+    <div class="footer">
+        SentinelNet v2.0 &mdash; Agent #31253 &mdash; Autonomous reputation infrastructure for the ERC-8004 ecosystem on Base
+    </div>
+
+    <script>
+        function showTab(id) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + id).classList.add('active');
+        }
+        fetch('/api/stats').then(r => r.json()).then(d => {
+            document.getElementById('ls-total').textContent = d.agents_scored;
+            document.getElementById('ls-trust').textContent = d.verdicts.TRUST;
+            document.getElementById('ls-caution').textContent = d.verdicts.CAUTION;
+            document.getElementById('ls-reject').textContent = d.verdicts.REJECT;
+        }).catch(() => {});
+    </script>
+</body>
+</html>

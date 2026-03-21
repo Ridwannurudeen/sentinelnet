@@ -284,7 +284,7 @@
                 const decay = s.decay_days > 0.1 ? `<div class="decay-info">${s.trust_score_raw}\u2192${s.trust_score} (${s.decay_days}d)</div>` : '';
                 const ai = s.agent_identity !== undefined ? s.agent_identity : '--';
                 return `<tr>
-                    <td><a class="agent-id-link" href="/trust/${s.agent_id}" target="_blank">#${s.agent_id}</a>${sybil}${stale}</td>
+                    <td><a class="agent-id-link" href="/agent/${s.agent_id}">#${s.agent_id}</a>${sybil}${stale}</td>
                     <td><span class="mono" title="${s.wallet}">${shortWallet(s.wallet)}</span></td>
                     <td class="score-cell" style="color:${scoreColor(s.trust_score)}">
                         ${s.trust_score}

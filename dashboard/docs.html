@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integration Guide — SentinelNet</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
+    <style>
+        :root { --bg: #080810; --card: #0f0f1a; --border: #1e1e3a; --text: #e8e8f0; --muted: #555570; --sec: #8888aa; --blue: #0088ff; --cyan: #00ccff; --trust: #00dd77; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+        a { color: var(--blue); }
+        .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 16px; font-size: 13px; }
+        .nav .logo { color: var(--cyan); font-weight: 800; font-size: 18px; text-decoration: none; }
+        .nav .sep { color: var(--muted); }
+        .container { max-width: 760px; margin: 0 auto; padding: 40px 28px; }
+        h1 { font-size: 32px; margin-bottom: 8px; }
+        h2 { font-size: 20px; margin: 36px 0 12px; color: var(--cyan); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        h3 { font-size: 15px; margin: 20px 0 8px; color: var(--text); }
+        p { font-size: 14px; color: var(--sec); line-height: 1.7; margin-bottom: 12px; }
+        .subtitle { font-size: 16px; color: var(--sec); margin-bottom: 32px; }
+        pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; color: var(--sec); line-height: 1.6; margin-bottom: 16px; }
+        code { font-family: 'SF Mono', monospace; font-size: 12px; background: var(--card); padding: 2px 6px; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+        th { text-align: left; padding: 8px 12px; background: var(--card); font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid var(--border); }
+        td { padding: 8px 12px; font-size: 13px; border: 1px solid var(--border); color: var(--sec); }
+        td code { font-size: 11px; }
+        .note { background: rgba(0,136,255,0.06); border: 1px solid rgba(0,136,255,0.2); border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--sec); margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/" class="logo">SentinelNet</a>
+        <span class="sep">/</span>
+        <span style="color:var(--text)">Integration Guide</span>
+    </div>
+    <div class="container">
+        <h1>Integration Guide</h1>
+        <p class="subtitle">Add trust-gated agent interactions to your project in minutes.</p>
+
+        <h2>REST API</h2>
+        <p>Base URL: <code>https://sentinelnet.gudman.xyz</code></p>
+
+        <table>
+            <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+            <tr><td><code>/trust/{agent_id}</code></td><td>GET</td><td>Trust score with decay + explanation</td></tr>
+            <tr><td><code>/trust/{agent_id}/history</code></td><td>GET</td><td>Score history for trend analysis</td></tr>
+            <tr><td><code>/trust/batch</code></td><td>POST</td><td>Batch query up to 100 agents</td></tr>
+            <tr><td><code>/trust/graph/{agent_id}</code></td><td>GET</td><td>Counterparty trust neighborhood</td></tr>
+            <tr><td><code>/badge/{agent_id}.svg</code></td><td>GET</td><td>Embeddable SVG trust badge</td></tr>
+            <tr><td><code>/api/scores</code></td><td>GET</td><td>All scored agents</td></tr>
+            <tr><td><code>/api/stats</code></td><td>GET</td><td>Ecosystem statistics</td></tr>
+            <tr><td><code>/api/health</code></td><td>GET</td><td>Health check</td></tr>
+        </table>
+
+        <h3>Single Agent Query</h3>
+<pre>GET /trust/31253
+
+{
+  "agent_id": 31253,
+  "trust_score": 70,
+  "trust_score_raw": 72,
+  "verdict": "TRUST",
+  "longevity": 85,
+  "activity": 68,
+  "counterparty": 79,
+  "contract_risk": 62,
+  "agent_identity": 80,
+  "decay_days": 1.5,
+  "is_stale": false,
+  "evidence_uri": "ipfs://Qm...",
+  "explanation": {
+    "summary": "Agent is TRUSTED with a score of 70. Safe for interaction.",
+    "factors": [
+      "Established wallet with strong history (longevity: 85/100)",
+      "High transaction activity and engagement (activity: 68/100)",
+      ...
+    ]
+  }
+}</pre>
+
+        <h3>Batch Query</h3>
+<pre>POST /trust/batch
+Content-Type: application/json
+
+{"agent_ids": [1, 2, 3, 31253]}
+
+{
+  "results": {
+    "1": {"trust_score": 48, "verdict": "CAUTION", ...},
+    "2": {"trust_score": 62, "verdict": "TRUST", ...},
+    "3": null,
+    "31253": {"trust_score": 70, "verdict": "TRUST", ...}
+  },
+  "queried": 4,
+  "found": 3
+}</pre>
+
+        <h3>Trust Badge</h3>
+        <p>Embed a live trust badge on any site:</p>
+<pre>&lt;img src="https://sentinelnet.gudman.xyz/badge/31253.svg" alt="Trust Score"&gt;</pre>
+
+        <h2>Smart Contract Integration</h2>
+        <p>Use <code>TrustGate.sol</code> to gate on-chain interactions by trust score.</p>
+
+        <h3>Import and Use</h3>
+<pre>// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import {TrustGate} from "sentinelnet/TrustGate.sol";
+
+contract AgentMarketplace is TrustGate {
+    // Only trusted agents can list services
+    function listService(uint256 agentId, string calldata name)
+        external onlyTrusted(agentId)
+    {
+        // Executes only if agent has TRUST verdict
+    }
+
+    // Block rejected agents, allow caution with limits
+    function requestService(uint256 agentId)
+        external onlyNotRejected(agentId)
+    {
+        // Allows TRUST and CAUTION, blocks REJECT
+    }
+}
+
+contract RiskChecker {
+    TrustGate public gate;
+
+    function checkBeforeTransfer(uint256 agentId) external view returns (bool) {
+        return gate.isTrusted(agentId);
+    }
+
+    function getAgentRisk(uint256 agentId) external view returns (string memory) {
+        return gate.getVerdict(agentId);  // "TRUST", "CAUTION", "REJECT", "UNSCORED"
+    }
+}</pre>
+
+        <h3>Available Functions</h3>
+        <table>
+            <tr><th>Function</th><th>Returns</th><th>Description</th></tr>
+            <tr><td><code>isTrusted(agentId)</code></td><td><code>bool</code></td><td>True if verdict is TRUST</td></tr>
+            <tr><td><code>getTrustScore(agentId)</code></td><td><code>uint8</code></td><td>Score 0-100</td></tr>
+            <tr><td><code>getVerdict(agentId)</code></td><td><code>string</code></td><td>TRUST / CAUTION / REJECT / UNSCORED</td></tr>
+            <tr><td><code>getTrustRecord(agentId)</code></td><td><code>tuple</code></td><td>Full record with evidence URI</td></tr>
+        </table>
+
+        <h3>Modifiers</h3>
+        <table>
+            <tr><th>Modifier</th><th>Reverts When</th></tr>
+            <tr><td><code>onlyTrusted(agentId)</code></td><td>Agent is not TRUST verdict</td></tr>
+            <tr><td><code>onlyNotRejected(agentId)</code></td><td>Agent is REJECT verdict</td></tr>
+        </table>
+
+        <h2>MCP Integration</h2>
+        <p>4 tools available via Model Context Protocol for agent-to-agent trust queries:</p>
+
+        <table>
+            <tr><th>Tool</th><th>Input</th><th>Description</th></tr>
+            <tr><td><code>check_trust</code></td><td><code>agent_id</code>, <code>fresh?</code></td><td>Score lookup or fresh on-chain analysis</td></tr>
+            <tr><td><code>list_scored_agents</code></td><td><code>verdict?</code>, <code>limit?</code></td><td>Browse all scored agents</td></tr>
+            <tr><td><code>get_ecosystem_stats</code></td><td>none</td><td>Aggregate trust statistics</td></tr>
+            <tr><td><code>get_score_history</code></td><td><code>agent_id</code>, <code>limit?</code></td><td>Score trends over time</td></tr>
+        </table>
+
+        <div class="note">
+            Interactive API documentation is available at <a href="/docs">/docs</a> (Swagger UI).
+        </div>
+
+        <h2>Scoring Model</h2>
+        <table>
+            <tr><th>Dimension</th><th>Weight</th><th>Signal</th></tr>
+            <tr><td>Longevity</td><td>15%</td><td>Wallet age (logarithmic curve)</td></tr>
+            <tr><td>Activity</td><td>20%</td><td>Tx volume, active days, ETH balance</td></tr>
+            <tr><td>Counterparty Quality</td><td>20%</td><td>Verified vs flagged interaction ratio</td></tr>
+            <tr><td>Contract Risk</td><td>20%</td><td>Malicious contract exposure</td></tr>
+            <tr><td>Agent Identity</td><td>25%</td><td>ERC-8004 metadata, reputation, wallet exclusivity</td></tr>
+        </table>
+
+        <p><strong>Sybil penalty:</strong> -20 points for agents in coordinated clusters (3+ agents interacting only with each other).</p>
+        <p><strong>Trust decay:</strong> <code>effective_score = base_score * e^(-0.01 * days)</code>. Applied at query time.</p>
+        <p><strong>Verdicts:</strong> TRUST (&ge;55) | CAUTION (40-54) | REJECT (&lt;40)</p>
+    </div>
+</body>
+</html>
