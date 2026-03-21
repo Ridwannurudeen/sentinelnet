@@ -9,7 +9,6 @@ import ScrollReveal from "./ScrollReveal";
 const TAB_KEYS = Object.keys(CODE_TABS) as (keyof typeof CODE_TABS)[];
 
 function highlightSyntax(code: string, lang: string): string {
-  // Simple keyword highlighting via class spans
   const keywords: Record<string, string[]> = {
     Solidity: ["import", "contract", "function", "external", "is", "uint256"],
     cURL: ["curl", "POST", "GET"],
@@ -17,31 +16,36 @@ function highlightSyntax(code: string, lang: string): string {
     MCP: ["name", "arguments", "true"],
   };
 
-  let result = code
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // Highlight comments
-  result = result.replace(
-    /(\/\/.*$|#.*$)/gm,
-    '<span class="text-muted">$1</span>'
-  );
-
-  // Highlight strings
-  result = result.replace(
-    /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g,
-    '<span class="text-trust">$1</span>'
-  );
-
-  // Highlight keywords
   const kws = keywords[lang] || [];
-  kws.forEach((kw) => {
-    const re = new RegExp(`\\b(${kw})\\b`, "g");
-    result = result.replace(re, '<span class="text-cyan font-semibold">$1</span>');
-  });
 
-  return result;
+  return code
+    .split("\n")
+    .map((line) => {
+      const escaped = line
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      const trimmed = escaped.trimStart();
+      if (trimmed.startsWith("//") || trimmed.startsWith("#")) {
+        return `<span class="text-muted">${escaped}</span>`;
+      }
+
+      let result = escaped.replace(
+        /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g,
+        '<span class="text-trust">$1</span>'
+      );
+
+      kws.forEach((kw) => {
+        result = result.replace(
+          new RegExp(`\\b(${kw})\\b`, "g"),
+          '<span class="text-cyan font-semibold">$1</span>'
+        );
+      });
+
+      return result;
+    })
+    .join("\n");
 }
 
 export default function CodeTabs() {
