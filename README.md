@@ -15,8 +15,8 @@ SentinelNet is not a demo. It's running in production on Base Mainnet.
 - **IPFS evidence** pinned for every score (e.g. [ipfs://QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm](https://gateway.pinata.cloud/ipfs/QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm))
 - **Staking contract** deployed at [`0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9`](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9)
 - **Agent ID 31253** registered on-chain via ERC-8004 Identity Registry
-- **Live dashboard**: `http://75.119.153.252:8004/dashboard`
-- **REST API**: `http://75.119.153.252:8004/api/scores`
+- **Live dashboard**: https://sentinelnet.gudman.xyz/dashboard
+- **REST API**: https://sentinelnet.gudman.xyz/api/scores
 
 ## The Problem
 
