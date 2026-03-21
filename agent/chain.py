@@ -20,6 +20,7 @@ class WalletData:
     unverified_contracts: int
     active_days: int
     total_days: int
+    eth_balance: float = 0.0
 
     @property
     def wallet_age_days(self) -> int:
@@ -63,6 +64,18 @@ class ChainFetcher:
                 "active_days": 0, "total_days": 0,
             }
 
+        # Fetch ETH balance on Base
+        eth_balance = 0.0
+        try:
+            from web3 import Web3
+            w3 = Web3(Web3.HTTPProvider(self.base_rpc))
+            bal_wei = await asyncio.to_thread(
+                w3.eth.get_balance, Web3.to_checksum_address(address)
+            )
+            eth_balance = bal_wei / 1e18
+        except Exception as e:
+            logger.debug(f"Balance fetch failed for {address}: {e}")
+
         all_counterparties = base_data["counterparties"] | eth_data["counterparties"]
         all_contracts = base_data["contracts"] + eth_data["contracts"]
         first_tx = min(
@@ -89,6 +102,7 @@ class ChainFetcher:
             unverified_contracts=max(0, unverified),
             active_days=base_data.get("active_days", 0) + eth_data.get("active_days", 0),
             total_days=max(base_data.get("total_days", 0), eth_data.get("total_days", 0)),
+            eth_balance=eth_balance,
         )
 
     async def _fetch_chain(self, address: str, rpc_url: str, chain: str) -> dict:

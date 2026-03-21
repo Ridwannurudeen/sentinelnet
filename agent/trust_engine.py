@@ -2,10 +2,11 @@ import math
 from dataclasses import dataclass
 
 WEIGHTS = {
-    "longevity": 0.20,
-    "activity": 0.25,
-    "counterparty": 0.30,
-    "contract_risk": 0.25,
+    "longevity": 0.15,
+    "activity": 0.20,
+    "counterparty": 0.20,
+    "contract_risk": 0.20,
+    "agent_identity": 0.25,
 }
 
 DECAY_LAMBDA = 0.01
@@ -21,18 +22,21 @@ class TrustResult:
     activity: int
     counterparty: int
     contract_risk: int
+    agent_identity: int = 0
     sybil_risk: bool = False
     decay_applied: bool = False
 
 
 class TrustEngine:
     def compute(self, longevity: int, activity: int, counterparty: int,
-                contract_risk: int, sybil_risk: bool = False) -> TrustResult:
+                contract_risk: int, agent_identity: int = 0,
+                sybil_risk: bool = False) -> TrustResult:
         raw = (
             longevity * WEIGHTS["longevity"]
             + activity * WEIGHTS["activity"]
             + counterparty * WEIGHTS["counterparty"]
             + contract_risk * WEIGHTS["contract_risk"]
+            + agent_identity * WEIGHTS["agent_identity"]
         )
         score = round(raw)
         if sybil_risk:
@@ -45,6 +49,7 @@ class TrustEngine:
             activity=activity,
             counterparty=counterparty,
             contract_risk=contract_risk,
+            agent_identity=agent_identity,
             sybil_risk=sybil_risk,
         )
 
