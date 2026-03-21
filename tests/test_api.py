@@ -19,7 +19,7 @@ async def test_health():
         r = await client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["service"] == "sentinelnet"
-    assert r.json()["version"] == "2.0.0"
+    assert r.json()["version"] == "2.1.0"
 
 
 @pytest.mark.asyncio

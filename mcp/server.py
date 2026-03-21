@@ -80,6 +80,22 @@ async def list_tools():
                 "required": ["agent_id"],
             },
         ),
+        Tool(
+            name="get_threat_feed",
+            description="Get real-time threat intelligence feed: sybil clusters, trust degradations, contagion events. "
+                        "Use this to protect your agent from interacting with compromised or malicious agents.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max threat events to return (default 20)",
+                        "default": 20,
+                    },
+                },
+                "required": [],
+            },
+        ),
     ]
 
 
@@ -96,6 +112,8 @@ async def call_tool(name: str, arguments: dict):
         return await _handle_stats(arguments)
     elif name == "get_score_history":
         return await _handle_history(arguments)
+    elif name == "get_threat_feed":
+        return await _handle_threats(arguments)
     return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
 
 
@@ -172,6 +190,15 @@ async def _handle_history(args):
         "agent_id": agent_id,
         "history": history,
         "entries": len(history),
+    }, default=str))]
+
+
+async def _handle_threats(args):
+    limit = args.get("limit", 20)
+    threats = await db.get_threats(limit=limit)
+    return [TextContent(type="text", text=json.dumps({
+        "threats": threats,
+        "count": len(threats),
     }, default=str))]
 
 

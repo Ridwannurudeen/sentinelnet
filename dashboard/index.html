@@ -116,6 +116,24 @@
             table { min-width: 900px; }
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* ─── Threat Ticker ─── */
+        .threat-ticker { background: rgba(255,51,68,0.04); border-bottom: 1px solid rgba(255,51,68,0.15); padding: 0; overflow: hidden; height: 32px; position: relative; }
+        .threat-ticker-inner { display: flex; align-items: center; height: 100%; animation: ticker-scroll 30s linear infinite; white-space: nowrap; }
+        .threat-item { display: inline-flex; align-items: center; gap: 6px; padding: 0 24px; font-size: 11px; color: var(--text-secondary); }
+        .threat-item .threat-dot { width: 5px; height: 5px; border-radius: 50%; }
+        .threat-item .threat-dot.high { background: var(--reject); }
+        .threat-item .threat-dot.medium { background: var(--caution); }
+        .threat-item .threat-dot.low { background: var(--accent-blue); }
+        .threat-item .threat-time { color: var(--text-muted); font-size: 10px; }
+        .threat-label { display: inline-flex; align-items: center; gap: 4px; padding: 0 12px; font-size: 10px; color: var(--reject); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(255,51,68,0.08); height: 100%; flex-shrink: 0; }
+        @keyframes ticker-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .no-threats .threat-ticker-inner { animation: none; }
+        .no-threats .threat-item { color: var(--text-muted); }
+
+        /* ─── Nav Links ─── */
+        .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
+        .nav-link:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); text-decoration: none; }
     </style>
 </head>
 <body>
@@ -127,9 +145,17 @@
             </div>
         </div>
         <div class="header-right">
+            <a href="/graph" class="nav-link">Trust Network</a>
+            <a href="/docs-guide" class="nav-link">API Docs</a>
             <div class="chain-badge">Base Mainnet</div>
-            <div class="chain-badge">ERC-8004</div>
             <div class="live-badge"><span class="live-dot"></span> Live</div>
+        </div>
+    </div>
+
+    <div class="threat-ticker" id="threat-ticker">
+        <span class="threat-label">THREATS</span>
+        <div class="threat-ticker-inner" id="threat-inner">
+            <div class="threat-item"><span class="threat-dot medium"></span> Loading threat feed...</div>
         </div>
     </div>
 
@@ -213,7 +239,7 @@
 
     <div class="footer">
         <div>
-            SentinelNet v2.0 &mdash; Agent #31253 &mdash;
+            SentinelNet v2.1 &mdash; Agent #31253 &mdash;
             <a href="https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9" target="_blank">Staking Contract</a> &mdash;
             <a href="https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63" target="_blank">Reputation Registry</a>
         </div>
@@ -368,9 +394,38 @@
         // Search
         document.getElementById('search').addEventListener('input', applyFilters);
 
+        // Threat feed
+        async function fetchThreats() {
+            try {
+                const r = await fetch('/api/threats?limit=20');
+                const data = await r.json();
+                const threats = data.threats || [];
+                const inner = document.getElementById('threat-inner');
+                const ticker = document.getElementById('threat-ticker');
+                if (!threats.length) {
+                    ticker.classList.add('no-threats');
+                    inner.innerHTML = '<div class="threat-item"><span class="threat-dot medium"></span> No active threats — ecosystem healthy</div>';
+                    return;
+                }
+                ticker.classList.remove('no-threats');
+                const items = threats.map(t => {
+                    const time = timeAgo(t.created_at);
+                    const dotClass = t.severity === 'HIGH' ? 'high' : t.severity === 'MEDIUM' ? 'medium' : 'low';
+                    const agentLink = t.agent_id ? `Agent #${t.agent_id}` : '';
+                    return `<div class="threat-item"><span class="threat-dot ${dotClass}"></span> <strong>${t.threat_type.replace(/_/g,' ')}</strong> ${agentLink} — ${t.details.slice(0,80)} <span class="threat-time">${time}</span></div>`;
+                }).join('');
+                // Duplicate for infinite scroll effect
+                inner.innerHTML = items + items;
+            } catch (e) {
+                console.error('Threats fetch failed:', e);
+            }
+        }
+
         // Initial load + auto-refresh
         fetchAll();
+        fetchThreats();
         setInterval(fetchAll, 15000);
+        setInterval(fetchThreats, 30000);
 
         let countdown = 15;
         setInterval(() => {

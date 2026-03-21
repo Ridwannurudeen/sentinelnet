@@ -6,6 +6,7 @@ from db import Database
 from agent.chain import ChainFetcher
 from agent.trust_engine import TrustEngine
 from agent.sybil import SybilDetector
+from agent.contagion import ContagionEngine
 from agent.publisher import Publisher
 from agent.discovery import Discovery
 from agent.alerts import AlertChecker
@@ -35,6 +36,7 @@ class SentinelNetAgent:
         )
         self.engine = TrustEngine()
         self.sybil = SybilDetector()
+        self.contagion = ContagionEngine()
         self.alerts = AlertChecker()
 
         # Analyzers
@@ -50,6 +52,8 @@ class SentinelNetAgent:
         self._sweep_edges = {}
         self._wallet_to_agent = {}
         self._sybil_flagged = set()
+        # Wallet → [agent_ids] for sybil wallet-sharing detection
+        self._wallet_agents = {}
 
         # Web3 + ERC-8004
         self.w3 = Web3(Web3.HTTPProvider(settings.BASE_RPC_URL))
@@ -73,6 +77,20 @@ class SentinelNetAgent:
             except Exception as e:
                 logger.warning(f"Failed to init staking contract: {e}")
 
+        # EAS attestor
+        self.eas = None
+        if settings.PRIVATE_KEY and settings.EAS_SCHEMA_UID:
+            try:
+                from agent.eas import EASAttestor
+                self.eas = EASAttestor(
+                    w3=self.w3,
+                    private_key=settings.PRIVATE_KEY,
+                    schema_uid=settings.EAS_SCHEMA_UID,
+                )
+                logger.info("EAS attestor initialized")
+            except Exception as e:
+                logger.warning(f"Failed to init EAS attestor: {e}")
+
         # Publisher
         self.publisher = Publisher(
             pinata_api_key=settings.PINATA_API_KEY,
@@ -88,13 +106,16 @@ class SentinelNetAgent:
         await self.db.init()
         logger.info("SentinelNet agent started")
 
+        # Load wallet→agents map for sybil wallet-sharing detection
+        self._wallet_agents = await self.db.get_wallet_agent_map()
+
         self.discovery = Discovery(
             erc8004=self.erc8004,
             db=self.db,
             pipeline=self.analyze_agent,
             self_agent_id=self.settings.SENTINELNET_AGENT_ID,
             sweep_interval=self.settings.SWEEP_INTERVAL_SECONDS,
-            on_sweep_complete=self._run_sybil_detection,
+            on_sweep_complete=self._run_post_sweep,
         )
 
         self.validator = Validator(
@@ -106,16 +127,34 @@ class SentinelNetAgent:
         asyncio.create_task(self.discovery.run_loop())
         logger.info("Discovery sweep loop started")
 
+    async def _run_post_sweep(self):
+        """Run sybil detection + contagion propagation after each sweep."""
+        await self._run_sybil_detection()
+        await self._run_contagion()
+
     async def _run_sybil_detection(self):
         """Run sybil detection after each sweep using collected edges."""
         if not self._sweep_edges:
             return
-        clusters = self.sybil.detect(self._sweep_edges, self._wallet_to_agent)
+
+        # Refresh wallet→agents map
+        self._wallet_agents = await self.db.get_wallet_agent_map()
+
+        clusters = self.sybil.detect(
+            self._sweep_edges,
+            self._wallet_to_agent,
+            wallet_agent_count=self._wallet_agents,
+        )
         if clusters:
             flagged = set()
             for cluster in clusters:
                 flagged.update(cluster)
                 logger.warning(f"Sybil cluster detected: {cluster}")
+                # Record threat
+                await self.db.save_threat(
+                    "SYBIL_CLUSTER", "HIGH", cluster[0],
+                    f"Coordinated cluster of {len(cluster)} agents: {cluster}"
+                )
             self._sybil_flagged = flagged
             # Re-score flagged agents with sybil penalty
             for agent_id in flagged:
@@ -128,6 +167,56 @@ class SentinelNetAgent:
         # Clear sweep edges for next cycle
         self._sweep_edges = {}
         self._wallet_to_agent = {}
+
+    async def _run_contagion(self):
+        """Run trust contagion propagation across the agent graph."""
+        try:
+            scores_list = await self.db.get_all_scores()
+            if not scores_list:
+                return
+            scores = {s["agent_id"]: s for s in scores_list}
+            edges = await self.db.get_all_edges()
+            if not edges:
+                return
+
+            adjustments = self.contagion.compute_adjustments(scores, edges)
+            if not adjustments:
+                return
+
+            for agent_id, adj in adjustments.items():
+                s = scores.get(agent_id)
+                if not s:
+                    continue
+                # Apply contagion adjustment to stored score
+                base_score = s["trust_score"]
+                new_score = max(0, min(100, base_score + adj))
+                if new_score == base_score:
+                    continue
+
+                new_verdict = self.engine._verdict(new_score)
+
+                # Record threat if significant negative contagion
+                if adj <= -5:
+                    await self.db.save_threat(
+                        "TRUST_CONTAGION", "MEDIUM", agent_id,
+                        f"Score adjusted by {adj} due to interactions with low-trust agents "
+                        f"({base_score} -> {new_score})"
+                    )
+
+                # Update the score in DB with contagion adjustment
+                await self.db.save_score(
+                    agent_id, s["wallet"], new_score,
+                    s["longevity"], s["activity"], s["counterparty"],
+                    s["contract_risk"], new_verdict, s.get("feedback_tx", ""),
+                    s.get("evidence_uri", ""),
+                    agent_identity=s.get("agent_identity", 0),
+                    sybil_flagged=bool(s.get("sybil_flagged")),
+                    contagion_adjustment=adj,
+                )
+                logger.info(f"Contagion applied to agent {agent_id}: {base_score} -> {new_score} (adj={adj})")
+
+        except Exception as e:
+            logger.error(f"Contagion propagation failed: {e}")
 
     async def _stake_score(self, agent_id: int, score: int):
         """Stake ETH behind a published score."""
@@ -181,6 +270,21 @@ class SentinelNetAgent:
         except Exception as e:
             logger.warning(f"emitTrustDegraded failed for agent {agent_id}: {e}")
 
+    async def _attest_trust(self, agent_id: int, trust_score: int,
+                            verdict: str, evidence_uri: str, wallet: str,
+                            sybil_flagged: bool) -> str:
+        """Create EAS attestation for a trust score."""
+        if not self.eas:
+            return ""
+        try:
+            uid = await self.eas.attest_trust(
+                agent_id, trust_score, verdict, evidence_uri, wallet, sybil_flagged
+            )
+            return uid
+        except Exception as e:
+            logger.warning(f"EAS attestation failed for agent {agent_id}: {e}")
+            return ""
+
     async def analyze_agent(self, agent_id: int, sybil_override: bool = False) -> dict:
         wallet = await self.erc8004.get_agent_wallet(agent_id)
         if not wallet:
@@ -193,6 +297,11 @@ class SentinelNetAgent:
         wallet_lower = wallet.lower()
         self._wallet_agent_count[wallet_lower] = self._wallet_agent_count.get(wallet_lower, 0) + 1
         agents_sharing = self._wallet_agent_count[wallet_lower]
+
+        # Track wallet→agents for sybil wallet-sharing detection
+        self._wallet_agents.setdefault(wallet_lower, [])
+        if agent_id not in self._wallet_agents[wallet_lower]:
+            self._wallet_agents[wallet_lower].append(agent_id)
 
         # Collect edges for sybil detection (batch processed after sweep)
         self._sweep_edges[agent_id] = set(data.counterparties)
@@ -215,12 +324,13 @@ class SentinelNetAgent:
         except Exception:
             pass
 
-        # Fetch on-chain reputation for this agent
+        # Fetch on-chain reputation for this agent (ALL feedback, not just ours)
         rep_count = 0
         rep_value = 0
         try:
-            rep_data = await self.erc8004.get_existing_feedback(agent_id)
+            rep_data = await self.erc8004.get_agent_reputation(agent_id)
             rep_count = rep_data.get("count", 0)
+            rep_value = rep_data.get("value", 0)
         except Exception:
             pass
 
@@ -251,10 +361,15 @@ class SentinelNetAgent:
         # Check for trust degradation
         existing = await self.db.get_score(agent_id)
         if existing:
-            if self.alerts.should_alert(existing["trust_score"], result.trust_score):
-                logger.warning(f"TrustDegraded: agent {agent_id} dropped {existing['trust_score']} -> {result.trust_score}")
-                # Emit on-chain TrustDegraded event
-                await self._emit_trust_degraded(agent_id, existing["trust_score"], result.trust_score)
+            prev_score = existing["trust_score"]
+            if self.alerts.should_alert(prev_score, result.trust_score):
+                logger.warning(f"TrustDegraded: agent {agent_id} dropped {prev_score} -> {result.trust_score}")
+                await self._emit_trust_degraded(agent_id, prev_score, result.trust_score)
+                # Record threat
+                await self.db.save_threat(
+                    "TRUST_DEGRADED", "HIGH", agent_id,
+                    f"Trust score dropped from {prev_score} to {result.trust_score}"
+                )
 
         # Publish to chain + IPFS
         pub_result = await self.publisher.publish(
@@ -266,6 +381,12 @@ class SentinelNetAgent:
         # Stake ETH behind the score
         await self._stake_score(agent_id, result.trust_score)
 
+        # EAS attestation
+        attestation_uid = await self._attest_trust(
+            agent_id, result.trust_score, result.verdict,
+            pub_result.get("evidence_uri", ""), wallet, is_sybil
+        )
+
         # Save to local cache
         await self.db.save_score(
             agent_id, wallet, result.trust_score,
@@ -274,6 +395,7 @@ class SentinelNetAgent:
             pub_result.get("evidence_uri", ""),
             agent_identity=agent_identity,
             sybil_flagged=is_sybil,
+            attestation_uid=attestation_uid,
         )
 
         # Save graph edges

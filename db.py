@@ -25,6 +25,8 @@ class Database:
                 feedback_tx TEXT,
                 evidence_uri TEXT,
                 sybil_flagged BOOLEAN NOT NULL DEFAULT 0,
+                contagion_adjustment INTEGER NOT NULL DEFAULT 0,
+                attestation_uid TEXT DEFAULT '',
                 scored_at TEXT NOT NULL
             )
         """)
@@ -54,31 +56,44 @@ class Database:
                 UNIQUE(agent_id, counterparty)
             )
         """)
-        # Migration: add agent_identity + sybil_flagged columns if missing
-        try:
-            await self.conn.execute("ALTER TABLE trust_scores ADD COLUMN agent_identity INTEGER NOT NULL DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            await self.conn.execute("ALTER TABLE trust_scores ADD COLUMN sybil_flagged BOOLEAN NOT NULL DEFAULT 0")
-        except Exception:
-            pass
+        await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS threats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                threat_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                agent_id INTEGER,
+                details TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        # Migrations for existing DBs
+        for col, typedef in [
+            ("agent_identity", "INTEGER NOT NULL DEFAULT 0"),
+            ("sybil_flagged", "BOOLEAN NOT NULL DEFAULT 0"),
+            ("contagion_adjustment", "INTEGER NOT NULL DEFAULT 0"),
+            ("attestation_uid", "TEXT DEFAULT ''"),
+        ]:
+            try:
+                await self.conn.execute(f"ALTER TABLE trust_scores ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass
         await self.conn.commit()
 
     async def save_score(self, agent_id, wallet, trust_score, longevity,
                          activity, counterparty, contract_risk, verdict,
                          feedback_tx, evidence_uri, agent_identity=0,
-                         sybil_flagged=False):
+                         sybil_flagged=False, contagion_adjustment=0,
+                         attestation_uid=""):
         now = datetime.now(timezone.utc).isoformat()
         await self.conn.execute("""
             INSERT OR REPLACE INTO trust_scores
             (agent_id, wallet, trust_score, longevity, activity, counterparty,
              contract_risk, agent_identity, verdict, feedback_tx, evidence_uri,
-             sybil_flagged, scored_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             sybil_flagged, contagion_adjustment, attestation_uid, scored_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (agent_id, wallet, trust_score, longevity, activity, counterparty,
               contract_risk, agent_identity, verdict, feedback_tx, evidence_uri,
-              int(sybil_flagged), now))
+              int(sybil_flagged), contagion_adjustment, attestation_uid, now))
         # Record in history
         await self.conn.execute("""
             INSERT INTO score_history
@@ -129,9 +144,40 @@ class Database:
         return [dict(r) for r in rows]
 
     async def get_all_edges(self):
-        cursor = await self.conn.execute("SELECT agent_id, counterparty FROM graph_edges")
+        cursor = await self.conn.execute(
+            "SELECT agent_id, counterparty, interaction_count FROM graph_edges"
+        )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+    # ─── Threats ───
+
+    async def save_threat(self, threat_type, severity, agent_id, details):
+        now = datetime.now(timezone.utc).isoformat()
+        await self.conn.execute("""
+            INSERT INTO threats (threat_type, severity, agent_id, details, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (threat_type, severity, agent_id, details, now))
+        await self.conn.commit()
+
+    async def get_threats(self, limit=50):
+        cursor = await self.conn.execute(
+            "SELECT * FROM threats ORDER BY created_at DESC LIMIT ?", (limit,)
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def get_wallet_agent_map(self):
+        """Get wallet → [agent_ids] mapping for sybil detection."""
+        cursor = await self.conn.execute(
+            "SELECT agent_id, wallet FROM trust_scores"
+        )
+        rows = await cursor.fetchall()
+        wallet_agents = {}
+        for r in rows:
+            w = r["wallet"].lower()
+            wallet_agents.setdefault(w, []).append(r["agent_id"])
+        return wallet_agents
 
     async def close(self):
         if self.conn:

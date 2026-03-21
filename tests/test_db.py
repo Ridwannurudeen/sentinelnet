@@ -97,3 +97,36 @@ def test_get_all_edges(db):
     )
     all_edges = asyncio.get_event_loop().run_until_complete(db.get_all_edges())
     assert len(all_edges) == 2
+
+def test_threats_saved_and_retrieved(db):
+    asyncio.get_event_loop().run_until_complete(
+        db.save_threat("SYBIL_CLUSTER", "HIGH", 42, "Cluster of 3 agents detected")
+    )
+    asyncio.get_event_loop().run_until_complete(
+        db.save_threat("TRUST_DEGRADED", "HIGH", 7, "Score dropped from 80 to 35")
+    )
+    threats = asyncio.get_event_loop().run_until_complete(db.get_threats(limit=10))
+    assert len(threats) == 2
+    assert threats[0]["threat_type"] == "TRUST_DEGRADED"  # Most recent first
+
+def test_wallet_agent_map(db):
+    asyncio.get_event_loop().run_until_complete(
+        db.save_score(1, "0xAAA", 80, 80, 80, 80, 80, "TRUST", "", "", agent_identity=75)
+    )
+    asyncio.get_event_loop().run_until_complete(
+        db.save_score(2, "0xAAA", 60, 60, 60, 60, 60, "TRUST", "", "", agent_identity=50)
+    )
+    asyncio.get_event_loop().run_until_complete(
+        db.save_score(3, "0xBBB", 30, 30, 30, 30, 30, "REJECT", "", "", agent_identity=10)
+    )
+    wallet_map = asyncio.get_event_loop().run_until_complete(db.get_wallet_agent_map())
+    assert len(wallet_map["0xaaa"]) == 2
+    assert len(wallet_map["0xbbb"]) == 1
+
+def test_contagion_adjustment_saved(db):
+    asyncio.get_event_loop().run_until_complete(
+        db.save_score(42, "0xabc", 50, 70, 60, 70, 60, "CAUTION", "", "",
+                      agent_identity=50, contagion_adjustment=-8)
+    )
+    score = asyncio.get_event_loop().run_until_complete(db.get_score(42))
+    assert score["contagion_adjustment"] == -8

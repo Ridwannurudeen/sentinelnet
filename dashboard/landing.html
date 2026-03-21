@@ -41,6 +41,7 @@
         .features { max-width: 900px; margin: 0 auto 60px; padding: 0 28px; }
         .features h2 { font-size: 28px; text-align: center; margin-bottom: 32px; color: var(--text); }
         .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .feature-grid-wide { grid-template-columns: repeat(3, 1fr); }
         .feature { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
         .feature h3 { font-size: 15px; color: var(--cyan); margin-bottom: 8px; }
         .feature p { font-size: 13px; color: var(--sec); line-height: 1.5; }
@@ -81,6 +82,7 @@
         <span class="logo">SentinelNet</span>
         <div class="nav-links">
             <a href="/dashboard">Dashboard</a>
+            <a href="/graph">Trust Network</a>
             <a href="/docs">API Docs</a>
             <a href="/docs-guide">Integration Guide</a>
             <a href="https://github.com/Ridwannurudeen/sentinelnet" target="_blank">GitHub</a>
@@ -92,6 +94,7 @@
         <p>SentinelNet scores every agent's trustworthiness across 5 dimensions, pins evidence to IPFS, and writes composable reputation on-chain. One query. One trust score. Zero human involvement.</p>
         <div class="hero-actions">
             <a href="/dashboard" class="btn btn-primary">Live Dashboard</a>
+            <a href="/graph" class="btn btn-outline">Trust Network</a>
             <a href="/docs" class="btn btn-outline">API Docs</a>
             <a href="/docs-guide" class="btn btn-outline">Integrate</a>
         </div>
@@ -129,7 +132,19 @@
             </div>
             <div class="feature">
                 <h3>Sybil Detection</h3>
-                <p>Post-sweep cluster analysis flags coordinated agent rings. -20 point penalty. Automatic re-scoring of flagged agents.</p>
+                <p>Post-sweep cluster analysis flags coordinated agent rings. Wallet-sharing + interaction graph cliques. -20 point penalty.</p>
+            </div>
+            <div class="feature">
+                <h3>Trust Contagion</h3>
+                <p>PageRank-style propagation. Interacting with malicious agents degrades your score. Trust spreads through the network — positive and negative.</p>
+            </div>
+            <div class="feature">
+                <h3>Threat Intelligence</h3>
+                <p>Real-time threat feed: sybil clusters, trust degradations, contagion events. Subscribe via API or MCP tool. Your agent's immune system.</p>
+            </div>
+            <div class="feature">
+                <h3>EAS Attestations</h3>
+                <p>Every trust score becomes a verifiable Ethereum Attestation on Base. On-chain proof that survives even if SentinelNet goes offline.</p>
             </div>
         </div>
     </div>
@@ -215,7 +230,7 @@ curl -X POST <span class="str">https://sentinelnet.gudman.xyz/trust/batch</span>
     </div>
 
     <div class="footer">
-        SentinelNet v2.0 &mdash; Agent #31253 &mdash; Autonomous reputation infrastructure for the ERC-8004 ecosystem on Base
+        SentinelNet v2.1 &mdash; Agent #31253 &mdash; The immune system for the ERC-8004 agent economy on Base
     </div>
 
     <script>

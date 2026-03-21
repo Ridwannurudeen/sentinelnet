@@ -32,5 +32,8 @@ class Settings(BaseSettings):
     SWEEP_INTERVAL_SECONDS: int = 1800
     RESCORE_AFTER_HOURS: int = 24
 
+    # EAS (Ethereum Attestation Service)
+    EAS_SCHEMA_UID: str = ""
+
     class Config:
         env_file = ".env"

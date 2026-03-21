@@ -41,7 +41,6 @@ def _explain_score(score_dict: dict) -> dict:
     explanations = []
     s = score_dict
 
-    # Longevity
     lon = s.get("longevity", 0)
     if lon >= 70:
         explanations.append(f"Established wallet with strong history (longevity: {lon}/100)")
@@ -50,7 +49,6 @@ def _explain_score(score_dict: dict) -> dict:
     else:
         explanations.append(f"New or very young wallet (longevity: {lon}/100)")
 
-    # Activity
     act = s.get("activity", 0)
     if act >= 70:
         explanations.append(f"High transaction activity and engagement (activity: {act}/100)")
@@ -59,7 +57,6 @@ def _explain_score(score_dict: dict) -> dict:
     else:
         explanations.append(f"Low transaction activity — limited on-chain presence (activity: {act}/100)")
 
-    # Counterparty
     cp = s.get("counterparty", 0)
     if cp >= 70:
         explanations.append(f"Interacts primarily with verified counterparties (counterparty: {cp}/100)")
@@ -68,7 +65,6 @@ def _explain_score(score_dict: dict) -> dict:
     else:
         explanations.append(f"High ratio of flagged or unverified counterparties (counterparty: {cp}/100)")
 
-    # Contract Risk
     cr = s.get("contract_risk", 0)
     if cr >= 70:
         explanations.append(f"Clean contract interactions — no malicious exposure (risk: {cr}/100)")
@@ -77,7 +73,6 @@ def _explain_score(score_dict: dict) -> dict:
     else:
         explanations.append(f"Significant malicious or unverified contract exposure (risk: {cr}/100)")
 
-    # Agent Identity
     ai = s.get("agent_identity", 0)
     if ai >= 70:
         explanations.append(f"Rich ERC-8004 metadata and positive on-chain reputation (identity: {ai}/100)")
@@ -86,11 +81,17 @@ def _explain_score(score_dict: dict) -> dict:
     else:
         explanations.append(f"Minimal or no ERC-8004 metadata — bare registration (identity: {ai}/100)")
 
-    # Sybil
+    # Contagion
+    contagion = s.get("contagion_adjustment", 0)
+    if contagion and contagion != 0:
+        if contagion < 0:
+            explanations.append(f"Trust contagion: score reduced by {abs(contagion)} due to interactions with low-trust agents")
+        else:
+            explanations.append(f"Trust contagion: score boosted by {contagion} from interactions with high-trust agents")
+
     if s.get("sybil_flagged"):
         explanations.append("SYBIL WARNING: Agent flagged as part of a coordinated cluster (-20 penalty applied)")
 
-    # Decay
     if s.get("is_stale"):
         explanations.append(f"Score is stale — last scored {s.get('decay_days', '?')} days ago, decay applied")
 
@@ -103,10 +104,7 @@ def _explain_score(score_dict: dict) -> dict:
     else:
         summary = f"Agent is REJECTED with a score of {trust}. Avoid interaction."
 
-    return {
-        "summary": summary,
-        "factors": explanations,
-    }
+    return {"summary": summary, "factors": explanations}
 
 
 def _badge_svg(agent_id: int, score: int, verdict: str) -> str:
@@ -131,10 +129,10 @@ async def lifespan(app):
 
 app = FastAPI(
     title="SentinelNet",
-    version="2.0.0",
-    description="Autonomous reputation watchdog for ERC-8004 agents on Base. "
-                "Scores agents across 5 trust dimensions, publishes evidence to IPFS, "
-                "and writes composable feedback on-chain.",
+    version="2.1.0",
+    description="Autonomous reputation immune system for ERC-8004 agents on Base. "
+                "5-dimensional trust scoring with trust contagion, sybil detection, "
+                "threat intelligence, IPFS evidence, and EAS attestations.",
     lifespan=lifespan,
 )
 
@@ -168,12 +166,17 @@ async def integration_docs():
     return FileResponse("dashboard/docs.html")
 
 
+@app.get("/graph", response_class=HTMLResponse, include_in_schema=False)
+async def graph_page():
+    return FileResponse("dashboard/graph.html")
+
+
 # ─── API ───
 
 @app.get("/api/health", tags=["System"])
 async def health():
     """Health check endpoint. Returns service status and version."""
-    return {"status": "ok", "service": "sentinelnet", "version": "2.0.0"}
+    return {"status": "ok", "service": "sentinelnet", "version": "2.1.0"}
 
 
 @app.get("/api/scores", tags=["Scores"])
@@ -209,8 +212,8 @@ async def stats():
     trust_scores = [s["trust_score"] for s in scores]
     sybil_count = sum(1 for s in scores if s.get("sybil_flagged"))
     stale_count = sum(1 for s in scores if s.get("is_stale"))
+    contagion_count = sum(1 for s in scores if s.get("contagion_adjustment", 0) != 0)
 
-    # Score distribution buckets
     buckets = {"0-19": 0, "20-39": 0, "40-54": 0, "55-74": 0, "75-100": 0}
     for ts in trust_scores:
         if ts >= 75: buckets["75-100"] += 1
@@ -228,6 +231,7 @@ async def stats():
         "distribution": buckets,
         "sybil_flagged": sybil_count,
         "stale_scores": stale_count,
+        "contagion_affected": contagion_count,
     }
 
 
@@ -260,10 +264,7 @@ async def get_trust_graph(agent_id: int):
 
 @app.post("/trust/batch", tags=["Trust"])
 async def batch_trust(request: Request):
-    """Query trust scores for multiple agents at once.
-
-    Body: {"agent_ids": [1, 2, 3, ...]}
-    """
+    """Query trust scores for multiple agents at once. Body: {"agent_ids": [1, 2, 3, ...]}"""
     body = await request.json()
     agent_ids = body.get("agent_ids", [])
     if not agent_ids or len(agent_ids) > 100:
@@ -281,10 +282,7 @@ async def batch_trust(request: Request):
 
 @app.get("/badge/{agent_id}.svg", tags=["Embed"], response_class=Response)
 async def trust_badge(agent_id: int):
-    """Get an embeddable SVG trust badge for an agent.
-
-    Usage: <img src="https://sentinelnet.gudman.xyz/badge/31253.svg">
-    """
+    """Get an embeddable SVG trust badge for an agent."""
     score = await db.get_score(agent_id)
     if not score:
         svg = _badge_svg(agent_id, 0, "UNSCORED")
@@ -296,3 +294,61 @@ async def trust_badge(agent_id: int):
         media_type="image/svg+xml",
         headers={"Cache-Control": "public, max-age=300"},
     )
+
+
+# ─── Threat Intelligence ───
+
+@app.get("/api/threats", tags=["Threats"])
+async def get_threats(limit: int = Query(50, ge=1, le=200)):
+    """Real-time threat intelligence feed. Returns recent sybil detections,
+    trust degradations, and contagion events."""
+    threats = await db.get_threats(limit=limit)
+    return {"threats": threats, "count": len(threats)}
+
+
+# ─── Graph Visualization ───
+
+@app.get("/api/graph-data", tags=["Graph"])
+async def graph_data():
+    """Get full agent interaction graph for D3.js visualization.
+    Returns nodes (agents) and links (interactions)."""
+    scores = await db.get_all_scores()
+    scores = [_apply_decay(s) for s in scores]
+    edges = await db.get_all_edges()
+
+    # Build wallet→agent lookup
+    wallet_to_agent = {}
+    for s in scores:
+        wallet_to_agent[s["wallet"].lower()] = s["agent_id"]
+
+    # Nodes
+    nodes = []
+    for s in scores:
+        nodes.append({
+            "id": s["agent_id"],
+            "wallet": s["wallet"][:10] + "...",
+            "score": s["trust_score"],
+            "verdict": s.get("verdict", "UNSCORED"),
+            "sybil": bool(s.get("sybil_flagged")),
+            "contagion": s.get("contagion_adjustment", 0),
+            "identity": s.get("agent_identity", 0),
+        })
+
+    # Links (only between scored agents)
+    links = []
+    seen_links = set()
+    for e in edges:
+        source = e["agent_id"]
+        target_wallet = e["counterparty"].lower()
+        target = wallet_to_agent.get(target_wallet)
+        if target and target != source:
+            key = (min(source, target), max(source, target))
+            if key not in seen_links:
+                seen_links.add(key)
+                links.append({
+                    "source": source,
+                    "target": target,
+                    "weight": e.get("interaction_count", 1),
+                })
+
+    return {"nodes": nodes, "links": links}

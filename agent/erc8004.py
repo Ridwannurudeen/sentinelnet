@@ -98,6 +98,29 @@ class ERC8004Client:
         except Exception:
             return {"count": 0}
 
+    async def get_agent_reputation(self, agent_id: int) -> dict:
+        """Get ALL feedback for an agent from ALL clients via getSummary().
+
+        Returns {"count": total_feedback_count, "value": net_sentiment_value}.
+        """
+        if not self.reputation:
+            return {"count": 0, "value": 0}
+        try:
+            # Get all clients who gave feedback to this agent
+            clients = await asyncio.to_thread(
+                self.reputation.functions.getClients(agent_id).call
+            )
+            if not clients:
+                return {"count": 0, "value": 0}
+            # Get aggregate summary across all clients
+            count, summary_value, decimals = await asyncio.to_thread(
+                self.reputation.functions.getSummary(agent_id, clients, "", "").call
+            )
+            return {"count": int(count), "value": int(summary_value)}
+        except Exception as e:
+            logger.debug(f"getSummary failed for agent {agent_id}: {e}")
+            return {"count": 0, "value": 0}
+
     async def give_feedback(self, agent_id: int, value: int, tag1: str,
                            tag2: str, feedback_uri: str, feedback_hash: bytes) -> str:
         """Post feedback to Reputation Registry. Returns tx hash."""
