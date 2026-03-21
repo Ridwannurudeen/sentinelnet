@@ -19,6 +19,7 @@ async def main():
     # Share the agent's db with the API and MCP
     import api as api_module
     api_module.db = agent.db
+    api_module._agent_ref = agent
     try:
         import mcp.server as mcp_module
         mcp_module.db = agent.db

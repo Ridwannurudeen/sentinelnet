@@ -352,3 +352,30 @@ async def graph_data():
                 })
 
     return {"nodes": nodes, "links": links}
+
+
+# ─── Admin ───
+
+# Agent reference set by main.py at startup
+_agent_ref = None
+
+
+@app.post("/api/score/{agent_id}", tags=["Admin"])
+async def trigger_score(agent_id: int):
+    """Trigger on-demand scoring for a specific agent. Used for self-scoring and manual rescores."""
+    if not _agent_ref:
+        raise HTTPException(503, "Agent not initialized yet")
+    try:
+        result = await _agent_ref.analyze_agent(agent_id)
+        if not result:
+            raise HTTPException(404, f"Could not score agent {agent_id} (no wallet found)")
+        return {
+            "agent_id": agent_id,
+            "trust_score": result.trust_score,
+            "verdict": result.verdict,
+            "status": "scored",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Scoring failed: {str(e)}")
