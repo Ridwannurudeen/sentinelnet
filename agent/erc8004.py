@@ -155,6 +155,15 @@ class ERC8004Client:
         return ""
 
     def _parse_registration_json(self, raw: str) -> dict:
+        """Parse ERC-8004 registration metadata from tokenURI.
+
+        Handles both inline JSON and data:application/json;base64,... URIs.
+        """
+        import base64
+        if raw.startswith("data:"):
+            # data:application/json;base64,<base64data>
+            _, encoded = raw.split(",", 1)
+            return json.loads(base64.b64decode(encoded))
         return json.loads(raw)
 
     def _build_feedback_params(self, agent_id: int, value: int, tag1: str,

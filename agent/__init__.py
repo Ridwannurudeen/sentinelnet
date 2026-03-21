@@ -106,12 +106,15 @@ class SentinelNetAgent:
         try:
             uri = await self.erc8004.get_agent_uri(agent_id)
             if uri:
-                has_metadata = True
-                # Count substantive metadata fields
                 parsed = self.erc8004._parse_registration_json(uri)
-                for key in ["name", "description", "image", "external_url", "capabilities"]:
-                    if parsed.get(key):
-                        metadata_fields += 1
+                if parsed:
+                    has_metadata = True
+                    # Count ERC-8004 registration fields
+                    for key in ["name", "description", "image", "external_url",
+                                "service_endpoint", "operator", "capabilities"]:
+                        val = parsed.get(key)
+                        if val and val != "" and val != []:
+                            metadata_fields += 1
         except Exception:
             pass
 
