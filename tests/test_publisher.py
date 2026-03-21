@@ -23,5 +23,6 @@ async def test_pin_to_ipfs_returns_cid():
     pub._http_post = AsyncMock(return_value={"IpfsHash": "QmTest123"})
     pub.pinata_api_key = "key"
     pub.pinata_secret_key = "secret"
+    pub.pinata_jwt = ""
     cid = await pub.pin_json({"test": True})
     assert cid == "ipfs://QmTest123"

@@ -9,9 +9,10 @@ class Publisher:
     PINATA_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS"
 
     def __init__(self, pinata_api_key: str, pinata_secret_key: str,
-                 erc8004_client=None):
+                 erc8004_client=None, pinata_jwt: str = ""):
         self.pinata_api_key = pinata_api_key
         self.pinata_secret_key = pinata_secret_key
+        self.pinata_jwt = pinata_jwt
         self.erc8004 = erc8004_client
 
     async def publish(self, agent_id: int, wallet: str, trust_score: int,
@@ -24,7 +25,7 @@ class Publisher:
         evidence_hash = hashlib.sha256(json.dumps(evidence).encode()).digest()
 
         # Pin to IPFS if credentials available, otherwise skip
-        if self.pinata_api_key and self.pinata_secret_key:
+        if self.pinata_jwt or (self.pinata_api_key and self.pinata_secret_key):
             try:
                 evidence_uri = await self.pin_json(evidence)
             except Exception as e:
@@ -55,13 +56,20 @@ class Publisher:
         }
 
     async def pin_json(self, data: dict) -> str:
+        if self.pinata_jwt:
+            headers = {
+                "Authorization": f"Bearer {self.pinata_jwt}",
+                "Content-Type": "application/json",
+            }
+        else:
+            headers = {
+                "pinata_api_key": self.pinata_api_key,
+                "pinata_secret_key": self.pinata_secret_key,
+            }
         resp = await self._http_post(
             self.PINATA_URL,
             json={"pinataContent": data},
-            headers={
-                "pinata_api_key": self.pinata_api_key,
-                "pinata_secret_key": self.pinata_secret_key,
-            },
+            headers=headers,
         )
         return f"ipfs://{resp['IpfsHash']}"
 

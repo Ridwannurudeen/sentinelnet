@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     # IPFS
     PINATA_API_KEY: str = ""
     PINATA_SECRET_KEY: str = ""
+    PINATA_JWT: str = ""
 
     # Staking
     STAKE_AMOUNT_ETH: float = 0.001
