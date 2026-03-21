@@ -1,11 +1,13 @@
 import asyncio
 import math
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.staticfiles import StaticFiles
 from web3 import Web3
 from db import Database
 from config import Settings
@@ -224,8 +226,16 @@ app.add_middleware(
 
 # ─── Pages ───
 
+_next_dir = os.path.join("landing", "out", "_next")
+if os.path.isdir(_next_dir):
+    app.mount("/_next", StaticFiles(directory=_next_dir), name="next-static")
+
+
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def landing():
+    nextjs_index = os.path.join("landing", "out", "index.html")
+    if os.path.isfile(nextjs_index):
+        return FileResponse(nextjs_index)
     return FileResponse("dashboard/landing.html")
 
 

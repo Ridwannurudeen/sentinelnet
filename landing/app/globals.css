@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-text antialiased;
+  }
+
+  ::selection {
+    @apply bg-cyan/20 text-white;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-bg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full hover:bg-muted;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan via-blue to-cyan;
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(0, 204, 255, 0.3), 0 0 60px rgba(0, 204, 255, 0.1);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(0, 221, 119, 0.3), 0 0 60px rgba(0, 221, 119, 0.1);
+  }
+
+  .glass {
+    @apply bg-card/60 backdrop-blur-xl border border-border/50;
+  }
+
+  .glass-hover {
+    @apply glass transition-all duration-300;
+  }
+
+  .glass-hover:hover {
+    @apply border-cyan/30;
+    box-shadow: 0 0 30px rgba(0, 204, 255, 0.08);
+  }
+}

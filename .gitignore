@@ -9,3 +9,6 @@ cache/
 .pytest_cache/
 submit.py
 publish.py
+landing/.next/
+landing/out/
+landing/node_modules/
