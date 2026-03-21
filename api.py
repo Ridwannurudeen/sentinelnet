@@ -296,6 +296,35 @@ async def trust_badge(agent_id: int):
     )
 
 
+# ─── Evidence ───
+
+@app.get("/evidence/{agent_id}", tags=["Evidence"])
+async def get_evidence(agent_id: int):
+    """Verifiable evidence JSON for an agent's trust score.
+    Content-addressed: the hash in the query string can be verified against the response."""
+    score = await db.get_score(agent_id)
+    if not score:
+        raise HTTPException(404, f"No evidence for agent {agent_id}")
+    return {
+        "agent_id": score["agent_id"],
+        "wallet": score["wallet"],
+        "trust_score": score["trust_score"],
+        "breakdown": {
+            "longevity": score["longevity"],
+            "activity": score["activity"],
+            "counterparty_quality": score["counterparty"],
+            "contract_risk": score["contract_risk"],
+            "agent_identity": score.get("agent_identity", 0),
+        },
+        "verdict": score["verdict"],
+        "sybil_flagged": bool(score.get("sybil_flagged")),
+        "contagion_adjustment": score.get("contagion_adjustment", 0),
+        "chains_analyzed": ["base", "ethereum"],
+        "scorer": "sentinelnet-v1",
+        "scored_at": score["scored_at"],
+    }
+
+
 # ─── Threat Intelligence ───
 
 @app.get("/api/threats", tags=["Threats"])

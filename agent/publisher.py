@@ -12,11 +12,13 @@ class Publisher:
     PINATA_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS"
 
     def __init__(self, pinata_api_key: str, pinata_secret_key: str,
-                 erc8004_client=None, pinata_jwt: str = ""):
+                 erc8004_client=None, pinata_jwt: str = "",
+                 base_url: str = "https://sentinelnet.gudman.xyz"):
         self.pinata_api_key = pinata_api_key
         self.pinata_secret_key = pinata_secret_key
         self.pinata_jwt = pinata_jwt
         self.erc8004 = erc8004_client
+        self.base_url = base_url
 
     async def publish(self, agent_id: int, wallet: str, trust_score: int,
                       longevity: int, activity: int, counterparty: int,
@@ -29,15 +31,18 @@ class Publisher:
         )
         evidence_hash = hashlib.sha256(json.dumps(evidence).encode()).digest()
 
-        # Pin to IPFS if credentials available, otherwise skip
+        # Try IPFS first, fall back to self-hosted evidence URI
+        evidence_uri = ""
         if self.pinata_jwt or (self.pinata_api_key and self.pinata_secret_key):
             try:
                 evidence_uri = await self.pin_json(evidence)
             except Exception as e:
                 logger.warning(f"IPFS pin failed: {e}")
-                evidence_uri = ""
-        else:
-            evidence_uri = ""
+
+        # Fallback: self-hosted evidence endpoint with content hash
+        if not evidence_uri:
+            content_hash = hashlib.sha256(json.dumps(evidence).encode()).hexdigest()
+            evidence_uri = f"{self.base_url}/evidence/{agent_id}?hash={content_hash[:16]}"
 
         tags = [
             ("trustScore", trust_score),

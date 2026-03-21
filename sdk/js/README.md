@@ -5,7 +5,7 @@ Trust scoring for ERC-8004 agents on Base.
 ## Install
 
 ```bash
-npm install sentinelnet
+npm install github:Ridwannurudeen/sentinelnet#master --subdir=sdk/js
 ```
 
 ## Quick Start
