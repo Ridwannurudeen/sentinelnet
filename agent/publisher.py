@@ -1,8 +1,11 @@
 import json
 import hashlib
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class Publisher:
@@ -31,7 +34,7 @@ class Publisher:
             try:
                 evidence_uri = await self.pin_json(evidence)
             except Exception as e:
-                logging.getLogger(__name__).warning(f"IPFS pin failed: {e}")
+                logger.warning(f"IPFS pin failed: {e}")
                 evidence_uri = ""
         else:
             evidence_uri = ""
