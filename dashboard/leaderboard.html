@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard — SentinelNet</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
+    <style>
+        :root { --bg: #080810; --card: #0f0f1a; --border: #1e1e3a; --text: #e8e8f0; --muted: #555570; --sec: #8888aa; --blue: #0088ff; --cyan: #00ccff; --trust: #00dd77; --caution: #ffaa22; --reject: #ff3344; --sybil: #cc44ff; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        a { color: var(--blue); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 16px; font-size: 13px; }
+        .nav .logo { color: var(--cyan); font-weight: 800; font-size: 18px; }
+        .nav .sep { color: var(--muted); }
+        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
+        .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 28px; }
+        h1 { font-size: 28px; margin-bottom: 6px; }
+        .subtitle { font-size: 14px; color: var(--sec); margin-bottom: 28px; }
+
+        .boards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        @media (max-width: 900px) { .boards { grid-template-columns: 1fr; } }
+
+        .board { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .board-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+        .board-header .icon { font-size: 20px; }
+        .board-header .title { font-size: 14px; font-weight: 700; }
+        .board-header .count { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+        .board-list { list-style: none; }
+        .board-item { display: flex; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); gap: 12px; transition: background 0.15s; }
+        .board-item:last-child { border-bottom: none; }
+        .board-item:hover { background: rgba(255,255,255,0.02); }
+        .rank { width: 24px; font-size: 13px; font-weight: 700; color: var(--muted); text-align: center; }
+        .rank.top1 { color: #ffd700; }
+        .rank.top2 { color: #c0c0c0; }
+        .rank.top3 { color: #cd7f32; }
+        .item-info { flex: 1; min-width: 0; }
+        .item-agent { font-size: 13px; font-weight: 600; color: var(--cyan); }
+        .item-wallet { font-size: 10px; color: var(--muted); font-family: monospace; }
+        .item-score { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .item-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+        .badge-trust { background: rgba(0,221,119,0.1); color: var(--trust); border: 1px solid rgba(0,221,119,0.2); }
+        .badge-caution { background: rgba(255,170,34,0.1); color: var(--caution); border: 1px solid rgba(255,170,34,0.2); }
+        .badge-reject { background: rgba(255,51,68,0.1); color: var(--reject); border: 1px solid rgba(255,51,68,0.2); }
+        .badge-sybil { background: rgba(204,68,255,0.1); color: var(--sybil); border: 1px solid rgba(204,68,255,0.2); }
+        .item-delta { font-size: 12px; font-weight: 600; }
+        .delta-neg { color: var(--reject); }
+        .delta-pos { color: var(--trust); }
+        .empty { padding: 20px; text-align: center; color: var(--muted); font-size: 12px; }
+
+        .health-section { margin-bottom: 28px; }
+        .health-bar { display: flex; align-items: center; gap: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+        .health-score { font-size: 48px; font-weight: 800; }
+        .health-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+        .health-detail { font-size: 13px; color: var(--sec); margin-top: 4px; }
+        .health-meter { flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+        .health-meter .fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/" class="logo">SentinelNet</a>
+        <span class="sep">/</span>
+        <span style="color:var(--text)">Leaderboard</span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/graph" class="nav-link">Trust Network</a>
+        </span>
+    </div>
+
+    <div class="container">
+        <h1>Leaderboard</h1>
+        <p class="subtitle">Rankings across the ERC-8004 agent ecosystem on Base</p>
+
+        <div class="health-section">
+            <div class="health-bar">
+                <div>
+                    <div class="health-label">Ecosystem Health</div>
+                    <div class="health-score" id="health-score">--</div>
+                </div>
+                <div style="flex:1">
+                    <div class="health-detail" id="health-detail">Loading...</div>
+                    <div class="health-meter" style="margin-top:8px">
+                        <div class="fill" id="health-fill" style="width:0%;background:var(--muted)"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="boards">
+            <div class="board">
+                <div class="board-header">
+                    <span class="icon" style="color:var(--trust)">&#9650;</span>
+                    <span class="title">Most Trusted</span>
+                    <span class="count" id="trusted-count"></span>
+                </div>
+                <ul class="board-list" id="top-trusted"></ul>
+            </div>
+            <div class="board">
+                <div class="board-header">
+                    <span class="icon" style="color:var(--reject)">&#9660;</span>
+                    <span class="title">Most Suspicious</span>
+                    <span class="count" id="suspicious-count"></span>
+                </div>
+                <ul class="board-list" id="top-suspicious"></ul>
+            </div>
+            <div class="board">
+                <div class="board-header">
+                    <span class="icon" style="color:var(--sybil)">&#9888;</span>
+                    <span class="title">Sybil Clusters</span>
+                    <span class="count" id="sybil-count"></span>
+                </div>
+                <ul class="board-list" id="top-sybil"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function col(v) { return v >= 55 ? 'var(--trust)' : v >= 40 ? 'var(--caution)' : 'var(--reject)'; }
+        function shortW(w) { return w ? w.slice(0,6) + '...' + w.slice(-4) : '--'; }
+        function badgeClass(v) { return v === 'TRUST' ? 'badge-trust' : v === 'CAUTION' ? 'badge-caution' : 'badge-reject'; }
+        function rankClass(i) { return i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''; }
+
+        function renderList(el, items, showScore) {
+            if (!items.length) { el.innerHTML = '<div class="empty">No data yet</div>'; return; }
+            el.innerHTML = items.slice(0, 15).map((s, i) => {
+                const sybilTag = s.sybil_flagged ? ' <span class="item-badge badge-sybil">SYBIL</span>' : '';
+                return `<li class="board-item">
+                    <span class="rank ${rankClass(i)}">${i + 1}</span>
+                    <div class="item-info">
+                        <a class="item-agent" href="/agent/${s.agent_id}">#${s.agent_id}</a>${sybilTag}
+                        <div class="item-wallet">${shortW(s.wallet)}</div>
+                    </div>
+                    <span class="item-score" style="color:${col(s.trust_score)}">${s.trust_score}</span>
+                    <span class="item-badge ${badgeClass(s.verdict)}">${s.verdict}</span>
+                </li>`;
+            }).join('');
+        }
+
+        async function load() {
+            try {
+                const r = await fetch('/api/scores?apply_decay=true');
+                const data = await r.json();
+                const scores = data.scores || [];
+
+                // Most trusted
+                const trusted = [...scores].sort((a, b) => b.trust_score - a.trust_score);
+                renderList(document.getElementById('top-trusted'), trusted);
+                document.getElementById('trusted-count').textContent = `${data.verdicts.TRUST || 0} trusted`;
+
+                // Most suspicious (lowest scores, non-sybil first then sybil)
+                const suspicious = [...scores].sort((a, b) => a.trust_score - b.trust_score);
+                renderList(document.getElementById('top-suspicious'), suspicious);
+                document.getElementById('suspicious-count').textContent = `${data.verdicts.REJECT || 0} rejected`;
+
+                // Sybil flagged
+                const sybils = scores.filter(s => s.sybil_flagged).sort((a, b) => a.trust_score - b.trust_score);
+                renderList(document.getElementById('top-sybil'), sybils);
+                document.getElementById('sybil-count').textContent = `${sybils.length} flagged`;
+
+                // Ecosystem health score
+                const total = scores.length;
+                if (total > 0) {
+                    const avgScore = scores.reduce((a, s) => a + s.trust_score, 0) / total;
+                    const trustPct = (data.verdicts.TRUST || 0) / total;
+                    const sybilPct = sybils.length / total;
+                    // Health = weighted: 40% avg score, 30% trust ratio, 30% inverse sybil ratio
+                    const health = Math.round(
+                        avgScore * 0.4 +
+                        trustPct * 100 * 0.3 +
+                        (1 - sybilPct) * 100 * 0.3
+                    );
+                    const healthEl = document.getElementById('health-score');
+                    healthEl.textContent = health;
+                    healthEl.style.color = col(health);
+                    document.getElementById('health-fill').style.width = health + '%';
+                    document.getElementById('health-fill').style.background = col(health);
+                    document.getElementById('health-detail').textContent =
+                        `${total} agents scored | ${Math.round(trustPct*100)}% trusted | ${sybils.length} sybil flagged (${Math.round(sybilPct*100)}%)`;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        load();
+        setInterval(load, 30000);
+    </script>
+</body>
+</html>

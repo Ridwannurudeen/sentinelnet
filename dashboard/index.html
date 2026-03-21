@@ -145,6 +145,7 @@
             </div>
         </div>
         <div class="header-right">
+            <a href="/leaderboard" class="nav-link">Leaderboard</a>
             <a href="/graph" class="nav-link">Trust Network</a>
             <a href="/docs-guide" class="nav-link">API Docs</a>
             <div class="chain-badge">Base Mainnet</div>
@@ -199,6 +200,23 @@
             <span><span class="dot" style="background:var(--trust)"></span> Trust</span>
             <span><span class="dot" style="background:var(--caution)"></span> Caution</span>
             <span><span class="dot" style="background:var(--reject)"></span> Reject</span>
+        </div>
+    </div>
+
+    <div class="dist-section">
+        <div style="display:flex;gap:16px;align-items:stretch;flex-wrap:wrap">
+            <div style="flex:1;min-width:300px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:12px">Score Distribution</div>
+                <div id="histogram" style="display:flex;align-items:flex-end;gap:4px;height:80px"></div>
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:6px">
+                    <span>0-19</span><span>20-39</span><span>40-54</span><span>55-74</span><span>75-100</span>
+                </div>
+            </div>
+            <div style="min-width:200px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Ecosystem Health</div>
+                <div id="health-score" style="font-size:48px;font-weight:800;margin:8px 0;color:var(--text-muted)">--</div>
+                <div id="health-label" style="font-size:11px;color:var(--text-muted)">Loading...</div>
+            </div>
         </div>
     </div>
 
@@ -373,6 +391,40 @@
                     document.getElementById('dist-trust').style.width = (t / total * 100) + '%';
                     document.getElementById('dist-caution').style.width = (c / total * 100) + '%';
                     document.getElementById('dist-reject').style.width = (rj / total * 100) + '%';
+                }
+
+                // Histogram
+                const buckets = [0,0,0,0,0];
+                allScores.forEach(s => {
+                    const ts = s.trust_score;
+                    if (ts >= 75) buckets[4]++;
+                    else if (ts >= 55) buckets[3]++;
+                    else if (ts >= 40) buckets[2]++;
+                    else if (ts >= 20) buckets[1]++;
+                    else buckets[0]++;
+                });
+                const maxB = Math.max(...buckets, 1);
+                const colors = ['var(--reject)','var(--reject)','var(--caution)','var(--trust)','var(--trust)'];
+                document.getElementById('histogram').innerHTML = buckets.map((b, i) => {
+                    const pct = Math.max(b / maxB * 100, 2);
+                    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+                        <span style="font-size:10px;color:var(--text-secondary)">${b}</span>
+                        <div style="width:100%;height:${pct}%;min-height:3px;background:${colors[i]};border-radius:3px;opacity:0.7"></div>
+                    </div>`;
+                }).join('');
+
+                // Ecosystem health score
+                if (total > 0) {
+                    const avgS = allScores.reduce((a, s) => a + s.trust_score, 0) / total;
+                    const trustPct = t / total;
+                    const sybilPct = (data.sybil_flagged || 0) / total;
+                    const health = Math.round(avgS * 0.4 + trustPct * 100 * 0.3 + (1 - sybilPct) * 100 * 0.3);
+                    const hCol = health >= 55 ? 'var(--trust)' : health >= 40 ? 'var(--caution)' : 'var(--reject)';
+                    document.getElementById('health-score').textContent = health;
+                    document.getElementById('health-score').style.color = hCol;
+                    const label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'At Risk';
+                    document.getElementById('health-label').textContent = label;
+                    document.getElementById('health-label').style.color = hCol;
                 }
 
                 applyFilters();

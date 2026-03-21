@@ -171,6 +171,11 @@ async def graph_page():
     return FileResponse("dashboard/graph.html")
 
 
+@app.get("/leaderboard", response_class=HTMLResponse, include_in_schema=False)
+async def leaderboard_page():
+    return FileResponse("dashboard/leaderboard.html")
+
+
 # ─── API ───
 
 @app.get("/api/health", tags=["System"])
@@ -222,13 +227,21 @@ async def stats():
         elif ts >= 20: buckets["20-39"] += 1
         else: buckets["0-19"] += 1
 
+    # Ecosystem health: 40% avg score + 30% trust ratio + 30% inverse sybil ratio
+    total = len(scores)
+    avg_s = sum(trust_scores) / total if total else 0
+    trust_pct = (verdicts["TRUST"] / total) if total else 0
+    sybil_pct = (sybil_count / total) if total else 0
+    ecosystem_health = round(avg_s * 0.4 + trust_pct * 100 * 0.3 + (1 - sybil_pct) * 100 * 0.3) if total else 0
+
     return {
-        "agents_scored": len(scores),
-        "avg_trust_score": round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0,
+        "agents_scored": total,
+        "avg_trust_score": round(avg_s, 1),
         "min_trust_score": min(trust_scores) if trust_scores else 0,
         "max_trust_score": max(trust_scores) if trust_scores else 0,
         "verdicts": verdicts,
         "distribution": buckets,
+        "ecosystem_health": ecosystem_health,
         "sybil_flagged": sybil_count,
         "stale_scores": stale_count,
         "contagion_affected": contagion_count,

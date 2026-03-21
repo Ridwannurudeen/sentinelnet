@@ -149,6 +149,33 @@
                     `;
                 }
 
+                // Trust decay projector
+                const DECAY_LAMBDA = 0.01;
+                const currentScore = s.trust_score;
+                const proj7 = Math.round(currentScore * Math.exp(-DECAY_LAMBDA * 7));
+                const proj14 = Math.round(currentScore * Math.exp(-DECAY_LAMBDA * 14));
+                const proj30 = Math.round(currentScore * Math.exp(-DECAY_LAMBDA * 30));
+                const projHtml = `
+                    <div style="display:flex;gap:16px;flex-wrap:wrap">
+                        <div style="flex:1;min-width:120px;text-align:center;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border)">
+                            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px">In 7 Days</div>
+                            <div style="font-size:28px;font-weight:700;color:${col(proj7)};margin:6px 0">${proj7}</div>
+                            <div style="font-size:11px;color:${proj7 < currentScore ? 'var(--reject)' : 'var(--muted)'}">${proj7 - currentScore}</div>
+                        </div>
+                        <div style="flex:1;min-width:120px;text-align:center;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border)">
+                            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px">In 14 Days</div>
+                            <div style="font-size:28px;font-weight:700;color:${col(proj14)};margin:6px 0">${proj14}</div>
+                            <div style="font-size:11px;color:${proj14 < currentScore ? 'var(--reject)' : 'var(--muted)'}">${proj14 - currentScore}</div>
+                        </div>
+                        <div style="flex:1;min-width:120px;text-align:center;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid var(--border)">
+                            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px">In 30 Days</div>
+                            <div style="font-size:28px;font-weight:700;color:${col(proj30)};margin:6px 0">${proj30}</div>
+                            <div style="font-size:11px;color:${proj30 < currentScore ? 'var(--reject)' : 'var(--muted)'}">${proj30 - currentScore}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:10px">Projected using exponential decay (λ=${DECAY_LAMBDA}). Rescore resets decay.</div>
+                `;
+
                 container.innerHTML = `
                     <div class="hero">
                         <div class="hero-left">
@@ -172,6 +199,11 @@
                         <h2>Trust Analysis</h2>
                         <div style="font-size:14px;color:var(--text);margin-bottom:12px">${exp.summary || ''}</div>
                         <ul class="explanation">${factors}</ul>
+                    </div>
+
+                    <div class="section">
+                        <h2>Trust Decay Projector</h2>
+                        ${projHtml}
                     </div>
 
                     <div class="section">
