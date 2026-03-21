@@ -21,8 +21,17 @@ class Publisher:
             agent_id, wallet, trust_score, longevity, activity,
             counterparty, contract_risk, verdict, ["base", "ethereum"]
         )
-        evidence_uri = await self.pin_json(evidence)
         evidence_hash = hashlib.sha256(json.dumps(evidence).encode()).digest()
+
+        # Pin to IPFS if credentials available, otherwise skip
+        if self.pinata_api_key and self.pinata_secret_key:
+            try:
+                evidence_uri = await self.pin_json(evidence)
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"IPFS pin failed: {e}")
+                evidence_uri = ""
+        else:
+            evidence_uri = ""
 
         tags = [
             ("trustScore", trust_score),

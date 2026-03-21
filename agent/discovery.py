@@ -41,12 +41,18 @@ class Discovery:
         new_agents = await self.find_new_agents()
         stale_agents = await self.find_stale_agents()
         targets = list(set(new_agents + stale_agents))
-        logger.info(f"Sweep: {len(new_agents)} new, {len(stale_agents)} stale, {len(targets)} total targets")
+        # Cap per sweep to avoid overwhelming RPCs
+        if len(targets) > 50:
+            targets = targets[:50]
+            logger.info(f"Sweep: {len(new_agents)} new, {len(stale_agents)} stale, capped to {len(targets)} targets")
+        else:
+            logger.info(f"Sweep: {len(new_agents)} new, {len(stale_agents)} stale, {len(targets)} total targets")
         for agent_id in targets:
             try:
                 await self.pipeline(agent_id)
             except Exception as e:
                 logger.error(f"Failed to score agent {agent_id}: {e}")
+            await asyncio.sleep(2)  # Rate limit: avoid hammering RPCs/APIs
         logger.info("Discovery sweep complete")
 
     async def run_loop(self):
