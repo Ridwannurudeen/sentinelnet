@@ -61,7 +61,7 @@ class TrustEngine:
         return days_since_scored >= STALE_THRESHOLD_DAYS
 
     def _verdict(self, score: int) -> str:
-        if score >= 70:
+        if score >= 55:
             return "TRUST"
         elif score >= 40:
             return "CAUTION"

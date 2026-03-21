@@ -81,8 +81,8 @@ The Agent Identity dimension is critical — it differentiates agents even when 
 
 | Verdict | Score Range | Meaning |
 |---------|-------------|---------|
-| **TRUST** | >= 70 | Safe to interact with |
-| **CAUTION** | 40-69 | Proceed with limits |
+| **TRUST** | >= 55 | Safe to interact with |
+| **CAUTION** | 40-54 | Proceed with limits |
 | **REJECT** | < 40 | Avoid this agent |
 
 ### Trust Decay
