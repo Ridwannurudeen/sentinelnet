@@ -1,55 +1,176 @@
 # SentinelNet
 
-Autonomous agent reputation watchdog for ERC-8004 on Base. Discovers registered agents, analyzes their on-chain behavior across Base and Ethereum, publishes composable trust scores, and responds to validation requests.
+**How do you trust something without a face?**
 
-Other agents query SentinelNet via MCP or REST before transacting with unknown counterparties.
+SentinelNet is an autonomous reputation watchdog that answers this question for every ERC-8004 agent on Base. It runs 24/7 — discovering agents, analyzing their on-chain behavior across Base and Ethereum, computing 5-dimensional trust scores, publishing verifiable evidence to IPFS, and writing composable reputation feedback on-chain. No human in the loop.
 
-## Architecture
+Other agents query SentinelNet before transacting with unknown counterparties. One MCP tool call. One trust score. Every score backed by on-chain proof and pinned evidence.
+
+## Live Right Now
+
+SentinelNet is not a demo. It's running in production on Base Mainnet.
+
+- **140+ agents scored** with 31 unique trust scores across all 3 verdict classes
+- **On-chain feedback** on the [ERC-8004 Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63)
+- **IPFS evidence** pinned for every score (e.g. [ipfs://QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm](https://gateway.pinata.cloud/ipfs/QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm))
+- **Staking contract** deployed at [`0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9`](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9)
+- **Agent ID 31253** registered on-chain via ERC-8004 Identity Registry
+- **Live dashboard**: `http://75.119.153.252:8004/dashboard`
+- **REST API**: `http://75.119.153.252:8004/api/scores`
+
+## The Problem
+
+35,000+ agents are registered on the ERC-8004 Identity Registry. Any agent can register. There's no built-in way to know which ones are trustworthy, which are Sybils, and which are interacting with malicious contracts. Agents transacting with unknown counterparties are flying blind.
+
+## How It Works
+
+SentinelNet runs a continuous autonomous loop:
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  SentinelNet Agent (autonomous loop)                │
-│                                                     │
-│  ┌───────────┐  ┌───────────┐  ┌────────────────┐  │
-│  │ Discovery │→ │ Analyzer  │→ │ Reputation     │  │
-│  │ Sweep     │  │ Pipeline  │  │ Publisher      │  │
-│  │ (30 min)  │  │ (4 scorers│  │ (on-chain)     │  │
-│  └───────────┘  └───────────┘  └────────────────┘  │
-│                                                     │
-│  ┌───────────┐  ┌───────────┐  ┌────────────────┐  │
-│  │ Event     │  │ Validator │  │ MCP + REST     │  │
-│  │ Listener  │  │ Responder │  │ Server         │  │
-│  └───────────┘  └───────────┘  └────────────────┘  │
-└─────────────────────────────────────────────────────┘
-        │                │                │
-        ▼                ▼                ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ ERC-8004     │ │ ERC-8004     │ │ ERC-8004     │
-│ Identity     │ │ Reputation   │ │ Validation   │
-│ Registry     │ │ Registry     │ │ Registry     │
-│ (Base)       │ │ (Base)       │ │ (Base)       │
-└──────────────┘ └──────────────┘ └──────────────┘
+Discover → Analyze → Score → Publish → Repeat
 ```
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  SentinelNet Agent (autonomous loop)                     │
+│                                                          │
+│  ┌───────────┐  ┌──────────────┐  ┌────────────────┐    │
+│  │ Discovery │→ │ 5-Dimension  │→ │ Reputation     │    │
+│  │ Sweep     │  │ Analyzer     │  │ Publisher      │    │
+│  │ (30 min)  │  │ Pipeline     │  │ (on-chain +    │    │
+│  │           │  │              │  │  IPFS)         │    │
+│  └───────────┘  └──────────────┘  └────────────────┘    │
+│                                                          │
+│  ┌───────────┐  ┌──────────────┐  ┌────────────────┐    │
+│  │ Sybil     │  │ Validator    │  │ MCP + REST     │    │
+│  │ Detector  │  │ Responder    │  │ Server         │    │
+│  └───────────┘  └──────────────┘  └────────────────┘    │
+└──────────────────────────────────────────────────────────┘
+         │                │                │
+         ▼                ▼                ▼
+  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+  │ ERC-8004     │ │ ERC-8004     │ │ Staking      │
+  │ Identity     │ │ Reputation   │ │ Contract     │
+  │ Registry     │ │ Registry     │ │ (Base)       │
+  └──────────────┘ └──────────────┘ └──────────────┘
+```
+
+### The Decision Loop
+
+1. **Discover** — Sweep the Identity Registry for new and unscored agents via `totalSupply()` and `ownerOf()`
+2. **Analyze** — Fetch wallet history from Base + Ethereum, run 5 independent scoring dimensions
+3. **Score** — Weighted aggregation with sybil penalties and trust decay
+4. **Publish** — Pin evidence JSON to IPFS, write feedback to Reputation Registry, optionally stake ETH
+5. **Repeat** — Every 30 minutes, re-discover and re-score stale agents
 
 ## Scoring Model
 
-Four analyzers run in parallel per agent:
+Five analyzers run per agent, each measuring a different trust signal:
 
-| Analyzer | Weight | What it measures |
+| Analyzer | Weight | What It Measures |
 |----------|--------|-----------------|
-| Longevity | 0.20 | Wallet age, first transaction date |
-| Activity | 0.25 | Transaction count, frequency, consistency |
-| Counterparty Quality | 0.30 | Verified vs flagged interaction ratio |
-| Contract Risk | 0.25 | Malicious contract interactions |
+| **Longevity** | 15% | Wallet age via logarithmic curve: `15 * ln(age + 1)` |
+| **Activity** | 20% | Transaction volume (sqrt scaling), active day consistency, ETH balance |
+| **Counterparty Quality** | 20% | Ratio of verified vs flagged interaction partners |
+| **Contract Risk** | 20% | Malicious contract interactions, unverified contract ratio |
+| **Agent Identity** | 25% | ERC-8004 metadata completeness, on-chain reputation count, wallet exclusivity |
 
-**Verdicts:**
-- **TRUST** (>= 70): Safe to interact
-- **CAUTION** (40-69): Proceed with limits
-- **REJECT** (< 40): Avoid this agent
+The Agent Identity dimension is critical — it differentiates agents even when they share the same wallet address. An agent with rich ERC-8004 metadata, positive on-chain reputation, and an exclusive wallet scores higher than a bare registration sharing a wallet with 20 other agents.
 
-**Trust Decay:** `effective_score = base_score * e^(-0.01 * days)` — scores decay exponentially. After 30 days without re-scoring, a 90 becomes ~67.
+### Verdicts
 
-**Sybil Detection:** Cluster analysis on the interaction graph. Groups of 3+ agents that only interact with each other get flagged and penalized (-20 points).
+| Verdict | Score Range | Meaning |
+|---------|-------------|---------|
+| **TRUST** | >= 70 | Safe to interact with |
+| **CAUTION** | 40-69 | Proceed with limits |
+| **REJECT** | < 40 | Avoid this agent |
+
+### Trust Decay
+
+Scores decay exponentially over time: `effective_score = base_score * e^(-0.01 * days)`
+
+After 30 days without re-scoring, a 90 becomes ~67. This forces continuous re-evaluation — trust is not permanent.
+
+### Sybil Detection
+
+Cluster analysis on the interaction graph. Groups of 3+ agents that only interact with each other get flagged and penalized (-20 points).
+
+## On-Chain Artifacts
+
+Everything SentinelNet does leaves a trail on Base Mainnet:
+
+| Artifact | Where | What |
+|----------|-------|------|
+| Agent identity | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #31253 registered via ERC-8004 |
+| Trust scores | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` with score + IPFS URI |
+| Evidence | IPFS via Pinata | Full analysis JSON pinned per agent |
+| Score stakes | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) | 0.001 ETH staked per score, 72h challenge window |
+| Trust events | Staking contract | `ScoreStaked`, `StakeChallenged`, `TrustDegraded` events |
+
+## MCP Integration
+
+Any agent can query SentinelNet via Model Context Protocol:
+
+```json
+{
+    "name": "check_trust",
+    "description": "Check the trust score of an ERC-8004 registered agent.",
+    "inputSchema": {
+        "properties": {
+            "agent_id": { "type": "integer", "description": "ERC-8004 agent ID" },
+            "fresh": { "type": "boolean", "description": "Run fresh analysis", "default": false }
+        },
+        "required": ["agent_id"]
+    }
+}
+```
+
+Response:
+```json
+{
+    "agent_id": 32263,
+    "trust_score": 70,
+    "verdict": "TRUST",
+    "longevity": 85,
+    "activity": 68,
+    "counterparty": 79,
+    "contract_risk": 62,
+    "agent_identity": 80,
+    "evidence_uri": "ipfs://QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm"
+}
+```
+
+## REST API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/scores` | GET | All scored agents with verdict breakdown |
+| `/api/stats` | GET | Aggregate statistics |
+| `/trust/{agent_id}` | GET | Trust score for a specific agent |
+| `/trust/graph/{agent_id}` | GET | Agent's counterparty trust neighborhood |
+| `/dashboard` | GET | Live monitoring dashboard |
+
+## Smart Contract
+
+**SentinelNetStaking.sol** — deployed on Base Mainnet at [`0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9`](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9)
+
+SentinelNet stakes ETH on every score it publishes. The staking mechanism creates accountability:
+
+- `stakeScore(agentId, score)` — stakes ETH backing the published score
+- `challenge(stakeId)` — anyone can challenge within 72 hours
+- `resolveChallenge(stakeId, result)` — resolution after investigation
+- `emitTrustDegraded(agentId, prev, next)` — emits on-chain event when trust drops
+
+## ERC-8004 Integration
+
+SentinelNet is a first-class ERC-8004 participant:
+
+- **Identity Registry** — Registered as Agent #31253 with full metadata
+- **Reputation Registry** — Posts feedback entries per scored agent with IPFS evidence URIs
+- **Validation Registry** — Monitors `ValidationRequest` events and responds with fresh analysis
+- **tokenURI parsing** — Decodes base64 `data:application/json;base64,...` registration metadata
+- **Wallet resolution** — `getAgentWallet()` with `ownerOf()` fallback
 
 ## Setup
 
@@ -58,74 +179,22 @@ git clone https://github.com/Ridwannurudeen/sentinelnet.git
 cd sentinelnet
 pip install -r requirements.txt
 cp .env.example .env
-# Fill in your RPC URLs, private key, and Pinata keys
+# Fill in: BASE_RPC_URL, ETH_RPC_URL, PRIVATE_KEY, PINATA_JWT
 ```
 
 ## Run
 
 ```bash
 # Start the API server + autonomous agent
-uvicorn api:app --host 0.0.0.0 --port 8000
-
-# Dashboard at http://localhost:8000/dashboard
+python main.py
+# Dashboard at http://localhost:8004/dashboard
 ```
-
-## MCP Tool
-
-```json
-{
-    "name": "check_trust",
-    "description": "Check the trust score of an ERC-8004 registered agent.",
-    "parameters": {
-        "agent_id": "ERC-8004 agent ID (uint256)",
-        "fresh": "Optional. If true, runs fresh analysis. Default false."
-    }
-}
-```
-
-Response:
-```json
-{
-    "agent_id": 42,
-    "trust_score": 73,
-    "verdict": "TRUST",
-    "breakdown": {
-        "longevity": 85,
-        "activity": 68,
-        "counterparty_quality": 79,
-        "contract_risk": 62
-    },
-    "decay_applied": false,
-    "sybil_risk": false,
-    "evidence_uri": "ipfs://..."
-}
-```
-
-## API Reference
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Health check |
-| `/trust/{agent_id}` | GET | Get trust score for an agent |
-| `/trust/graph/{agent_id}` | GET | Get agent's trust neighborhood |
-| `/api/stats` | GET | Aggregate statistics |
-| `/dashboard` | GET | Live monitoring dashboard |
-
-## Smart Contract
-
-**SentinelNetStaking.sol** on Base — SentinelNet stakes 0.001 ETH per score posted. 72-hour challenge window. Any address can challenge; if the agent was later mass-flagged, the challenger takes the stake.
-
-## ERC-8004 Integration
-
-- **Identity Registry:** Self-registers at startup (Agent ID: 31253)
-- **Reputation Registry:** Posts 5 feedback entries per agent (composite + 4 sub-scores) with IPFS evidence
-- **Validation Registry:** Monitors `ValidationRequest` events, runs full pipeline on demand
 
 ## Tests
 
 ```bash
 pytest tests/ -v
-# 51 tests across 11 test files
+# 56 tests across 14 test files
 ```
 
 ## Project Structure
@@ -144,51 +213,33 @@ sentinelnet/
 │   ├── chain.py              # Base + Ethereum data fetcher
 │   ├── erc8004.py            # ERC-8004 registry client
 │   └── analyzers/
-│       ├── longevity.py      # Wallet age scorer
-│       ├── activity.py       # Tx frequency scorer
+│       ├── longevity.py      # Logarithmic wallet age curve
+│       ├── activity.py       # Sqrt tx volume + balance
 │       ├── counterparty.py   # Verified vs flagged ratio
-│       └── contract_risk.py  # Malicious interaction scorer
+│       ├── contract_risk.py  # Malicious interaction scorer
+│       └── agent_identity.py # Metadata + reputation + exclusivity
 ├── contracts/
-│   └── SentinelNetStaking.sol
+│   └── SentinelNetStaking.sol  # Deployed on Base Mainnet
 ├── mcp/
 │   └── server.py             # check_trust MCP tool
 ├── dashboard/
 │   └── index.html            # Live monitoring UI
 ├── api.py                    # FastAPI REST server
+├── main.py                   # Entry point
 ├── db.py                     # SQLite WAL cache
 ├── config.py                 # Pydantic Settings
-└── tests/                    # 51 tests
+└── tests/                    # 56 tests, 14 files
 ```
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
-| Backend | Python 3.11+, FastAPI, uvicorn |
-| Contracts | Solidity 0.8.24, Hardhat, Base |
-| MCP Server | Python MCP SDK |
-| Database | SQLite WAL (aiosqlite) |
-| IPFS | Pinata |
-| Web3 | web3.py |
-| Chains | Base (registries), Ethereum (analysis) |
-
-## Features
-
-1. Evidence on IPFS — pin analysis JSON, commit hash on-chain
-2. Composable on-chain scores — Reputation Registry feedback entries
-3. Self-registration — mint ERC-8004 identity at startup
-4. Real-time events + sweep — event listener + 30-min sweep loop
-5. MCP-native tool — check_trust for agent-to-agent use
-6. Trust graph — counterparty data exposed via REST
-7. Live dashboard — single HTML, auto-refresh
-8. Trust decay — exponential decay on stale scores
-9. Sybil detection — cluster analysis on interaction graph
-10. Score staking — 0.001 ETH per score, challenge mechanism
-11. Alert events — TrustDegraded on-chain event
-12. Conversation log — raw brainstorm session submitted
-
-## Hackathon
-
-**The Synthesis 2026** — Agents that Trust
-
-Prize Targets: Open Track ($14.5K), ERC-8004 ($4K), Let the Agent Cook ($4K)
+| Runtime | Python 3.11+, asyncio |
+| API | FastAPI, uvicorn |
+| Smart Contracts | Solidity 0.8.24, Base Mainnet |
+| Agent Protocol | MCP (Model Context Protocol) |
+| Identity | ERC-8004 Identity + Reputation Registries |
+| Storage | SQLite WAL (aiosqlite), IPFS (Pinata) |
+| Chain Data | web3.py, Blockscout API |
+| Analysis Chains | Base (registries + scoring), Ethereum (behavioral data) |
