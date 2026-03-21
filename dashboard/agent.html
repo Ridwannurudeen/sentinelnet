@@ -14,6 +14,8 @@
         .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 16px; font-size: 13px; }
         .nav .logo { color: var(--cyan); font-weight: 800; font-size: 18px; }
         .nav .sep { color: var(--muted); }
+        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
+        .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
         .container { max-width: 960px; margin: 0 auto; padding: 28px; }
         .hero { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
         .hero-left h1 { font-size: 28px; color: var(--cyan); }
@@ -52,6 +54,7 @@
         <a href="/dashboard">Dashboard</a>
         <span class="sep">/</span>
         <span style="color:var(--text)" id="nav-agent">Agent</span>
+        <span style="margin-left:auto"><a href="/" class="nav-link">← Home</a></span>
     </div>
 
     <div class="container" id="content">
