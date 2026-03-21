@@ -7,7 +7,7 @@ import ScrollReveal from "./ScrollReveal";
 
 interface Stats {
   agents_scored: number;
-  verdict_breakdown: { TRUST: number; CAUTION: number; REJECT: number };
+  verdicts: { TRUST: number; CAUTION: number; REJECT: number };
 }
 
 function AnimatedCounter({ target, duration = 1500 }: { target: number; duration?: number }) {
@@ -67,9 +67,9 @@ export default function LiveStats() {
   const values = stats
     ? [
         stats.agents_scored,
-        stats.verdict_breakdown.TRUST,
-        stats.verdict_breakdown.CAUTION,
-        stats.verdict_breakdown.REJECT,
+        stats.verdicts.TRUST,
+        stats.verdicts.CAUTION,
+        stats.verdicts.REJECT,
       ]
     : [0, 0, 0, 0];
 
