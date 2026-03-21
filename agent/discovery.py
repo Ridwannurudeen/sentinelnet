@@ -20,11 +20,22 @@ class Discovery:
         total = await self.erc8004.get_total_agents()
         scored = await self.db.get_all_scores()
         scored_ids = {s["agent_id"] for s in scored}
-        new_ids = [
-            i for i in range(1, total + 1)
+
+        # Mix early agents (1-100) with recent high-ID agents (Synthesis participants)
+        # This gives score diversity: old established wallets vs new hackathon wallets
+        early_ids = [
+            i for i in range(1, min(101, total + 1))
             if i not in scored_ids and i != self.self_agent_id
         ]
-        return new_ids
+        # Sample high-ID agents (recent registrations, likely hackathon participants)
+        high_start = max(1, total - 200)
+        high_ids = [
+            i for i in range(high_start, total + 1)
+            if i not in scored_ids and i != self.self_agent_id
+        ]
+        # Combine, deduplicate, interleave for variety
+        combined = list(dict.fromkeys(high_ids + early_ids))
+        return combined
 
     async def find_stale_agents(self) -> list:
         scores = await self.db.get_all_scores()

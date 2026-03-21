@@ -52,10 +52,16 @@ class ChainFetcher:
         self.etherscan_api_key = etherscan_api_key
 
     async def fetch_wallet(self, address: str) -> WalletData:
-        base_data, eth_data = await asyncio.gather(
-            self._fetch_chain(address, self.base_rpc, "base"),
-            self._fetch_chain(address, self.eth_rpc, "ethereum"),
-        )
+        base_data = await self._fetch_chain(address, self.base_rpc, "base")
+        try:
+            eth_data = await self._fetch_chain(address, self.eth_rpc, "ethereum")
+        except Exception as e:
+            logger.warning(f"ETH RPC failed for {address}, using Base-only data: {e}")
+            eth_data = {
+                "tx_count": 0, "first_tx_timestamp": 0,
+                "contracts": [], "counterparties": set(),
+                "active_days": 0, "total_days": 0,
+            }
 
         all_counterparties = base_data["counterparties"] | eth_data["counterparties"]
         all_contracts = base_data["contracts"] + eth_data["contracts"]

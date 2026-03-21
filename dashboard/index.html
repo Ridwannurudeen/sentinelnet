@@ -7,30 +7,44 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a0f; color: #e0e0e0; }
-        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px 32px; border-bottom: 1px solid #2a2a4a; }
+        .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px 32px; border-bottom: 1px solid #2a2a4a; display: flex; justify-content: space-between; align-items: center; }
         .header h1 { font-size: 24px; color: #00d4ff; }
         .header p { color: #888; font-size: 14px; margin-top: 4px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding: 24px 32px; }
+        .header .live { display: flex; align-items: center; gap: 8px; color: #00ff88; font-size: 13px; }
+        .header .live .dot { width: 8px; height: 8px; background: #00ff88; border-radius: 50%; animation: pulse 2s infinite; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 24px 32px; }
         .card { background: #12121f; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; }
         .card .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
         .card .value { font-size: 32px; font-weight: 700; color: #00d4ff; margin-top: 8px; }
         .card .sub { font-size: 13px; color: #666; margin-top: 4px; }
-        .scores-table { margin: 0 32px 32px; background: #12121f; border: 1px solid #2a2a4a; border-radius: 12px; overflow: hidden; }
+        .card.trust .value { color: #00ff88; }
+        .card.caution .value { color: #ffaa00; }
+        .card.reject .value { color: #ff4444; }
+        .scores-section { margin: 0 32px 32px; }
+        .scores-section h2 { font-size: 16px; color: #aaa; margin-bottom: 12px; }
+        .scores-table { background: #12121f; border: 1px solid #2a2a4a; border-radius: 12px; overflow: hidden; }
         .scores-table table { width: 100%; border-collapse: collapse; }
         .scores-table th { background: #1a1a2e; padding: 12px 16px; text-align: left; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
         .scores-table td { padding: 12px 16px; border-top: 1px solid #1a1a2e; font-size: 14px; }
-        .verdict-trust { color: #00ff88; }
-        .verdict-caution { color: #ffaa00; }
-        .verdict-reject { color: #ff4444; }
+        .scores-table tr:hover { background: #1a1a2e; }
+        .verdict-trust { color: #00ff88; font-weight: 600; }
+        .verdict-caution { color: #ffaa00; font-weight: 600; }
+        .verdict-reject { color: #ff4444; font-weight: 600; }
+        .wallet { font-family: monospace; font-size: 12px; color: #888; }
+        .score-bar { display: inline-block; width: 60px; height: 6px; background: #1a1a2e; border-radius: 3px; overflow: hidden; vertical-align: middle; margin-left: 8px; }
+        .score-bar .fill { height: 100%; border-radius: 3px; }
         .refresh-bar { text-align: center; padding: 12px; color: #444; font-size: 12px; }
-        .pulse { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .empty-state { text-align: center; padding: 40px; color: #666; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>SentinelNet</h1>
-        <p>Autonomous Agent Reputation Watchdog &mdash; ERC-8004 on Base</p>
+        <div>
+            <h1>SentinelNet</h1>
+            <p>Autonomous Agent Reputation Watchdog &mdash; ERC-8004 on Base</p>
+        </div>
+        <div class="live"><span class="dot"></span> Live</div>
     </div>
 
     <div class="grid">
@@ -42,79 +56,133 @@
             <div class="label">Avg Trust Score</div>
             <div class="value" id="avg-score">--</div>
         </div>
-        <div class="card">
-            <div class="label">Status</div>
-            <div class="value pulse" id="status" style="font-size:18px;">Sweeping...</div>
-            <div class="sub" id="next-sweep">Next sweep in --:--</div>
+        <div class="card trust">
+            <div class="label">Trusted</div>
+            <div class="value" id="trust-count">0</div>
         </div>
-        <div class="card">
-            <div class="label">Sybil Clusters</div>
-            <div class="value" id="sybil-count">0</div>
+        <div class="card caution">
+            <div class="label">Caution</div>
+            <div class="value" id="caution-count">0</div>
+        </div>
+        <div class="card reject">
+            <div class="label">Rejected</div>
+            <div class="value" id="reject-count">0</div>
         </div>
     </div>
 
-    <div class="scores-table">
-        <table>
-            <thead>
-                <tr>
-                    <th>Agent ID</th>
-                    <th>Wallet</th>
-                    <th>Trust Score</th>
-                    <th>Verdict</th>
-                    <th>Longevity</th>
-                    <th>Activity</th>
-                    <th>Counterparty</th>
-                    <th>Contract Risk</th>
-                    <th>Scored At</th>
-                </tr>
-            </thead>
-            <tbody id="scores-body">
-                <tr><td colspan="9" style="text-align:center;color:#666;">Loading...</td></tr>
-            </tbody>
-        </table>
+    <div class="scores-section">
+        <h2>Scored Agents</h2>
+        <div class="scores-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Agent ID</th>
+                        <th>Wallet</th>
+                        <th>Trust Score</th>
+                        <th>Verdict</th>
+                        <th>Longevity</th>
+                        <th>Activity</th>
+                        <th>Counterparty</th>
+                        <th>Contract Risk</th>
+                        <th>Scored At</th>
+                    </tr>
+                </thead>
+                <tbody id="scores-body">
+                    <tr><td colspan="9" class="empty-state">Loading scores...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <div class="refresh-bar">Auto-refreshes every 15 seconds</div>
+    <div class="refresh-bar" id="refresh-bar">Auto-refreshes every 15 seconds</div>
 
     <script>
-        async function fetchStats() {
-            try {
-                const r = await fetch('/api/stats');
-                const data = await r.json();
-                document.getElementById('agents-count').textContent = data.agents_scored || 0;
-                document.getElementById('avg-score').textContent = Math.round(data.avg_trust_score || 0);
-            } catch (e) {
-                console.error('Stats fetch failed:', e);
-            }
-        }
-
-        async function fetchScores() {
-            try {
-                const r = await fetch('/api/stats');
-                const stats = await r.json();
-                // Fetch individual scores would need a list endpoint
-                // For now, stats gives us the overview
-                document.getElementById('agents-count').textContent = stats.agents_scored || 0;
-                document.getElementById('avg-score').textContent = Math.round(stats.avg_trust_score || 0);
-            } catch (e) {
-                console.error('Scores fetch failed:', e);
-            }
-        }
-
         function verdictClass(verdict) {
-            return 'verdict-' + (verdict || '').toLowerCase();
+            const v = (verdict || '').toLowerCase();
+            if (v === 'trust') return 'verdict-trust';
+            if (v === 'caution') return 'verdict-caution';
+            if (v === 'reject') return 'verdict-reject';
+            return '';
+        }
+
+        function scoreColor(score) {
+            if (score >= 70) return '#00ff88';
+            if (score >= 40) return '#ffaa00';
+            return '#ff4444';
+        }
+
+        function shortWallet(w) {
+            if (!w || w.length < 10) return w || '--';
+            return w.slice(0, 6) + '...' + w.slice(-4);
+        }
+
+        function timeAgo(isoStr) {
+            if (!isoStr) return '--';
+            const diff = Date.now() - new Date(isoStr).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return mins + 'm ago';
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + 'h ago';
+            return Math.floor(hrs / 24) + 'd ago';
+        }
+
+        async function fetchAll() {
+            try {
+                const r = await fetch('/api/scores');
+                const data = await r.json();
+
+                // Update stats cards
+                document.getElementById('agents-count').textContent = data.total || 0;
+                const scores = data.scores || [];
+                const avg = scores.length > 0
+                    ? Math.round(scores.reduce((a, s) => a + s.trust_score, 0) / scores.length)
+                    : 0;
+                document.getElementById('avg-score').textContent = avg;
+
+                const verdicts = data.verdicts || {};
+                document.getElementById('trust-count').textContent = verdicts.TRUST || 0;
+                document.getElementById('caution-count').textContent = verdicts.CAUTION || 0;
+                document.getElementById('reject-count').textContent = verdicts.REJECT || 0;
+
+                // Populate table
+                const tbody = document.getElementById('scores-body');
+                if (scores.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No agents scored yet. Sweep in progress...</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = scores.map(s => `
+                    <tr>
+                        <td><strong>#${s.agent_id}</strong></td>
+                        <td class="wallet" title="${s.wallet}">${shortWallet(s.wallet)}</td>
+                        <td>
+                            ${s.trust_score}
+                            <span class="score-bar"><span class="fill" style="width:${s.trust_score}%;background:${scoreColor(s.trust_score)}"></span></span>
+                        </td>
+                        <td class="${verdictClass(s.verdict)}">${s.verdict}</td>
+                        <td>${s.longevity}</td>
+                        <td>${s.activity}</td>
+                        <td>${s.counterparty}</td>
+                        <td>${s.contract_risk}</td>
+                        <td>${timeAgo(s.scored_at)}</td>
+                    </tr>
+                `).join('');
+
+            } catch (e) {
+                console.error('Fetch failed:', e);
+            }
         }
 
         // Initial load + auto-refresh
-        fetchStats();
-        fetchScores();
-        setInterval(() => { fetchStats(); fetchScores(); }, 15000);
+        fetchAll();
+        setInterval(fetchAll, 15000);
 
         // Countdown timer
         let countdown = 15;
         setInterval(() => {
             countdown = countdown <= 0 ? 15 : countdown - 1;
-            document.getElementById('next-sweep').textContent = `Refreshing in ${countdown}s`;
+            document.getElementById('refresh-bar').textContent = `Auto-refreshes every 15 seconds | Next in ${countdown}s`;
         }, 1000);
     </script>
 </body>
