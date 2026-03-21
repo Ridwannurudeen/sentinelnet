@@ -52,6 +52,9 @@
             <tr><td><code>/api/stats</code></td><td>GET</td><td>Ecosystem statistics</td></tr>
             <tr><td><code>/api/threats</code></td><td>GET</td><td>Real-time threat intelligence feed</td></tr>
             <tr><td><code>/api/graph-data</code></td><td>GET</td><td>Full agent graph for visualization</td></tr>
+            <tr><td><code>/api/trustgate/{agent_id}</code></td><td>GET</td><td>On-chain TrustGate record</td></tr>
+            <tr><td><code>/api/contracts</code></td><td>GET</td><td>Deployed contracts with explorer links</td></tr>
+            <tr><td><code>/api/eas/{agent_id}</code></td><td>GET</td><td>EAS attestation info</td></tr>
             <tr><td><code>/api/health</code></td><td>GET</td><td>Health check</td></tr>
         </table>
 
@@ -213,6 +216,45 @@ contract RiskChecker {
         <div class="note">
             Interactive API documentation is available at <a href="/docs">/docs</a> (Swagger UI).
         </div>
+
+        <h2>On-Chain Verification</h2>
+        <p>Every trust score is written on-chain via <strong>TrustGate</strong> (composable trust oracle) and attested via <strong>EAS</strong> (Ethereum Attestation Service).</p>
+
+        <h3>TrustGate Query</h3>
+<pre>GET /api/trustgate/31253
+
+{
+  "agent_id": 31253,
+  "on_chain": true,
+  "score": 70,
+  "verdict": "TRUST",
+  "updated_at": 1711036800,
+  "evidence_uri": "ipfs://Qm...",
+  "contract": "0x...",
+  "explorer": "https://basescan.org/address/0x..."
+}</pre>
+
+        <h3>Deployed Contracts</h3>
+<pre>GET /api/contracts
+
+{
+  "contracts": [
+    {"name": "SentinelNetStaking", "address": "0xE171...", "chain": "Base"},
+    {"name": "TrustGate", "address": "0x...", "chain": "Base"}
+  ],
+  "eas": {"schema_uid": "0x...", "explorer": "https://base.easscan.org/schema/view/0x..."},
+  "trustgate_stats": {"total_scored_on_chain": 480}
+}</pre>
+
+        <h3>EAS Attestation</h3>
+<pre>GET /api/eas/31253
+
+{
+  "agent_id": 31253,
+  "attested": true,
+  "attestation_uid": "0x...",
+  "explorer": "https://base.easscan.org/attestation/view/0x..."
+}</pre>
 
         <h2>Scoring Model</h2>
         <table>

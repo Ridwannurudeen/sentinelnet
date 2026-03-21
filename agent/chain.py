@@ -21,6 +21,8 @@ class WalletData:
     active_days: int
     total_days: int
     eth_balance: float = 0.0
+    tx_timestamps: List[int] = field(default_factory=list)
+    funding_source: str = "unknown"  # "cex", "faucet", "contract", "eoa", "unknown"
 
     @property
     def wallet_age_days(self) -> int:
@@ -28,6 +30,22 @@ class WalletData:
             return 0
         return max(0, int((time.time() - self.first_tx_timestamp) / 86400))
 
+
+# Known CEX hot wallets on Base (KYC'd funding sources)
+KNOWN_CEX = {
+    "0x3304e22ddaa22bcdc5fca2269b418046ae7b566a",  # Coinbase
+    "0xa9d1e08c7793af67e9d92fe308d5697fb81d3e43",  # Coinbase 2
+    "0xf977814e90da44bfa03b6295a0616a897441acec",  # Binance
+    "0xdfd5293d8e347dfe59e90efd55b2956a1343963d",  # Binance 2
+    "0x1ab4973a48dc892cd9971ece8e01dcc7688f8f23",  # Bybit
+    "0x2faf487a4414fe77e2327f0bf4ae2a264a776ad2",  # FTX (pre-collapse)
+    "0x28c6c06298d514db089934071355e5743bf21d60",  # Binance 14
+}
+
+# Known faucet addresses on Base
+KNOWN_FAUCET = {
+    "0x0000000000000000000000000000000000000000",  # null address (genesis)
+}
 
 # Known malicious/flagged addresses on Base (common drainers, phishing)
 KNOWN_FLAGGED = set()
@@ -62,6 +80,7 @@ class ChainFetcher:
                 "tx_count": 0, "first_tx_timestamp": 0,
                 "contracts": [], "counterparties": set(),
                 "active_days": 0, "total_days": 0,
+                "tx_timestamps": [], "funding_source": "unknown",
             }
 
         # Fetch ETH balance on Base
@@ -91,6 +110,15 @@ class ChainFetcher:
         malicious = sum(1 for c in all_contracts if c.lower() in KNOWN_FLAGGED)
         unverified = len(all_contracts) - sum(1 for c in all_contracts if c.lower() in KNOWN_VERIFIED)
 
+        # Merge tx timestamps from both chains
+        all_timestamps = base_data.get("tx_timestamps", []) + eth_data.get("tx_timestamps", [])
+        all_timestamps.sort()
+
+        # Use Base funding source (primary chain) — fall back to ETH if unknown
+        funding_source = base_data.get("funding_source", "unknown")
+        if funding_source == "unknown":
+            funding_source = eth_data.get("funding_source", "unknown")
+
         return WalletData(
             tx_count=base_data["tx_count"] + eth_data["tx_count"],
             first_tx_timestamp=int(first_tx),
@@ -103,6 +131,8 @@ class ChainFetcher:
             active_days=base_data.get("active_days", 0) + eth_data.get("active_days", 0),
             total_days=max(base_data.get("total_days", 0), eth_data.get("total_days", 0)),
             eth_balance=eth_balance,
+            tx_timestamps=all_timestamps,
+            funding_source=funding_source,
         )
 
     async def _fetch_chain(self, address: str, rpc_url: str, chain: str) -> dict:
@@ -135,17 +165,24 @@ class ChainFetcher:
         counterparties = set()
         contracts = []
         active_dates = set()
+        tx_timestamps = []
+        first_incoming_from = None
 
         for tx in txs:
             ts = int(tx.get("timeStamp", 0))
             from_addr = tx.get("from", "").lower()
             to_addr = tx.get("to", "").lower()
 
+            if ts > 0:
+                tx_timestamps.append(ts)
+
             # Track counterparties (addresses we interact with)
             if from_addr == address.lower() and to_addr:
                 counterparties.add(to_addr)
             elif to_addr == address.lower() and from_addr:
                 counterparties.add(from_addr)
+                # Track first incoming tx source (oldest = last in desc-sorted list)
+                first_incoming_from = from_addr
 
             # Track contract interactions
             if tx.get("contractAddress"):
@@ -161,6 +198,16 @@ class ChainFetcher:
         total_days = max(1, (last_ts - first_ts) // 86400) if first_ts > 0 else 0
         contracts = list(set(contracts))
 
+        # Classify funding source from first incoming tx
+        funding_source = "unknown"
+        if first_incoming_from:
+            if first_incoming_from in KNOWN_CEX:
+                funding_source = "cex"
+            elif first_incoming_from in KNOWN_FAUCET:
+                funding_source = "faucet"
+            else:
+                funding_source = "eoa"
+
         return {
             "tx_count": tx_count,
             "first_tx_timestamp": first_ts,
@@ -168,6 +215,8 @@ class ChainFetcher:
             "counterparties": counterparties,
             "active_days": len(active_dates),
             "total_days": total_days,
+            "tx_timestamps": tx_timestamps,
+            "funding_source": funding_source,
         }
 
     async def _fetch_tx_history(self, address: str, chain: str) -> list:

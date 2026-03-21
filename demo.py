@@ -129,10 +129,59 @@ def main():
     print(f"  View live: {CYAN}{API}/graph{RESET}")
     pause()
 
+    # 9. Deployed contracts
+    section("9. On-chain contracts (Base Mainnet)")
+    try:
+        contracts = client.get("/api/contracts").json()
+        for c in contracts.get("contracts", []):
+            print(f"  {BOLD}{c['name']}{RESET}: {DIM}{c['address']}{RESET}")
+            if c.get("explorer"):
+                print(f"    {CYAN}{c['explorer']}{RESET}")
+        if contracts.get("eas"):
+            print(f"  {BOLD}EAS Schema{RESET}: {DIM}{contracts['eas']['schema_uid'][:20]}...{RESET}")
+            print(f"    {CYAN}{contracts['eas']['explorer']}{RESET}")
+        if contracts.get("trustgate_stats"):
+            print(f"  TrustGate agents on-chain: {BOLD}{contracts['trustgate_stats']['total_scored_on_chain']}{RESET}")
+    except Exception as e:
+        print(f"  {DIM}Contracts endpoint not available: {e}{RESET}")
+    pause()
+
+    # 10. TrustGate on-chain query
+    section("10. TrustGate on-chain verification")
+    try:
+        tg = client.get("/api/trustgate/31253").json()
+        if tg.get("on_chain"):
+            print(f"  Agent 31253 on-chain record:")
+            print(f"    Score:    {BOLD}{tg['score']}{RESET}")
+            print(f"    Verdict:  {color_verdict(tg['verdict'])}")
+            print(f"    Updated:  {DIM}block timestamp {tg['updated_at']}{RESET}")
+            print(f"    Evidence: {DIM}{tg.get('evidence_uri', '--')[:60]}{RESET}")
+        else:
+            print(f"  {DIM}Agent 31253 not yet written to TrustGate{RESET}")
+    except Exception as e:
+        print(f"  {DIM}TrustGate not deployed yet: {e}{RESET}")
+    pause()
+
+    # 11. EAS attestation
+    section("11. EAS attestation verification")
+    try:
+        eas = client.get("/api/eas/31253").json()
+        if eas.get("attested"):
+            print(f"  Agent 31253 EAS attestation:")
+            print(f"    UID:      {DIM}{eas['attestation_uid'][:20]}...{RESET}")
+            if eas.get("explorer"):
+                print(f"    Verify:   {CYAN}{eas['explorer']}{RESET}")
+        else:
+            print(f"  {DIM}{eas.get('message', 'No attestation found')}{RESET}")
+    except Exception as e:
+        print(f"  {DIM}EAS not configured: {e}{RESET}")
+    pause()
+
     # Summary
     section("SentinelNet — The immune system for the agent economy")
     print(f"  {BOLD}Live dashboard:{RESET}  {CYAN}{API}/dashboard{RESET}")
     print(f"  {BOLD}Trust network:{RESET}   {CYAN}{API}/graph{RESET}")
+    print(f"  {BOLD}Contracts:{RESET}       {CYAN}{API}/api/contracts{RESET}")
     print(f"  {BOLD}API docs:{RESET}        {CYAN}{API}/docs{RESET}")
     print(f"  {BOLD}Integration:{RESET}     {CYAN}{API}/docs-guide{RESET}")
     print(f"  {BOLD}GitHub:{RESET}          {CYAN}https://github.com/Ridwannurudeen/sentinelnet{RESET}")

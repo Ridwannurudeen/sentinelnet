@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 STAKING_ABI = json.loads('[{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"uint8","name":"score","type":"uint8"}],"name":"stakeScore","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"uint8","name":"prev","type":"uint8"},{"internalType":"uint8","name":"next","type":"uint8"}],"name":"emitTrustDegraded","outputs":[],"stateMutability":"nonpayable","type":"function"}]')
 
+TRUSTGATE_ABI = json.loads('[{"inputs":[{"internalType":"uint256[]","name":"agentIds","type":"uint256[]"},{"internalType":"uint8[]","name":"scores","type":"uint8[]"},{"internalType":"string[]","name":"evidenceURIs","type":"string[]"}],"name":"batchUpdateTrust","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getTrustRecord","outputs":[{"internalType":"uint8","name":"score","type":"uint8"},{"internalType":"uint8","name":"verdict","type":"uint8"},{"internalType":"uint40","name":"updatedAt","type":"uint40"},{"internalType":"string","name":"evidenceURI","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"isTrusted","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalScored","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getTrustScore","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getVerdict","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"}]')
+
 
 class SentinelNetAgent:
     def __init__(self, settings: Settings):
@@ -77,6 +79,21 @@ class SentinelNetAgent:
             except Exception as e:
                 logger.warning(f"Failed to init staking contract: {e}")
 
+        # TrustGate on-chain oracle
+        self.trustgate = None
+        if settings.TRUSTGATE_CONTRACT and settings.PRIVATE_KEY:
+            try:
+                self.trustgate = self.w3.eth.contract(
+                    address=Web3.to_checksum_address(settings.TRUSTGATE_CONTRACT),
+                    abi=TRUSTGATE_ABI,
+                )
+                logger.info(f"TrustGate initialized at {settings.TRUSTGATE_CONTRACT}")
+            except Exception as e:
+                logger.warning(f"Failed to init TrustGate contract: {e}")
+
+        # Sweep score collector for TrustGate batch updates
+        self._sweep_scores = []
+
         # EAS attestor
         self.eas = None
         if settings.PRIVATE_KEY and settings.EAS_SCHEMA_UID:
@@ -128,9 +145,45 @@ class SentinelNetAgent:
         logger.info("Discovery sweep loop started")
 
     async def _run_post_sweep(self):
-        """Run sybil detection + contagion propagation after each sweep."""
+        """Run sybil detection + contagion propagation + TrustGate batch update after each sweep."""
         await self._run_sybil_detection()
         await self._run_contagion()
+        await self._update_trustgate_batch()
+
+    async def _update_trustgate_batch(self):
+        """Batch-update TrustGate on-chain with scores from this sweep."""
+        if not self.trustgate or not self._sweep_scores or not self.erc8004.account:
+            self._sweep_scores = []
+            return
+        try:
+            BATCH_SIZE = 50
+            for i in range(0, len(self._sweep_scores), BATCH_SIZE):
+                batch = self._sweep_scores[i:i + BATCH_SIZE]
+                agent_ids = [s[0] for s in batch]
+                scores = [min(s[1], 100) for s in batch]
+                evidence_uris = [s[2] for s in batch]
+
+                nonce = await asyncio.to_thread(
+                    self.w3.eth.get_transaction_count, self.erc8004.account.address
+                )
+                tx = self.trustgate.functions.batchUpdateTrust(
+                    agent_ids, scores, evidence_uris
+                ).build_transaction({
+                    "from": self.erc8004.account.address,
+                    "nonce": nonce,
+                    "gas": 200000 + 80000 * len(batch),
+                    "maxFeePerGas": self.w3.to_wei(0.1, "gwei"),
+                    "maxPriorityFeePerGas": self.w3.to_wei(0.01, "gwei"),
+                })
+                signed = self.w3.eth.account.sign_transaction(tx, self.settings.PRIVATE_KEY)
+                tx_hash = await asyncio.to_thread(
+                    self.w3.eth.send_raw_transaction, signed.raw_transaction
+                )
+                logger.info(f"TrustGate batch update ({len(batch)} agents): {tx_hash.hex()}")
+        except Exception as e:
+            logger.warning(f"TrustGate batch update failed: {e}")
+        finally:
+            self._sweep_scores = []
 
     async def _run_sybil_detection(self):
         """Run sybil detection after each sweep using collected edges."""
@@ -338,9 +391,11 @@ class SentinelNetAgent:
         activity = self.activity.score(
             data.tx_count, data.active_days, data.total_days,
             eth_balance=data.eth_balance,
+            tx_timestamps=data.tx_timestamps,
         )
         counterparty = self.counterparty_analyzer.score(
-            len(data.counterparties), data.verified_counterparties, data.flagged_counterparties
+            len(data.counterparties), data.verified_counterparties, data.flagged_counterparties,
+            funding_source=data.funding_source,
         )
         contract_risk = self.contract_risk_analyzer.score(
             len(data.contracts), data.malicious_contracts, data.unverified_contracts
@@ -397,6 +452,9 @@ class SentinelNetAgent:
             sybil_flagged=is_sybil,
             attestation_uid=attestation_uid,
         )
+
+        # Collect for TrustGate batch update
+        self._sweep_scores.append((agent_id, result.trust_score, pub_result.get("evidence_uri", "")))
 
         # Save graph edges
         for cp in data.counterparties:

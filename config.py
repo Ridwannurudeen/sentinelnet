@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     STAKE_AMOUNT_ETH: float = 0.001
     STAKING_CONTRACT: str = "0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9"
 
+    # TrustGate on-chain oracle
+    TRUSTGATE_CONTRACT: str = ""
+
     # Sweep
     SWEEP_INTERVAL_SECONDS: int = 1800
     RESCORE_AFTER_HOURS: int = 24

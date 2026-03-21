@@ -1,3 +1,4 @@
+import asyncio
 import math
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -5,7 +6,9 @@ from typing import List
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from web3 import Web3
 from db import Database
+from config import Settings
 from agent.trust_engine import TrustEngine, DECAY_LAMBDA
 
 db = Database()
@@ -394,6 +397,125 @@ async def graph_data():
                 })
 
     return {"nodes": nodes, "links": links}
+
+
+# ─── On-Chain Verification ───
+
+_settings = Settings()
+_w3 = None
+_trustgate = None
+
+TRUSTGATE_ABI_VIEWS = [
+    {"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getTrustRecord","outputs":[{"internalType":"uint8","name":"score","type":"uint8"},{"internalType":"uint8","name":"verdict","type":"uint8"},{"internalType":"uint40","name":"updatedAt","type":"uint40"},{"internalType":"string","name":"evidenceURI","type":"string"}],"stateMutability":"view","type":"function"},
+    {"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"isTrusted","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"totalScored","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getVerdict","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
+]
+
+def _get_trustgate():
+    global _w3, _trustgate
+    if _trustgate:
+        return _trustgate
+    if not _settings.TRUSTGATE_CONTRACT:
+        return None
+    _w3 = Web3(Web3.HTTPProvider(_settings.BASE_RPC_URL))
+    _trustgate = _w3.eth.contract(
+        address=Web3.to_checksum_address(_settings.TRUSTGATE_CONTRACT),
+        abi=TRUSTGATE_ABI_VIEWS,
+    )
+    return _trustgate
+
+
+@app.get("/api/trustgate/{agent_id}", tags=["On-Chain"])
+async def get_trustgate_record(agent_id: int):
+    """Read an agent's trust record directly from the TrustGate contract on Base."""
+    gate = _get_trustgate()
+    if not gate:
+        raise HTTPException(503, "TrustGate contract not configured")
+    try:
+        score, verdict_num, updated_at, evidence_uri = await asyncio.to_thread(
+            gate.functions.getTrustRecord(agent_id).call
+        )
+        verdict_map = {0: "UNSCORED", 1: "TRUST", 2: "CAUTION", 3: "REJECT"}
+        return {
+            "agent_id": agent_id,
+            "on_chain": True,
+            "score": score,
+            "verdict": verdict_map.get(verdict_num, "UNSCORED"),
+            "updated_at": updated_at,
+            "evidence_uri": evidence_uri,
+            "contract": _settings.TRUSTGATE_CONTRACT,
+            "explorer": f"https://basescan.org/address/{_settings.TRUSTGATE_CONTRACT}",
+        }
+    except Exception as e:
+        raise HTTPException(500, f"On-chain read failed: {str(e)}")
+
+
+@app.get("/api/contracts", tags=["On-Chain"])
+async def list_contracts():
+    """List all deployed SentinelNet contracts with addresses and explorer links."""
+    contracts = [
+        {
+            "name": "SentinelNetStaking",
+            "address": _settings.STAKING_CONTRACT,
+            "explorer": f"https://basescan.org/address/{_settings.STAKING_CONTRACT}" if _settings.STAKING_CONTRACT else None,
+            "chain": "Base",
+        },
+    ]
+    if _settings.TRUSTGATE_CONTRACT:
+        contracts.append({
+            "name": "TrustGate",
+            "address": _settings.TRUSTGATE_CONTRACT,
+            "explorer": f"https://basescan.org/address/{_settings.TRUSTGATE_CONTRACT}",
+            "chain": "Base",
+        })
+
+    result = {
+        "contracts": contracts,
+        "registries": {
+            "identity": {"address": _settings.IDENTITY_REGISTRY, "explorer": f"https://basescan.org/address/{_settings.IDENTITY_REGISTRY}"},
+            "reputation": {"address": _settings.REPUTATION_REGISTRY, "explorer": f"https://basescan.org/address/{_settings.REPUTATION_REGISTRY}"},
+        },
+    }
+
+    if _settings.EAS_SCHEMA_UID:
+        result["eas"] = {
+            "schema_uid": _settings.EAS_SCHEMA_UID,
+            "explorer": f"https://base.easscan.org/schema/view/{_settings.EAS_SCHEMA_UID}",
+        }
+
+    # TrustGate on-chain stats
+    gate = _get_trustgate()
+    if gate:
+        try:
+            total = await asyncio.to_thread(gate.functions.totalScored().call)
+            result["trustgate_stats"] = {"total_scored_on_chain": total}
+        except Exception:
+            pass
+
+    return result
+
+
+@app.get("/api/eas/{agent_id}", tags=["On-Chain"])
+async def get_eas_attestation(agent_id: int):
+    """Get EAS attestation info for an agent."""
+    score = await db.get_score(agent_id)
+    if not score:
+        raise HTTPException(404, f"Agent {agent_id} not scored yet")
+    uid = score.get("attestation_uid", "")
+    if not uid:
+        return {
+            "agent_id": agent_id,
+            "attested": False,
+            "message": "No EAS attestation found for this agent",
+        }
+    return {
+        "agent_id": agent_id,
+        "attested": True,
+        "attestation_uid": uid,
+        "explorer": f"https://base.easscan.org/attestation/view/{uid}" if uid.startswith("0x") else None,
+        "schema_uid": _settings.EAS_SCHEMA_UID or None,
+    }
 
 
 # ─── Admin ───
