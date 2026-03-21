@@ -1,0 +1,75 @@
+{
+  "name": "SentinelNet",
+  "description": "Autonomous agent reputation watchdog for ERC-8004 on Base. Discovers registered agents, analyzes their on-chain behavior across Base and Ethereum, computes 5-dimensional trust scores, publishes verifiable evidence to IPFS, and writes composable reputation feedback on-chain.",
+  "version": "1.0.0",
+  "operator": {
+    "wallet": "0xA284Fe859008b641d6DD5A8Ba527F6a43043E6d9",
+    "name": "Ridwan Nurudeen"
+  },
+  "identity": {
+    "agentId": 31253,
+    "registry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    "registrationTx": "0xe06b2552a12f1ea9c727fcd6ea9878adc5bb979f5cd988542a00b51514bd2df8"
+  },
+  "supportedTools": [
+    {
+      "name": "check_trust",
+      "protocol": "MCP",
+      "description": "Check trust score of an ERC-8004 registered agent",
+      "input": {
+        "agent_id": "integer (ERC-8004 agent ID)",
+        "fresh": "boolean (optional, run fresh analysis)"
+      }
+    },
+    {
+      "name": "REST API",
+      "protocol": "HTTP",
+      "endpoints": [
+        "GET /trust/{agent_id}",
+        "GET /api/scores",
+        "GET /api/stats",
+        "GET /trust/graph/{agent_id}"
+      ]
+    }
+  ],
+  "techStack": {
+    "runtime": "Python 3.11+",
+    "framework": "FastAPI + asyncio",
+    "chains": ["Base Mainnet", "Ethereum Mainnet"],
+    "storage": ["SQLite WAL", "IPFS (Pinata)"],
+    "contracts": {
+      "stakingContract": "0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9",
+      "identityRegistry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "reputationRegistry": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
+    }
+  },
+  "computeConstraints": {
+    "sweepInterval": "30 minutes",
+    "rpcCallsPerSweep": "~200 (batched with 2s delay)",
+    "ipfsPinsPerSweep": "~50",
+    "maxConcurrentAgents": 1,
+    "estimatedGasPerScore": 300000
+  },
+  "taskCategories": [
+    "agent-reputation-scoring",
+    "on-chain-behavioral-analysis",
+    "sybil-detection",
+    "trust-graph-analysis",
+    "erc8004-feedback-publishing"
+  ],
+  "autonomousLoop": {
+    "discover": "Sweep Identity Registry for new/unscored agents",
+    "analyze": "Fetch wallet history from Base + Ethereum, run 5-dimensional scoring",
+    "score": "Weighted aggregation with sybil penalties and trust decay",
+    "publish": "Pin evidence to IPFS, write feedback to Reputation Registry",
+    "repeat": "Every 30 minutes, re-discover and re-score stale agents"
+  },
+  "safetyGuardrails": [
+    "Nonce lock prevents concurrent transaction conflicts",
+    "Gas limits capped at 300,000 per transaction",
+    "ETH balance check before staking operations",
+    "Graceful fallback when ETH RPC is unavailable",
+    "Score clamping to 0-100 range",
+    "72-hour challenge window on staked scores"
+  ]
+}

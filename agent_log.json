@@ -1,0 +1,943 @@
+{
+  "agentName": "SentinelNet",
+  "agentId": 31253,
+  "startedAt": "2026-03-17T00:00:00Z",
+  "totalAgentsScored": 140,
+  "uniqueScores": 31,
+  "scoreRange": {
+    "min": 15,
+    "max": 70
+  },
+  "verdictBreakdown": {
+    "TRUST": 1,
+    "CAUTION": 130,
+    "REJECT": 9
+  },
+  "executionLog": [
+    {
+      "step": 1,
+      "action": "score_agent",
+      "agentId": 34911,
+      "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+      "decision": "Scored agent 34911 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34911
+          },
+          "output": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34911,
+            "score": 55,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 55,
+        "verdict": "CAUTION",
+        "longevity": 0,
+        "activity": 72,
+        "counterparty": 86,
+        "contractRisk": 81,
+        "evidenceUri": "ipfs://Qmb5kT3DW6ocazo1TffVc51yqn5HgwbfNffnyXevbkXbS2",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 2,
+      "action": "score_agent",
+      "agentId": 34910,
+      "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+      "decision": "Scored agent 34910 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34910
+          },
+          "output": "0xCc615F59EEadb99253379f257c2Ada42ffC38062"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34910,
+            "score": 39,
+            "verdict": "REJECT"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 39,
+        "verdict": "REJECT",
+        "longevity": 10,
+        "activity": 32,
+        "counterparty": 75,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmPmovHcMeUP26RxgTSX4JztFQRgX4ParyDT6YkUzid2YB",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 3,
+      "action": "score_agent",
+      "agentId": 34909,
+      "wallet": "0xd1a8Dd23e356B9fAE27dF5DeF9ea025A602EC81e",
+      "decision": "Scored agent 34909 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34909
+          },
+          "output": "0xd1a8Dd23e356B9fAE27dF5DeF9ea025A602EC81e"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xd1a8Dd23e356B9fAE27dF5DeF9ea025A602EC81e",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34909,
+            "score": 66,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 66,
+        "verdict": "CAUTION",
+        "longevity": 100,
+        "activity": 44,
+        "counterparty": 76,
+        "contractRisk": 81,
+        "evidenceUri": "ipfs://QmShTELiYqE1FUZ22KWfyRH3gYkEnknu3NQ2892WK1RzaP",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 4,
+      "action": "score_agent",
+      "agentId": 34908,
+      "wallet": "0x4BA332060AB0E1EcfcC3B2028042eeEfE20A2891",
+      "decision": "Scored agent 34908 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34908
+          },
+          "output": "0x4BA332060AB0E1EcfcC3B2028042eeEfE20A2891"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x4BA332060AB0E1EcfcC3B2028042eeEfE20A2891",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34908,
+            "score": 15,
+            "verdict": "REJECT"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 15,
+        "verdict": "REJECT",
+        "longevity": 0,
+        "activity": 2,
+        "counterparty": 10,
+        "contractRisk": 30,
+        "evidenceUri": "ipfs://QmdjABcyRXJyfNuXR6tX3w47vyUmbWNrmAL91p6Hu1aUVD",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 5,
+      "action": "score_agent",
+      "agentId": 34907,
+      "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+      "decision": "Scored agent 34907 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34907
+          },
+          "output": "0xCc615F59EEadb99253379f257c2Ada42ffC38062"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34907,
+            "score": 39,
+            "verdict": "REJECT"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 39,
+        "verdict": "REJECT",
+        "longevity": 10,
+        "activity": 32,
+        "counterparty": 75,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmXPQ7q2bQddPLHqXiitHe6qgKs6s4p9LzcAUnL9a69oRd",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 6,
+      "action": "score_agent",
+      "agentId": 34906,
+      "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+      "decision": "Scored agent 34906 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34906
+          },
+          "output": "0xCc615F59EEadb99253379f257c2Ada42ffC38062"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34906,
+            "score": 40,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 40,
+        "verdict": "CAUTION",
+        "longevity": 10,
+        "activity": 32,
+        "counterparty": 75,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmXJaoJsDAcwGasv1cYrDDA92dAzyb8RmK5cGEpaNCAdq8",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 7,
+      "action": "score_agent",
+      "agentId": 34905,
+      "wallet": "0x1522c5829616e94cd140F0c3855523529eFc72F6",
+      "decision": "Scored agent 34905 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34905
+          },
+          "output": "0x1522c5829616e94cd140F0c3855523529eFc72F6"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x1522c5829616e94cd140F0c3855523529eFc72F6",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34905,
+            "score": 31,
+            "verdict": "REJECT"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 31,
+        "verdict": "REJECT",
+        "longevity": 0,
+        "activity": 32,
+        "counterparty": 60,
+        "contractRisk": 30,
+        "evidenceUri": "ipfs://QmeuarJvQNq6tzffNXX9JdfQ6ynFgPV2dLnoMJ4UCUtfrz",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 8,
+      "action": "score_agent",
+      "agentId": 34904,
+      "wallet": "0x789B85e80cC4d63eB8B6e60A2348022e7FB965C1",
+      "decision": "Scored agent 34904 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34904
+          },
+          "output": "0x789B85e80cC4d63eB8B6e60A2348022e7FB965C1"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x789B85e80cC4d63eB8B6e60A2348022e7FB965C1",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34904,
+            "score": 64,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 64,
+        "verdict": "CAUTION",
+        "longevity": 61,
+        "activity": 66,
+        "counterparty": 74,
+        "contractRisk": 82,
+        "evidenceUri": "ipfs://QmdCxe4kFkj8Tk4THRRmV26B9KkjB2MrqTxDYyJ9Gweqfs",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 9,
+      "action": "score_agent",
+      "agentId": 34903,
+      "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+      "decision": "Scored agent 34903 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34903
+          },
+          "output": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34903,
+            "score": 55,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 55,
+        "verdict": "CAUTION",
+        "longevity": 0,
+        "activity": 72,
+        "counterparty": 86,
+        "contractRisk": 81,
+        "evidenceUri": "ipfs://QmbrfqhFVZcqvf6B8AAUBU74tjKkAGiahCDVzmsPGAia9H",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 10,
+      "action": "score_agent",
+      "agentId": 34902,
+      "wallet": "0xF2bd07D17c4266330f335AC2b40f63219A954159",
+      "decision": "Scored agent 34902 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34902
+          },
+          "output": "0xF2bd07D17c4266330f335AC2b40f63219A954159"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xF2bd07D17c4266330f335AC2b40f63219A954159",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34902,
+            "score": 37,
+            "verdict": "REJECT"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 37,
+        "verdict": "REJECT",
+        "longevity": 0,
+        "activity": 33,
+        "counterparty": 60,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmXCKdq2BKaUYo1C8U7YB5qfpniVSUeCRsJT8x25WUC67t",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 11,
+      "action": "score_agent",
+      "agentId": 34901,
+      "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+      "decision": "Scored agent 34901 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34901
+          },
+          "output": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34901,
+            "score": 55,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 55,
+        "verdict": "CAUTION",
+        "longevity": 0,
+        "activity": 72,
+        "counterparty": 86,
+        "contractRisk": 81,
+        "evidenceUri": "ipfs://QmdqXb3EbHbnuLffDmYT9y5JMorJt1pq8cXyVExTWUtu9W",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 12,
+      "action": "score_agent",
+      "agentId": 34900,
+      "wallet": "0x8618416B7803dFaE42641Cf56C3f97F21Bf1F253",
+      "decision": "Scored agent 34900 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34900
+          },
+          "output": "0x8618416B7803dFaE42641Cf56C3f97F21Bf1F253"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x8618416B7803dFaE42641Cf56C3f97F21Bf1F253",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34900,
+            "score": 18,
+            "verdict": "REJECT"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 18,
+        "verdict": "REJECT",
+        "longevity": 0,
+        "activity": 0,
+        "counterparty": 10,
+        "contractRisk": 30,
+        "evidenceUri": "ipfs://QmUHoz2YVVeFCwpb2WkT6WNa5BsysUQu4LCTLL4ASgBjy5",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 13,
+      "action": "score_agent",
+      "agentId": 34899,
+      "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+      "decision": "Scored agent 34899 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34899
+          },
+          "output": "0xCc615F59EEadb99253379f257c2Ada42ffC38062"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34899,
+            "score": 40,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 40,
+        "verdict": "CAUTION",
+        "longevity": 10,
+        "activity": 32,
+        "counterparty": 75,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmawpYiJYdTkrrGEzsKiKX6eJXL69eVyVMdWAAzHvb1jBP",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 14,
+      "action": "score_agent",
+      "agentId": 34898,
+      "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+      "decision": "Scored agent 34898 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34898
+          },
+          "output": "0xCc615F59EEadb99253379f257c2Ada42ffC38062"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xCc615F59EEadb99253379f257c2Ada42ffC38062",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34898,
+            "score": 42,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 42,
+        "verdict": "CAUTION",
+        "longevity": 10,
+        "activity": 32,
+        "counterparty": 75,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmNriLJqMiYc1ANYZg7yVrGpfgtQw1bHdWS7kbmVApojMx",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 15,
+      "action": "score_agent",
+      "agentId": 34897,
+      "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+      "decision": "Scored agent 34897 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 34897
+          },
+          "output": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x6FFa1e00509d8B625c2F061D7dB07893B37199BC",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 34897,
+            "score": 57,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 57,
+        "verdict": "CAUTION",
+        "longevity": 0,
+        "activity": 72,
+        "counterparty": 86,
+        "contractRisk": 81,
+        "evidenceUri": "ipfs://QmUX5v8DmPGuXiGnvPe8grmmq2YgfwR6k3KvvmegApjpH2",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 16,
+      "action": "score_agent",
+      "agentId": 80,
+      "wallet": "0xcBD7506D33a01aBDD03e1c4Ef1CDC943c75741B8",
+      "decision": "Scored agent 80 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 80
+          },
+          "output": "0xcBD7506D33a01aBDD03e1c4Ef1CDC943c75741B8"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0xcBD7506D33a01aBDD03e1c4Ef1CDC943c75741B8",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 80,
+            "score": 46,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 46,
+        "verdict": "CAUTION",
+        "longevity": 83,
+        "activity": 4,
+        "counterparty": 60,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmdQjou9anpaSFfUKA1keEdXmmNB3U7r58zPrgQ525daix",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 17,
+      "action": "score_agent",
+      "agentId": 79,
+      "wallet": "0x67722c823010CEb4BED5325fE109196C0f67D053",
+      "decision": "Scored agent 79 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 79
+          },
+          "output": "0x67722c823010CEb4BED5325fE109196C0f67D053"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x67722c823010CEb4BED5325fE109196C0f67D053",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 79,
+            "score": 43,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 43,
+        "verdict": "CAUTION",
+        "longevity": 57,
+        "activity": 32,
+        "counterparty": 60,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmVDWiyuY7cRcxX52Vda8KQiMLYNk2JLdGMBWD9YaSUfAM",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 18,
+      "action": "score_agent",
+      "agentId": 78,
+      "wallet": "0x97e0294DB6a3199b56E2DB0FA8fFF61B38278eb7",
+      "decision": "Scored agent 78 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 78
+          },
+          "output": "0x97e0294DB6a3199b56E2DB0FA8fFF61B38278eb7"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x97e0294DB6a3199b56E2DB0FA8fFF61B38278eb7",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 78,
+            "score": 47,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 47,
+        "verdict": "CAUTION",
+        "longevity": 90,
+        "activity": 6,
+        "counterparty": 60,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://Qmf7JWWqnopRkTVmizNaV1S2uPpzNpMqnxRCuvNMCkvU2R",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 19,
+      "action": "score_agent",
+      "agentId": 77,
+      "wallet": "0x67722c823010CEb4BED5325fE109196C0f67D053",
+      "decision": "Scored agent 77 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 77
+          },
+          "output": "0x67722c823010CEb4BED5325fE109196C0f67D053"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x67722c823010CEb4BED5325fE109196C0f67D053",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 77,
+            "score": 43,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 43,
+        "verdict": "CAUTION",
+        "longevity": 57,
+        "activity": 32,
+        "counterparty": 60,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmereTeeZvMnyzRK2iMr3sTiU6ahHQk8gY2pP9rcjZFYZZ",
+        "txHash": ""
+      },
+      "status": "success"
+    },
+    {
+      "step": 20,
+      "action": "score_agent",
+      "agentId": 76,
+      "wallet": "0x67722c823010CEb4BED5325fE109196C0f67D053",
+      "decision": "Scored agent 76 via autonomous sweep",
+      "toolCalls": [
+        {
+          "tool": "erc8004.getAgentWallet",
+          "input": {
+            "agentId": 76
+          },
+          "output": "0x67722c823010CEb4BED5325fE109196C0f67D053"
+        },
+        {
+          "tool": "chain.fetchWallet",
+          "input": {
+            "wallet": "0x67722c823010CEb4BED5325fE109196C0f67D053",
+            "chains": [
+              "base",
+              "ethereum"
+            ]
+          }
+        },
+        {
+          "tool": "publisher.publish",
+          "input": {
+            "agentId": 76,
+            "score": 43,
+            "verdict": "CAUTION"
+          }
+        }
+      ],
+      "result": {
+        "trustScore": 43,
+        "verdict": "CAUTION",
+        "longevity": 57,
+        "activity": 32,
+        "counterparty": 60,
+        "contractRisk": 61,
+        "evidenceUri": "ipfs://QmcxKVtgh87ozN6QsXvcpwkuW6CXrSbo7ohLw2TW8Pe6cx",
+        "txHash": ""
+      },
+      "status": "success"
+    }
+  ],
+  "retries": 3,
+  "failures": [
+    {
+      "step": "eth_rpc_fetch",
+      "error": "header not found",
+      "resolution": "Graceful fallback to Base-only data"
+    },
+    {
+      "step": "pinata_auth",
+      "error": "401 Unauthorized with API key",
+      "resolution": "Switched to JWT Bearer auth"
+    },
+    {
+      "step": "rpc_rate_limit",
+      "error": "429 Too Many Requests",
+      "resolution": "2s delay between agent scoring"
+    }
+  ],
+  "safetyChecks": [
+    "Nonce lock acquired before every transaction",
+    "Gas capped at 300,000 per feedback tx",
+    "Score clamped to 0-100 range",
+    "ETH balance verified before staking",
+    "Graceful degradation when external APIs fail"
+  ]
+}
