@@ -81,7 +81,7 @@ Everything is running in production right now:
 |----------|---------|
 | Agent #31253 | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) |
 | Reputation feedback | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) |
-| Score staking | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) |
+| Score staking | [SentinelNetStaking](https://basescan.org/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7) |
 | Trust gate | [TrustGate](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) |
 | Evidence | IPFS / API (full analysis JSON per agent) |
 

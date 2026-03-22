@@ -19,8 +19,8 @@ contract SentinelNetStaking {
     event StakeChallenged(bytes32 indexed stakeId, address challenger);
     event TrustDegraded(uint256 indexed agentId, uint8 previousScore, uint8 newScore, uint256 timestamp);
 
-    constructor() {
-        sentinel = msg.sender;
+    constructor(address _sentinel) {
+        sentinel = _sentinel;
     }
 
     function stakeScore(uint256 agentId, uint8 score) external payable {
