@@ -5,6 +5,7 @@ Usage: CDP_API_KEY_ID=... CDP_API_KEY_SECRET=... python3 scripts/cdp_fund_and_de
 import asyncio
 import json
 import os
+import secrets
 import sys
 
 from cdp import CdpClient
@@ -38,7 +39,13 @@ async def main():
     abi, bytecode = load_artifact()
     print(f"Loaded TrustGate artifact ({len(bytecode)} bytes bytecode)")
 
-    async with CdpClient(api_key_id=api_key_id, api_key_secret=api_key_secret) as client:
+    # wallet_secret encrypts server-managed wallet keys on CDP
+    wallet_secret = os.environ.get("CDP_WALLET_SECRET", "")
+    if not wallet_secret:
+        wallet_secret = secrets.token_hex(32)
+        print(f"Generated wallet_secret (save this!): {wallet_secret}")
+
+    async with CdpClient(api_key_id=api_key_id, api_key_secret=api_key_secret, wallet_secret=wallet_secret) as client:
         # Create a server-managed account
         print("Creating CDP server account...")
         account = await client.evm.create_account()
@@ -66,7 +73,7 @@ async def main():
         # Save account info
         save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cdp_account.json")
         with open(save_path, "w") as f:
-            json.dump({"address": address}, f)
+            json.dump({"address": address, "wallet_secret": wallet_secret}, f)
         print(f"Account saved to {save_path}")
 
         # If DEPLOY flag is set and account has balance, deploy
