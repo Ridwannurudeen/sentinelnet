@@ -4,6 +4,8 @@
 
 SentinelNet is an autonomous reputation watchdog that continuously discovers, analyzes, and scores every ERC-8004 agent on Base — zero human involvement. One API call returns a trust score backed by on-chain proof, IPFS-pinned evidence, and staked ETH.
 
+![SentinelNet Dashboard](docs/images/dashboard-demo.gif)
+
 | | |
 |---|---|
 | **3,452+** agents scored | **179** sybil networks unmasked |
@@ -29,6 +31,8 @@ This is not theoretical. SentinelNet found real threats in the live ecosystem:
 ## Live Deployment
 
 SentinelNet is running in production on Base Mainnet as **Agent #31253**.
+
+![Landing Page](docs/images/landing.png)
 
 - **Dashboard**: [sentinelnet.gudman.xyz/dashboard](https://sentinelnet.gudman.xyz/dashboard)
 - **Marketplace**: [sentinelnet.gudman.xyz/marketplace](https://sentinelnet.gudman.xyz/marketplace)
@@ -119,6 +123,8 @@ Five analyzers run per agent, each measuring a different trust signal:
 
 ### Trust Contagion
 
+![Trust Network](docs/images/trust-network-demo.gif)
+
 PageRank-style recursive trust propagation through the agent interaction graph. If you regularly transact with REJECT agents, your score gets dragged down. If you interact with high-trust agents, you get a boost.
 
 - Negative contagion weight: 0.6 (bad actors spread distrust faster)
@@ -144,6 +150,8 @@ Scores decay exponentially: `effective_score = base_score * e^(-0.01 * days)`
 After 30 days without re-scoring, a 90 becomes ~67. Decay is applied at query time. Trust is not permanent.
 
 ## Integration
+
+![Agent Marketplace](docs/images/marketplace.png)
 
 ### Smart Contracts
 
