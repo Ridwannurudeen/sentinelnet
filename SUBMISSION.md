@@ -2,7 +2,7 @@
 
 ## One-liner
 
-Autonomous reputation watchdog that scored 3,098 agents, flagged 1,642 sybils, and logged 3,387 threats — zero human involvement.
+Autonomous reputation watchdog that scored 3,226 agents, flagged 1,893 sybils, and logged 4,834 threats — zero human involvement.
 
 ## What it does
 
@@ -18,10 +18,10 @@ Any agent or contract can query SentinelNet before transacting with an unknown c
 
 This is not theoretical. SentinelNet found real threats in the wild:
 
-- **1,642 sybil agents** across 67 wallets — one wallet registered 10+ agents, all sharing the same address (`0x0049dCe82B...`). SentinelNet flagged them autonomously, applied -20 sybil penalty, and crushed all to score 0.
-- **859 sybil clusters** detected through dual-method analysis (wallet-sharing + interaction graph cliques)
-- **3,387 threat events** logged — sybil clusters, trust degradations, and trust contagion spreading through the interaction graph
-- **1,804 agents REJECTED** (66% of scored agents) — the ERC-8004 ecosystem has a trust problem, and SentinelNet quantifies it
+- **1,893 sybil agents** across 67+ wallets — one wallet registered 10+ agents, all sharing the same address (`0x0049dCe82B...`). SentinelNet flagged them autonomously, applied -20 sybil penalty, and crushed all to score 0.
+- **859+ sybil clusters** detected through dual-method analysis (wallet-sharing + interaction graph cliques)
+- **4,834 threat events** logged — sybil clusters, trust degradations, and trust contagion spreading through the interaction graph
+- **2,177 agents REJECTED** (67% of scored agents) — the ERC-8004 ecosystem has a trust problem, and SentinelNet quantifies it
 
 ## How it works
 
@@ -34,7 +34,7 @@ This is not theoretical. SentinelNet found real threats in the wild:
 ## What makes this different
 
 - **Fully autonomous** — Agent #31253 runs 24/7 with zero human involvement. No curation, no moderation queue, no manual reviews. It discovers, scores, and publishes on its own.
-- **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 1,642 actual sybils in the wild, operating across 67 wallets, and flagged every one of them.
+- **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 1,893 actual sybils in the wild, operating across 67+ wallets, and flagged every one of them.
 - **8 integration paths** — Any protocol can plug in however they want: smart contract, Python SDK, JavaScript SDK, REST API, MCP, WebSocket, webhooks, or Prometheus. No vendor lock-in.
 - **On-chain verifiability** — Every trust score is backed by a TrustGate contract call, IPFS-pinned evidence, and staked ETH. Nothing is hand-waved.
 - **Trust contagion** — PageRank-style propagation through the agent interaction graph. If an agent transacts with flagged counterparties, its score degrades automatically. Trust is earned through the network, not declared.
@@ -76,15 +76,15 @@ Everything is running in production right now:
 
 ## Tech stack
 
-Python 3.11+ / FastAPI / SQLite WAL / web3.py / Next.js / Tailwind / Framer Motion / D3.js / Solidity 0.8.24 / MCP / IPFS / EAS
+Python 3.11+ / FastAPI / SQLite WAL / web3.py / Next.js / Tailwind / Framer Motion / D3.js / Solidity 0.8.24 / MCP / IPFS
 
 ## By the numbers
 
 | | |
 |---|---|
-| **3,098** agents scored | **3,098** scores written on-chain |
-| **1,642** sybils flagged | **859** sybil clusters detected |
-| **3,387** threats logged | **1,804** agents rejected (66%) |
+| **3,226** agents scored | **3,226** scores written on-chain |
+| **1,893** sybils flagged | **859+** sybil clusters detected |
+| **4,834** threats logged | **2,177** agents rejected (67%) |
 | **64** on-chain txs via paymaster | **100** tests passing |
 | **26+** API endpoints | **8** MCP tools |
 | **8** integration paths | **0** humans in the loop |

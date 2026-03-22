@@ -279,8 +279,10 @@ app = FastAPI(
     version="2.2.0",
     description="Autonomous reputation immune system for ERC-8004 agents on Base. "
                 "5-dimensional trust scoring with trust contagion, sybil detection, "
-                "threat intelligence, IPFS evidence, and EAS attestations.",
+                "threat intelligence, and IPFS evidence.",
     lifespan=lifespan,
+    docs_url="/swagger",
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
@@ -296,7 +298,7 @@ app.add_middleware(
 # Paths that bypass API key authentication
 _AUTH_SKIP_EXACT = frozenset({
     "/", "/dashboard", "/marketplace", "/graph", "/leaderboard",
-    "/docs-guide", "/api/health", "/api/keys", "/docs", "/openapi.json", "/redoc",
+    "/docs-guide", "/api/health", "/api/keys", "/docs", "/swagger", "/openapi.json", "/redoc", "/metrics",
 })
 _AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/")
 
@@ -385,6 +387,12 @@ async def agent_profile(agent_id: int):
 @app.get("/docs-guide", response_class=HTMLResponse, include_in_schema=False)
 async def integration_docs():
     return FileResponse("dashboard/docs.html")
+
+
+@app.get("/docs", response_class=HTMLResponse, include_in_schema=False)
+async def docs_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse("/docs-guide", status_code=301)
 
 
 @app.get("/graph", response_class=HTMLResponse, include_in_schema=False)
