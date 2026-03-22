@@ -74,15 +74,26 @@ export const CONTRACTS = [
 ] as const;
 
 export const CODE_TABS = {
-  Solidity: `// Gate any function by agent trust score
-import {TrustGate} from "sentinelnet/TrustGate.sol";
+  Solidity: `// TrustGatedMarketplace — real integration proof
+interface ITrustGate {
+    function isTrusted(uint256 agentId)
+        external view returns (bool);
+}
 
-contract MyMarketplace is TrustGate {
-    function execute(uint256 agentId)
-        external onlyTrusted(agentId)
-    {
-        // Only runs if agent is TRUSTED
+contract TrustGatedMarketplace {
+    ITrustGate public trustGate;
+
+    modifier onlyTrustedAgent(uint256 agentId) {
+        if (!trustGate.isTrusted(agentId))
+            revert AgentNotTrusted(agentId);
+        _;
     }
+
+    function listService(
+        uint256 agentId,
+        string calldata desc,
+        uint256 price
+    ) external onlyTrustedAgent(agentId) { }
 }`,
   cURL: `# Check single agent
 curl https://sentinelnet.gudman.xyz/trust/31253
@@ -118,8 +129,9 @@ async def check_trust(agent_id: int) -> dict:
 
 export const NAV_LINKS = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Marketplace", href: "/marketplace" },
   { label: "Trust Network", href: "/graph" },
   { label: "API Docs", href: "/docs" },
-  { label: "Integration Guide", href: "/docs-guide" },
+  { label: "Leaderboard", href: "/leaderboard" },
   { label: "GitHub", href: "https://github.com/Ridwannurudeen/sentinelnet", external: true },
 ] as const;
