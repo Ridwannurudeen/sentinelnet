@@ -140,7 +140,7 @@ class ERC8004Client:
         # Try paymaster first (gasless via CDP Smart Account)
         if self.paymaster and self.paymaster.enabled:
             try:
-                data = self.reputation.encodeABI(fn_name="giveFeedback", args=args)
+                data = self.reputation.encode_abi(abi_element_identifier="giveFeedback", args=args)
                 tx_hash = await self.paymaster.send_call(to=self.reputation_addr, data=data)
                 if tx_hash:
                     logger.info(f"Feedback via paymaster for agent {agent_id} tag={tag1}: {tx_hash}")
@@ -200,8 +200,8 @@ class ERC8004Client:
             elif isinstance(feedback_hash, bytes) and len(feedback_hash) > 32:
                 feedback_hash = feedback_hash[:32]
 
-            data = self.reputation.encodeABI(
-                fn_name="giveFeedback",
+            data = self.reputation.encode_abi(
+                abi_element_identifier="giveFeedback",
                 args=[agent_id, value, 0, tag1, tag2, "", feedback_uri, feedback_hash],
             )
             calls.append({"to": self.reputation_addr, "data": data})

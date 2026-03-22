@@ -181,8 +181,8 @@ class SentinelNetAgent:
                 # Try paymaster first (gasless)
                 if self.paymaster and self.paymaster.enabled:
                     try:
-                        data = self.trustgate.encodeABI(
-                            fn_name="batchUpdateTrust",
+                        data = self.trustgate.encode_abi(
+                            abi_element_identifier="batchUpdateTrust",
                             args=[agent_ids, scores, evidence_uris],
                         )
                         tx_hash = await self.paymaster.send_call(
@@ -346,8 +346,8 @@ class SentinelNetAgent:
         # Try paymaster first (gasless)
         if self.paymaster and self.paymaster.enabled:
             try:
-                data = self.staking.encodeABI(
-                    fn_name="emitTrustDegraded",
+                data = self.staking.encode_abi(
+                    abi_element_identifier="emitTrustDegraded",
                     args=[agent_id, min(prev_score, 255), min(new_score, 255)],
                 )
                 tx_hash = await self.paymaster.send_call(
