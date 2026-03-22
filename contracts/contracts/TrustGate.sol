@@ -54,8 +54,8 @@ contract TrustGate {
         _;
     }
 
-    constructor() {
-        sentinel = msg.sender;
+    constructor(address _sentinel) {
+        sentinel = _sentinel;
     }
 
     /// @notice Update trust score for an agent. Called by SentinelNet after analysis.
