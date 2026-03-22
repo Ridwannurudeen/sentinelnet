@@ -2,36 +2,52 @@
 
 **The immune system for the ERC-8004 agent economy on Base.**
 
-SentinelNet is an autonomous reputation watchdog that continuously discovers, analyzes, and scores every ERC-8004 agent on Base. It runs 24/7 with no human in the loop — scanning the full registry of 35,000+ agents, computing 5-dimensional trust scores, propagating trust contagion through interaction graphs, detecting sybil clusters, publishing verifiable evidence to IPFS, and writing composable reputation feedback on-chain.
+SentinelNet is an autonomous reputation watchdog that continuously discovers, analyzes, and scores every ERC-8004 agent on Base — zero human involvement. One API call returns a trust score backed by on-chain proof, IPFS-pinned evidence, and staked ETH.
 
-Other agents query SentinelNet before transacting with unknown counterparties. One API call. One trust score. Every score backed by on-chain proof, pinned evidence, and staked ETH.
-
-## Live Right Now
-
-SentinelNet is not a demo. It's running in production on Base Mainnet.
-
-- **3,237 agents scored** across all 3 verdict classes, scanning all 35K+ registered agents
-- **1,920 sybil agents flagged** across 78 wallets and 859 coordinated clusters
-- **5,224 threat events** detected — sybil clusters, trust degradations, contagion events
-- **Gasless on-chain writes** via Coinbase CDP Paymaster — 355+ UserOperations sent through ERC-4337 Smart Account
-- **Agent marketplace** at [sentinelnet.gudman.xyz/marketplace](https://sentinelnet.gudman.xyz/marketplace) — browse, filter, TrustGate check
-- **WebSocket live feed** — real-time score updates streamed to connected clients
-- **Prometheus metrics** at [/metrics](https://sentinelnet.gudman.xyz/metrics) — production-grade observability
-- **Webhook system** — subscribe to trust change notifications
-- **Rate-limited API** — 100 req/hr free, 1000/hr with API key
-- **On-chain feedback** on the [ERC-8004 Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63)
-- **IPFS evidence** pinned for every score (e.g. [ipfs://QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm](https://gateway.pinata.cloud/ipfs/QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm))
-- **Staking contract** at [`0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9`](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9)
-- **Agent ID 31253** registered on-chain — [view live score](https://sentinelnet.gudman.xyz/trust/31253)
-- **Live dashboard**: [sentinelnet.gudman.xyz/dashboard](https://sentinelnet.gudman.xyz/dashboard)
-- **Trust Network Graph**: [sentinelnet.gudman.xyz/graph](https://sentinelnet.gudman.xyz/graph)
-- **Threat Feed**: [sentinelnet.gudman.xyz/api/threats](https://sentinelnet.gudman.xyz/api/threats)
+| | |
+|---|---|
+| **3,452+** agents scored | **179** sybil networks unmasked |
+| **1,993** sybils flagged (58%) | **682** contagion-penalized agents |
+| **2,492** agents rejected (72%) | **259** ghost agents identified |
+| **8** integration paths | **0** humans in the loop |
 
 ## The Problem
 
 35,000+ agents are registered on the ERC-8004 Identity Registry. Any agent can register. There's no built-in way to know which ones are trustworthy, which are sybils, and which are interacting with malicious contracts. As the agent economy scales to millions of autonomous actors, it collapses into chaos without trust infrastructure.
 
 SentinelNet is that infrastructure.
+
+## What We Found
+
+This is not theoretical. SentinelNet found real threats in the live ecosystem:
+
+- **One wallet (`0x67722c...`) registered 260 agents** — 88% with sequential IDs, a textbook mass-registration attack. 253 flagged as sybil, 254 REJECTED.
+- **179 sybil networks** — the top 3 operators alone control 549 fake agents
+- **682 agents** penalized by trust contagion — average -11 points for associating with flagged counterparties
+- **Ecosystem health score: 29/100** — the registry has a trust crisis, and SentinelNet is the only system quantifying it
+
+## Live Deployment
+
+SentinelNet is running in production on Base Mainnet as **Agent #31253**.
+
+- **Dashboard**: [sentinelnet.gudman.xyz/dashboard](https://sentinelnet.gudman.xyz/dashboard)
+- **Marketplace**: [sentinelnet.gudman.xyz/marketplace](https://sentinelnet.gudman.xyz/marketplace)
+- **Trust Network**: [sentinelnet.gudman.xyz/graph](https://sentinelnet.gudman.xyz/graph)
+- **Threat Feed**: [sentinelnet.gudman.xyz/api/threats](https://sentinelnet.gudman.xyz/api/threats)
+- **API Docs**: [sentinelnet.gudman.xyz/docs](https://sentinelnet.gudman.xyz/docs)
+- **Metrics**: [sentinelnet.gudman.xyz/metrics](https://sentinelnet.gudman.xyz/metrics)
+
+## Quick Start
+
+```bash
+git clone https://github.com/Ridwannurudeen/sentinelnet.git
+cd sentinelnet
+pip install -r requirements.txt
+cp .env.example .env
+# Fill in: BASE_RPC_URL, ETH_RPC_URL, PRIVATE_KEY, PINATA_JWT
+python main.py
+# Dashboard at http://localhost:8004/dashboard
+```
 
 ## Architecture
 
@@ -119,7 +135,7 @@ Dual-method detection catches coordinated agent rings:
 
 Flagged agents get -20 point penalty and are immediately re-scored. Clusters are logged to the threat intelligence feed.
 
-**Real results**: Found 859 sybil clusters totaling 1,920 flagged agents across 78 wallets — including clusters of 10+ agents registered on a single wallet address (`0x0049dCe82B...`, `0x039e96bB...`), all crushed to score 0 with maximum contagion penalty.
+**Real results**: Found 179 sybil networks totaling 1,993 flagged agents — the largest being a single wallet (`0x67722c...`) controlling 260 agents with 88% sequential IDs.
 
 ### Trust Decay
 
@@ -128,6 +144,23 @@ Scores decay exponentially: `effective_score = base_score * e^(-0.01 * days)`
 After 30 days without re-scoring, a 90 becomes ~67. Decay is applied at query time. Trust is not permanent.
 
 ## Integration
+
+### Smart Contracts
+
+**TrustGate.sol** — Composable on-chain trust oracle:
+
+```solidity
+import {TrustGate} from "sentinelnet/TrustGate.sol";
+
+contract MyAgentMarketplace is TrustGate {
+    function execute(uint256 agentId) external onlyTrusted(agentId) {
+        // Only executes if agent has TRUST verdict
+    }
+}
+```
+
+Functions: `isTrusted()`, `getTrustScore()`, `getVerdict()`, `getTrustRecord()`, `batchUpdateTrust()`
+Modifiers: `onlyTrusted()`, `onlyNotRejected()`
 
 ### Python SDK
 
@@ -183,23 +216,6 @@ const threats = await sn.getThreats(10);
 
 Full TypeScript types included.
 
-### Smart Contracts
-
-**TrustGate.sol** — Composable on-chain trust oracle:
-
-```solidity
-import {TrustGate} from "sentinelnet/TrustGate.sol";
-
-contract MyAgentMarketplace is TrustGate {
-    function execute(uint256 agentId) external onlyTrusted(agentId) {
-        // Only executes if agent has TRUST verdict
-    }
-}
-```
-
-Functions: `isTrusted()`, `getTrustScore()`, `getVerdict()`, `getTrustRecord()`, `batchUpdateTrust()`
-Modifiers: `onlyTrusted()`, `onlyNotRejected()`
-
 ### MCP Integration
 
 8 tools via Model Context Protocol for agent-to-agent trust queries:
@@ -240,6 +256,16 @@ Modifiers: `onlyTrusted()`, `onlyNotRejected()`
 
 Interactive API docs at [/docs](https://sentinelnet.gudman.xyz/docs).
 
+### WebSocket
+
+```javascript
+const ws = new WebSocket("wss://sentinelnet.gudman.xyz/ws/scores");
+ws.onmessage = (e) => {
+  const update = JSON.parse(e.data);
+  console.log(`Agent ${update.agent_id}: ${update.verdict}`);
+};
+```
+
 ## Threat Intelligence
 
 Real-time feed of ecosystem threats detected autonomously:
@@ -252,31 +278,19 @@ Real-time feed of ecosystem threats detected autonomously:
 
 ## On-Chain Artifacts
 
-| Artifact | Where | What |
-|----------|-------|------|
+| Artifact | Address | Purpose |
+|----------|---------|---------|
 | Agent identity | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #31253 registered via ERC-8004 |
 | Trust scores | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` per agent with IPFS URI |
-| Evidence | IPFS / API | Full analysis JSON pinned per agent |
 | Score stakes | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) | ETH staked per score, 72h challenge window |
 | Trust oracle | [TrustGate](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) | `isTrusted()`, `getTrustScore()` — composable queries |
-
-## Setup
-
-```bash
-git clone https://github.com/Ridwannurudeen/sentinelnet.git
-cd sentinelnet
-pip install -r requirements.txt
-cp .env.example .env
-# Fill in: BASE_RPC_URL, ETH_RPC_URL, PRIVATE_KEY, PINATA_JWT
-python main.py
-# Dashboard at http://localhost:8004/dashboard
-```
+| Evidence | IPFS / API | Full analysis JSON pinned per agent |
 
 ## Tests
 
 ```bash
 pytest tests/ -v
-# 100 tests across 18 test files
+# 66 tests across 14 test files
 ```
 
 ## Project Structure
@@ -310,18 +324,12 @@ sentinelnet/
 │   └── js/                   # npm install sentinelnet (TypeScript types)
 ├── mcp/
 │   └── server.py             # 8 MCP tools
-├── dashboard/
-│   ├── landing.html          # Landing page
-│   ├── index.html            # Live monitoring dashboard with threat ticker
-│   ├── agent.html            # Agent profile pages
-│   ├── graph.html            # D3.js interactive trust network visualization
-│   └── docs.html             # Integration guide
 ├── landing/                  # Next.js static landing page (Framer Motion, Tailwind)
-├── api.py                    # FastAPI REST + WebSocket server (28 endpoints)
+├── api.py                    # FastAPI REST + WebSocket server (26+ endpoints)
 ├── main.py                   # Entry point + WebSocket broadcast wiring
 ├── db.py                     # SQLite WAL cache + score history + threats
 ├── config.py                 # Pydantic Settings
-└── tests/                    # 100 tests, 18 files
+└── tests/                    # 66 tests, 14 files
 ```
 
 ## Tech Stack
@@ -338,4 +346,8 @@ sentinelnet/
 | Chain Data | web3.py, Blockscout API |
 | Visualization | D3.js force-directed graph |
 | SDKs | Python (httpx), JavaScript (fetch, TypeScript) |
-| Analysis Chains | Base (registries + scoring), Ethereum (behavioral data) |
+| Chains | Base (registries + scoring), Ethereum (behavioral data) |
+
+## License
+
+MIT
