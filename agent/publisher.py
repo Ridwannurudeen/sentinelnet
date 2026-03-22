@@ -53,12 +53,20 @@ class Publisher:
         ]
         tx_hashes = []
         if self.erc8004:
-            for tag, value in tags:
-                tx = await self.erc8004.give_feedback(
-                    agent_id, value, tag, "sentinelnet-v1",
-                    evidence_uri, evidence_hash,
-                )
-                tx_hashes.append(tx)
+            # Batch all feedback calls via paymaster if available
+            if hasattr(self.erc8004, 'paymaster') and self.erc8004.paymaster and self.erc8004.paymaster.enabled:
+                feedbacks = [
+                    (agent_id, value, tag, "sentinelnet-v1", evidence_uri, evidence_hash)
+                    for tag, value in tags
+                ]
+                tx_hashes = await self.erc8004.give_feedback_batch(feedbacks)
+            else:
+                for tag, value in tags:
+                    tx = await self.erc8004.give_feedback(
+                        agent_id, value, tag, "sentinelnet-v1",
+                        evidence_uri, evidence_hash,
+                    )
+                    tx_hashes.append(tx)
 
         return {
             "evidence_uri": evidence_uri,

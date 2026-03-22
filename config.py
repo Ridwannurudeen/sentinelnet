@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # EAS (Ethereum Attestation Service)
     EAS_SCHEMA_UID: str = ""
 
+    # Coinbase CDP Paymaster (gasless transactions)
+    CDP_API_KEY_ID: str = ""
+    CDP_API_SECRET: str = ""
+    CDP_SMART_ACCOUNT: str = ""
+    CDP_PAYMASTER_URL: str = ""
+
     # API Key Authentication
     API_KEYS: str = ""  # Comma-separated valid API keys
 

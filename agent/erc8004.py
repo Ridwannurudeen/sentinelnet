@@ -15,7 +15,7 @@ REPUTATION_ABI = json.loads('[{"inputs":[{"internalType":"uint256","name":"agent
 class ERC8004Client:
     def __init__(self, w3: Web3, identity_addr: str,
                  reputation_addr: str, validation_addr: str,
-                 private_key: str, agent_id: int):
+                 private_key: str, agent_id: int, paymaster=None):
         self.w3 = w3
         self.identity_addr = Web3.to_checksum_address(identity_addr)
         self.reputation_addr = Web3.to_checksum_address(reputation_addr) if reputation_addr else None
@@ -23,6 +23,7 @@ class ERC8004Client:
         self.private_key = private_key
         self.agent_id = agent_id
         self.account = w3.eth.account.from_key(private_key) if private_key else None
+        self.paymaster = paymaster
 
         self.identity = w3.eth.contract(address=self.identity_addr, abi=IDENTITY_ABI)
         if self.reputation_addr:
@@ -128,13 +129,27 @@ class ERC8004Client:
             logger.warning("No reputation registry or account configured")
             return ""
 
-        try:
-            # Ensure feedback_hash is bytes32
-            if isinstance(feedback_hash, bytes) and len(feedback_hash) < 32:
-                feedback_hash = feedback_hash.ljust(32, b'\x00')
-            elif isinstance(feedback_hash, bytes) and len(feedback_hash) > 32:
-                feedback_hash = feedback_hash[:32]
+        # Ensure feedback_hash is bytes32
+        if isinstance(feedback_hash, bytes) and len(feedback_hash) < 32:
+            feedback_hash = feedback_hash.ljust(32, b'\x00')
+        elif isinstance(feedback_hash, bytes) and len(feedback_hash) > 32:
+            feedback_hash = feedback_hash[:32]
 
+        args = [agent_id, value, 0, tag1, tag2, "", feedback_uri, feedback_hash]
+
+        # Try paymaster first (gasless via CDP Smart Account)
+        if self.paymaster and self.paymaster.enabled:
+            try:
+                data = self.reputation.encodeABI(fn_name="giveFeedback", args=args)
+                tx_hash = await self.paymaster.send_call(to=self.reputation_addr, data=data)
+                if tx_hash:
+                    logger.info(f"Feedback via paymaster for agent {agent_id} tag={tag1}: {tx_hash}")
+                    return tx_hash
+            except Exception as e:
+                logger.warning(f"Paymaster feedback failed for agent {agent_id}, falling back to EOA: {e}")
+
+        # Fallback: direct EOA transaction (requires ETH for gas)
+        try:
             async with self._nonce_lock:
                 if self._current_nonce is None:
                     self._current_nonce = await asyncio.to_thread(
@@ -143,16 +158,7 @@ class ERC8004Client:
                 nonce = self._current_nonce
                 self._current_nonce += 1
 
-            tx = self.reputation.functions.giveFeedback(
-                agent_id,
-                value,       # int128 value
-                0,           # uint8 decimals
-                tag1,
-                tag2,
-                "",          # endpoint
-                feedback_uri,
-                feedback_hash,
-            ).build_transaction({
+            tx = self.reputation.functions.giveFeedback(*args).build_transaction({
                 "from": self.account.address,
                 "nonce": nonce,
                 "gas": 300000,
@@ -169,6 +175,48 @@ class ERC8004Client:
         except Exception as e:
             logger.error(f"Failed to send feedback for agent {agent_id}: {e}")
             return ""
+
+    async def give_feedback_batch(self, feedbacks: list) -> list:
+        """Send multiple giveFeedback calls in a single paymaster UserOp.
+
+        Args:
+            feedbacks: list of (agent_id, value, tag1, tag2, feedback_uri, feedback_hash)
+
+        Returns:
+            List of tx hashes.
+        """
+        if not self.reputation or not self.paymaster or not self.paymaster.enabled:
+            # Fall back to individual calls
+            results = []
+            for f in feedbacks:
+                r = await self.give_feedback(*f)
+                results.append(r)
+            return results
+
+        calls = []
+        for agent_id, value, tag1, tag2, feedback_uri, feedback_hash in feedbacks:
+            if isinstance(feedback_hash, bytes) and len(feedback_hash) < 32:
+                feedback_hash = feedback_hash.ljust(32, b'\x00')
+            elif isinstance(feedback_hash, bytes) and len(feedback_hash) > 32:
+                feedback_hash = feedback_hash[:32]
+
+            data = self.reputation.encodeABI(
+                fn_name="giveFeedback",
+                args=[agent_id, value, 0, tag1, tag2, "", feedback_uri, feedback_hash],
+            )
+            calls.append({"to": self.reputation_addr, "data": data})
+
+        try:
+            results = await self.paymaster.send_calls(calls)
+            logger.info(f"Batch feedback via paymaster: {len(calls)} calls -> {results[0] if results else 'none'}")
+            return results
+        except Exception as e:
+            logger.warning(f"Batch paymaster failed, falling back to individual: {e}")
+            results = []
+            for f in feedbacks:
+                r = await self.give_feedback(*f)
+                results.append(r)
+            return results
 
     async def validation_response(self, request_hash: bytes, response: int,
                                   response_uri: str, response_hash: bytes,

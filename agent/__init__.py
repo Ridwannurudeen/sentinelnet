@@ -11,6 +11,7 @@ from agent.publisher import Publisher
 from agent.discovery import Discovery
 from agent.alerts import AlertChecker
 from agent.erc8004 import ERC8004Client
+from agent.paymaster import PaymasterTransactor
 from agent.validator import Validator
 from agent.graph import TrustGraph
 from agent.analyzers.longevity import LongevityAnalyzer
@@ -59,6 +60,19 @@ class SentinelNetAgent:
 
         # Web3 + ERC-8004
         self.w3 = Web3(Web3.HTTPProvider(settings.BASE_RPC_URL))
+
+        # Paymaster for gasless transactions
+        self.paymaster = None
+        if settings.CDP_API_KEY_ID and settings.CDP_API_SECRET:
+            self.paymaster = PaymasterTransactor(
+                api_key_id=settings.CDP_API_KEY_ID,
+                api_secret=settings.CDP_API_SECRET,
+                smart_account_address=settings.CDP_SMART_ACCOUNT,
+                paymaster_url=settings.CDP_PAYMASTER_URL,
+                private_key=settings.PRIVATE_KEY,
+            )
+            logger.info("CDP Paymaster initialized for gasless transactions")
+
         self.erc8004 = ERC8004Client(
             w3=self.w3,
             identity_addr=settings.IDENTITY_REGISTRY,
@@ -66,6 +80,7 @@ class SentinelNetAgent:
             validation_addr=settings.VALIDATION_REGISTRY,
             private_key=settings.PRIVATE_KEY,
             agent_id=settings.SENTINELNET_AGENT_ID,
+            paymaster=self.paymaster,
         )
 
         # Staking contract
@@ -163,6 +178,23 @@ class SentinelNetAgent:
                 scores = [min(s[1], 100) for s in batch]
                 evidence_uris = [s[2] for s in batch]
 
+                # Try paymaster first (gasless)
+                if self.paymaster and self.paymaster.enabled:
+                    try:
+                        data = self.trustgate.encodeABI(
+                            fn_name="batchUpdateTrust",
+                            args=[agent_ids, scores, evidence_uris],
+                        )
+                        tx_hash = await self.paymaster.send_call(
+                            to=self.settings.TRUSTGATE_CONTRACT, data=data
+                        )
+                        if tx_hash:
+                            logger.info(f"TrustGate batch via paymaster ({len(batch)} agents): {tx_hash}")
+                            continue
+                    except Exception as e:
+                        logger.warning(f"TrustGate paymaster failed, falling back to EOA: {e}")
+
+                # Fallback: direct EOA transaction
                 nonce = await asyncio.to_thread(
                     self.w3.eth.get_transaction_count, self.erc8004.account.address
                 )
@@ -272,11 +304,19 @@ class SentinelNetAgent:
             logger.error(f"Contagion propagation failed: {e}")
 
     async def _stake_score(self, agent_id: int, score: int):
-        """Stake ETH behind a published score."""
+        """Stake ETH behind a published score. Requires wallet to hold ETH."""
         if not self.staking or not self.erc8004.account:
             return
         try:
+            # Check balance first to avoid error spam
+            balance = await asyncio.to_thread(
+                self.w3.eth.get_balance, self.erc8004.account.address
+            )
             stake_wei = self.w3.to_wei(self.settings.STAKE_AMOUNT_ETH, "ether")
+            if balance < stake_wei + self.w3.to_wei(0.001, "ether"):
+                logger.debug(f"Insufficient balance for staking agent {agent_id}, skipping")
+                return
+
             nonce = await asyncio.to_thread(
                 self.w3.eth.get_transaction_count, self.erc8004.account.address
             )
@@ -302,7 +342,32 @@ class SentinelNetAgent:
         """Emit TrustDegraded event on-chain."""
         if not self.staking or not self.erc8004.account:
             return
+
+        # Try paymaster first (gasless)
+        if self.paymaster and self.paymaster.enabled:
+            try:
+                data = self.staking.encodeABI(
+                    fn_name="emitTrustDegraded",
+                    args=[agent_id, min(prev_score, 255), min(new_score, 255)],
+                )
+                tx_hash = await self.paymaster.send_call(
+                    to=self.settings.STAKING_CONTRACT, data=data
+                )
+                if tx_hash:
+                    logger.info(f"TrustDegraded via paymaster for agent {agent_id}: {prev_score}->{new_score} tx={tx_hash}")
+                    return
+            except Exception as e:
+                logger.warning(f"Paymaster emitTrustDegraded failed, falling back: {e}")
+
+        # Fallback: direct EOA transaction
         try:
+            balance = await asyncio.to_thread(
+                self.w3.eth.get_balance, self.erc8004.account.address
+            )
+            if balance < self.w3.to_wei(0.001, "ether"):
+                logger.debug(f"Insufficient balance for emitTrustDegraded agent {agent_id}, skipping")
+                return
+
             nonce = await asyncio.to_thread(
                 self.w3.eth.get_transaction_count, self.erc8004.account.address
             )
