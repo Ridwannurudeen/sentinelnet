@@ -2,7 +2,7 @@
 
 ## One-liner
 
-Autonomous reputation watchdog that scored 2,700+ agents, flagged 1,642 sybils, and logged 3,387 threats — zero human involvement.
+Autonomous reputation watchdog that scored 3,098 agents, flagged 1,642 sybils, and logged 3,387 threats — zero human involvement.
 
 ## What it does
 
@@ -74,15 +74,26 @@ Python 3.11+ / FastAPI / SQLite WAL / web3.py / Next.js / Tailwind / Framer Moti
 
 | Metric | Value |
 |--------|-------|
-| Agents scored | 2,700+ |
+| Agents scored | 3,098 |
+| Scores on-chain | 3,098 (via TrustGate) |
 | Sybil agents flagged | 1,642 |
 | Sybil clusters detected | 859 |
 | Threats logged | 3,387 |
 | Agents rejected | 1,804 (66%) |
+| On-chain txs (paymaster) | 64 |
 | Tests passing | 100 |
 | API endpoints | 20+ |
 | MCP tools | 5 |
 | Integration paths | 8 (Contract, Python, JS, REST, MCP, WebSocket, Webhook, Prometheus) |
+
+## Roadmap
+
+- **Multi-ecosystem scoring** — Virtual Protocol agents (Base), Autonolas/Olas autonomous services, ai16z/ElizaOS agents
+- **Cross-chain trust** — Extend TrustGate to Ethereum L1, Arbitrum, Optimism
+- **Trust-gated DeFi** — Lending protocols gate borrowing by agent trust score
+- **Decay-aware on-chain scores** — Move exponential decay logic into the smart contract
+- **DAO governance** — Community-driven threshold tuning and dispute resolution
+- **Token-gated API tiers** — Premium endpoints for high-frequency consumers
 
 ## GitHub
 
