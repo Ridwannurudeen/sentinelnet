@@ -8,9 +8,9 @@ SentinelNet is an autonomous reputation watchdog that continuously discovers, an
 
 | | |
 |---|---|
-| **3,452+** agents scored | **179** sybil networks unmasked |
-| **1,993** sybils flagged (58%) | **682** contagion-penalized agents |
-| **2,492** agents rejected (72%) | **259** ghost agents identified |
+| **3,535+** agents scored | **84** sybil networks unmasked |
+| **1,980+** sybils flagged (56%) | **717** contagion-penalized agents |
+| **2,478** agents rejected (70%) | **144** tests passing |
 | **8** integration paths | **0** humans in the loop |
 
 ## The Problem
@@ -24,9 +24,9 @@ SentinelNet is that infrastructure.
 This is not theoretical. SentinelNet found real threats in the live ecosystem:
 
 - **One wallet (`0x67722c...`) registered 260 agents** — 88% with sequential IDs, a textbook mass-registration attack. 253 flagged as sybil, 254 REJECTED.
-- **179 sybil networks** — the top 3 operators alone control 549 fake agents
-- **682 agents** penalized by trust contagion — average -11 points for associating with flagged counterparties
-- **Ecosystem health score: 29/100** — the registry has a trust crisis, and SentinelNet is the only system quantifying it
+- **84 sybil networks** — the top 3 operators alone control 502 fake agents
+- **717 agents** penalized by trust contagion — average -11 points for associating with flagged counterparties
+- **Ecosystem health score: 27/100** — the registry has a trust crisis, and SentinelNet is the only system quantifying it
 
 ## Live Deployment
 
@@ -141,7 +141,7 @@ Dual-method detection catches coordinated agent rings:
 
 Flagged agents get -20 point penalty and are immediately re-scored. Clusters are logged to the threat intelligence feed.
 
-**Real results**: Found 179 sybil networks totaling 1,993 flagged agents — the largest being a single wallet (`0x67722c...`) controlling 260 agents with 88% sequential IDs.
+**Real results**: Found 84 sybil networks totaling 1,980+ flagged agents — the largest being a single wallet (`0x67722c...`) controlling 260 agents with 88% sequential IDs.
 
 ### Trust Decay
 
@@ -298,7 +298,7 @@ Real-time feed of ecosystem threats detected autonomously:
 
 ```bash
 pytest tests/ -v
-# 66 tests across 14 test files
+# 144 tests across 20 test files
 ```
 
 ## Project Structure
@@ -333,11 +333,11 @@ sentinelnet/
 ├── mcp/
 │   └── server.py             # 8 MCP tools
 ├── landing/                  # Next.js static landing page (Framer Motion, Tailwind)
-├── api.py                    # FastAPI REST + WebSocket server (26+ endpoints)
+├── api.py                    # FastAPI REST + WebSocket server (27 endpoints)
 ├── main.py                   # Entry point + WebSocket broadcast wiring
 ├── db.py                     # SQLite WAL cache + score history + threats
 ├── config.py                 # Pydantic Settings
-└── tests/                    # 66 tests, 14 files
+└── tests/                    # 144 tests, 20 files
 ```
 
 ## Tech Stack
