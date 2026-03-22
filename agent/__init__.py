@@ -167,52 +167,50 @@ class SentinelNetAgent:
         await self._update_trustgate_batch()
 
     async def _update_trustgate_batch(self):
-        """Batch-update TrustGate on-chain with scores from this sweep."""
+        """Batch-update TrustGate on-chain with scores from this sweep.
+
+        Uses direct EOA transactions since the TrustGate sentinel is the EOA
+        wallet, not the CDP smart account.
+        """
         if not self.trustgate or not self._sweep_scores or not self.erc8004.account:
             self._sweep_scores = []
             return
         try:
-            BATCH_SIZE = 50
+            BATCH_SIZE = 10  # Keep batches small to avoid gas issues
             for i in range(0, len(self._sweep_scores), BATCH_SIZE):
                 batch = self._sweep_scores[i:i + BATCH_SIZE]
                 agent_ids = [s[0] for s in batch]
                 scores = [min(s[1], 100) for s in batch]
                 evidence_uris = [s[2] for s in batch]
 
-                # Try paymaster first (gasless)
-                if self.paymaster and self.paymaster.enabled:
-                    try:
-                        data = self.trustgate.encode_abi(
-                            abi_element_identifier="batchUpdateTrust",
-                            args=[agent_ids, scores, evidence_uris],
-                        )
-                        tx_hash = await self.paymaster.send_call(
-                            to=self.settings.TRUSTGATE_CONTRACT, data=data
-                        )
-                        if tx_hash:
-                            logger.info(f"TrustGate batch via paymaster ({len(batch)} agents): {tx_hash}")
-                            continue
-                    except Exception as e:
-                        logger.warning(f"TrustGate paymaster failed, falling back to EOA: {e}")
-
-                # Fallback: direct EOA transaction
-                nonce = await asyncio.to_thread(
-                    self.w3.eth.get_transaction_count, self.erc8004.account.address
-                )
-                tx = self.trustgate.functions.batchUpdateTrust(
-                    agent_ids, scores, evidence_uris
-                ).build_transaction({
-                    "from": self.erc8004.account.address,
-                    "nonce": nonce,
-                    "gas": 200000 + 80000 * len(batch),
-                    "maxFeePerGas": self.w3.to_wei(0.1, "gwei"),
-                    "maxPriorityFeePerGas": self.w3.to_wei(0.01, "gwei"),
-                })
-                signed = self.w3.eth.account.sign_transaction(tx, self.settings.PRIVATE_KEY)
-                tx_hash = await asyncio.to_thread(
-                    self.w3.eth.send_raw_transaction, signed.raw_transaction
-                )
-                logger.info(f"TrustGate batch update ({len(batch)} agents): {tx_hash.hex()}")
+                try:
+                    nonce = await asyncio.to_thread(
+                        self.w3.eth.get_transaction_count,
+                        self.erc8004.account.address, "pending",
+                    )
+                    gas_price = await asyncio.to_thread(
+                        lambda: self.w3.eth.gas_price
+                    )
+                    tx = self.trustgate.functions.batchUpdateTrust(
+                        agent_ids, scores, evidence_uris
+                    ).build_transaction({
+                        "from": self.erc8004.account.address,
+                        "nonce": nonce,
+                        "gas": 200000 + 130000 * len(batch),
+                        "gasPrice": int(gas_price * 1.2),
+                        "chainId": 8453,
+                    })
+                    signed = self.w3.eth.account.sign_transaction(
+                        tx, self.settings.PRIVATE_KEY
+                    )
+                    tx_hash = await asyncio.to_thread(
+                        self.w3.eth.send_raw_transaction, signed.raw_transaction
+                    )
+                    logger.info(
+                        f"TrustGate batch update ({len(batch)} agents): {tx_hash.hex()}"
+                    )
+                except Exception as e:
+                    logger.warning(f"TrustGate batch {i // BATCH_SIZE} failed: {e}")
         except Exception as e:
             logger.warning(f"TrustGate batch update failed: {e}")
         finally:
