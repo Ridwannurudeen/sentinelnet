@@ -77,17 +77,9 @@ class PaymasterTransactor:
                     f"status={result.status} ({len(calls)} calls)"
                 )
 
-                # Wait for on-chain confirmation
-                try:
-                    final = await client.evm.wait_for_user_operation(
-                        smart, self.network, result.user_op_hash
-                    )
-                    tx_hash = getattr(final, "transaction_hash", "") or ""
-                    logger.info(f"Paymaster tx confirmed: {tx_hash}")
-                    return [tx_hash] * len(calls)
-                except Exception as e:
-                    logger.warning(f"Paymaster wait failed (tx may still confirm): {e}")
-                    return [result.user_op_hash] * len(calls)
+                # Return the UserOp hash immediately — confirmation happens async.
+                # Waiting adds latency and the CDP wait API has version compat issues.
+                return [result.user_op_hash] * len(calls)
 
         except Exception as e:
             logger.error(f"Paymaster transaction failed: {e}")
