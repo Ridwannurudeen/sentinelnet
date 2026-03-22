@@ -66,6 +66,14 @@ class Database:
                 created_at TEXT NOT NULL
             )
         """)
+        await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS webhooks (
+                id TEXT PRIMARY KEY,
+                url TEXT NOT NULL,
+                events TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
         # Migrations for existing DBs
         for col, typedef in [
             ("agent_identity", "INTEGER NOT NULL DEFAULT 0"),
@@ -178,6 +186,54 @@ class Database:
             w = r["wallet"].lower()
             wallet_agents.setdefault(w, []).append(r["agent_id"])
         return wallet_agents
+
+    # ─── Webhooks ───
+
+    async def save_webhook(self, wh_id, url, events):
+        """Persist a webhook registration."""
+        import json
+        now = datetime.now(timezone.utc).isoformat()
+        await self.conn.execute(
+            "INSERT INTO webhooks (id, url, events, created_at) VALUES (?, ?, ?, ?)",
+            (wh_id, url, json.dumps(events), now),
+        )
+        await self.conn.commit()
+        return {"id": wh_id, "url": url, "events": events, "created_at": now}
+
+    async def get_webhooks(self):
+        """Return all registered webhooks."""
+        import json
+        cursor = await self.conn.execute("SELECT * FROM webhooks ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        results = []
+        for r in rows:
+            d = dict(r)
+            d["events"] = json.loads(d["events"])
+            results.append(d)
+        return results
+
+    async def get_webhook(self, wh_id):
+        """Return a single webhook by id."""
+        import json
+        cursor = await self.conn.execute("SELECT * FROM webhooks WHERE id = ?", (wh_id,))
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["events"] = json.loads(d["events"])
+        return d
+
+    async def delete_webhook(self, wh_id):
+        """Delete a webhook by id. Returns True if it existed."""
+        cursor = await self.conn.execute("DELETE FROM webhooks WHERE id = ?", (wh_id,))
+        await self.conn.commit()
+        return cursor.rowcount > 0
+
+    async def count_webhooks(self):
+        """Return total number of registered webhooks."""
+        cursor = await self.conn.execute("SELECT COUNT(*) FROM webhooks")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
 
     async def close(self):
         if self.conn:

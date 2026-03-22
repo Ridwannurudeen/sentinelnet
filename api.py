@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+import httpx
 from web3 import Web3
 from db import Database
 from config import Settings
@@ -975,14 +976,14 @@ def _is_private_url(url: str) -> bool:
     return False
 
 
-# In-memory webhook store (persists until restart — lightweight for hackathon)
-_webhooks = {}  # id -> {url, events, created_at}
+VALID_WEBHOOK_EVENTS = ["score_update", "verdict_changed", "sybil_detected", "trust_degraded"]
+MAX_WEBHOOKS = 50
 
 
 @app.post("/api/webhooks", tags=["Webhooks"])
 async def register_webhook(request: Request):
     """Register a webhook URL to receive trust alerts.
-    Body: {"url": "https://...", "events": ["trust_degraded", "sybil_detected", "verdict_changed"]}
+    Body: {"url": "https://...", "events": ["score_update", "verdict_changed", "sybil_detected", "trust_degraded"]}
     If events is omitted, all events are subscribed."""
     body = await request.json()
     url = body.get("url", "")
@@ -990,47 +991,89 @@ async def register_webhook(request: Request):
         raise HTTPException(400, "Provide a valid webhook URL")
     if _is_private_url(url):
         raise HTTPException(400, "Webhook URL must not point to private/internal addresses")
-    if len(_webhooks) >= 50:
+    count = await db.count_webhooks()
+    if count >= MAX_WEBHOOKS:
         raise HTTPException(429, "Maximum 50 webhooks allowed")
-    events = body.get("events", ["trust_degraded", "sybil_detected", "verdict_changed"])
+    events = body.get("events", VALID_WEBHOOK_EVENTS[:])
+    for e in events:
+        if e not in VALID_WEBHOOK_EVENTS:
+            raise HTTPException(400, f"Invalid event '{e}'. Valid: {VALID_WEBHOOK_EVENTS}")
     wh_id = f"wh_{secrets.token_hex(8)}"
-    _webhooks[wh_id] = {
-        "url": url,
-        "events": events,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
+    await db.save_webhook(wh_id, url, events)
     return {"webhook_id": wh_id, "url": url, "events": events, "status": "registered"}
 
 
 @app.get("/api/webhooks", tags=["Webhooks"])
 async def list_webhooks():
     """List all registered webhooks."""
-    return {"webhooks": [{"id": k, **v} for k, v in _webhooks.items()], "total": len(_webhooks)}
+    webhooks = await db.get_webhooks()
+    return {"webhooks": webhooks, "total": len(webhooks)}
 
 
 @app.delete("/api/webhooks/{webhook_id}", tags=["Webhooks"])
 async def delete_webhook(webhook_id: str):
     """Remove a registered webhook."""
-    if webhook_id not in _webhooks:
+    deleted = await db.delete_webhook(webhook_id)
+    if not deleted:
         raise HTTPException(404, f"Webhook {webhook_id} not found")
-    del _webhooks[webhook_id]
     return {"status": "deleted", "webhook_id": webhook_id}
 
 
+async def _deliver_webhook(url: str, payload: dict, max_retries: int = 3):
+    """Deliver a single webhook with retry + exponential backoff."""
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(url, json=payload)
+                if resp.status_code < 400:
+                    return True
+                if resp.status_code < 500:
+                    logger.warning(f"Webhook {url} returned {resp.status_code}, not retrying")
+                    return False
+        except Exception as exc:
+            logger.debug(f"Webhook {url} attempt {attempt + 1} failed: {exc}")
+        if attempt < max_retries - 1:
+            await asyncio.sleep(2 ** attempt)  # 1s, 2s backoff
+    logger.warning(f"Webhook {url} failed after {max_retries} attempts")
+    return False
+
+
 async def _fire_webhooks(event: str, payload: dict):
-    """Fire webhooks for a given event (called internally by the agent)."""
-    import httpx
-    for wh_id, wh in _webhooks.items():
-        if event in wh["events"]:
-            try:
-                async with httpx.AsyncClient(timeout=5) as client:
-                    await client.post(wh["url"], json={
-                        "event": event,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        **payload,
-                    })
-            except Exception:
-                pass  # Fire and forget
+    """Fire webhooks for matching events. Detects derived events from payload context."""
+    webhooks = await db.get_webhooks()
+    if not webhooks:
+        return
+
+    # Determine which events this payload triggers
+    triggered_events = {event}
+
+    prev_score = payload.get("previous_score")
+    new_score = payload.get("trust_score")
+    prev_verdict = payload.get("previous_verdict")
+    new_verdict = payload.get("verdict")
+    sybil = payload.get("sybil_flagged", False)
+
+    if prev_verdict and new_verdict and prev_verdict != new_verdict:
+        triggered_events.add("verdict_changed")
+    if prev_score is not None and new_score is not None and new_score < prev_score:
+        triggered_events.add("trust_degraded")
+    if sybil:
+        triggered_events.add("sybil_detected")
+
+    delivery_payload = {
+        "event": event,
+        "triggered_events": list(triggered_events),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        **payload,
+    }
+
+    tasks = []
+    for wh in webhooks:
+        subscribed = set(wh["events"])
+        if triggered_events & subscribed:
+            tasks.append(_deliver_webhook(wh["url"], delivery_payload))
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # ─── Admin ───
@@ -1292,21 +1335,34 @@ async def metrics():
 
 # ─── Anomaly Detection ───
 
-@app.get("/api/anomalies", tags=["Threats"])
-async def get_anomalies():
-    """Detect and return current anomalies: rapid score drops, suspicious spikes,
-    and potential gaming behavior."""
-    scores = await db.get_all_scores()
-    scores = [_apply_decay(s) for s in scores]
+def _detect_anomalies(scores: list, history_map: dict, wallet_agent_map: dict,
+                      recent_threats: list) -> list:
+    """Pure detection logic — returns list of anomaly dicts.
+
+    Args:
+        scores: list of score dicts (already decay-applied)
+        history_map: {agent_id: [history rows newest-first]}
+        wallet_agent_map: {wallet: [agent_ids]}
+        recent_threats: threat rows from last 24h
+    """
     anomalies = []
+
+    # Pre-compute stats for outlier detection
+    trust_values = [s["trust_score"] for s in scores]
+    if len(trust_values) >= 2:
+        mean_score = sum(trust_values) / len(trust_values)
+        variance = sum((t - mean_score) ** 2 for t in trust_values) / len(trust_values)
+        std_dev = variance ** 0.5
+    else:
+        mean_score = trust_values[0] if trust_values else 0
+        std_dev = 0
 
     for s in scores:
         agent_id = s["agent_id"]
         trust = s["trust_score"]
-        raw = s.get("trust_score_raw", trust)
 
-        # Check history for rapid drops
-        history = await db.get_score_history(agent_id, limit=5)
+        # 1) Rapid score drops (>15 pts between consecutive scorings)
+        history = history_map.get(agent_id, [])
         if len(history) >= 2:
             prev = history[1]["trust_score"]
             curr = history[0]["trust_score"]
@@ -1314,34 +1370,137 @@ async def get_anomalies():
             if drop >= 15:
                 anomalies.append({
                     "type": "rapid_drop",
-                    "severity": "high" if drop >= 25 else "medium",
+                    "severity": "HIGH" if drop >= 25 else "MEDIUM",
                     "agent_id": agent_id,
-                    "detail": f"Score dropped {drop} points ({prev} → {curr}) in recent scoring",
+                    "detail": f"Score dropped {drop} points ({prev} -> {curr}) in recent scoring",
                     "previous_score": prev,
                     "current_score": curr,
                 })
 
-        # Suspicious: very new but very high score
+        # 2) Suspicious perfect scores — score=100 but low activity or low longevity
+        if trust == 100:
+            activity = s.get("activity", 0)
+            longevity = s.get("longevity", 0)
+            if activity < 30 or longevity < 30:
+                anomalies.append({
+                    "type": "suspicious_perfect_score",
+                    "severity": "HIGH",
+                    "agent_id": agent_id,
+                    "detail": f"Perfect score (100) with low activity ({activity}) or low longevity ({longevity})",
+                })
+
+        # 3) Suspicious high score (low longevity, high trust) — keep existing check
         if s.get("longevity", 0) < 20 and trust >= 70:
             anomalies.append({
                 "type": "suspicious_high_score",
-                "severity": "medium",
+                "severity": "MEDIUM",
                 "agent_id": agent_id,
                 "detail": f"New wallet (longevity={s['longevity']}) with unusually high score ({trust})",
             })
 
-        # Heavy contagion
+        # 4) Score outliers — deviation > 2 standard deviations from mean
+        if std_dev > 0 and len(trust_values) >= 5:
+            deviation = abs(trust - mean_score)
+            if deviation > 2 * std_dev:
+                direction = "above" if trust > mean_score else "below"
+                anomalies.append({
+                    "type": "score_outlier",
+                    "severity": "MEDIUM" if deviation <= 3 * std_dev else "HIGH",
+                    "agent_id": agent_id,
+                    "detail": f"Score {trust} is {deviation:.1f} points {direction} mean ({mean_score:.1f}, std={std_dev:.1f})",
+                })
+
+        # 5) Heavy contagion — toxic neighborhood
         contagion = s.get("contagion_adjustment", 0)
         if contagion <= -10:
             anomalies.append({
                 "type": "toxic_neighborhood",
-                "severity": "high",
+                "severity": "HIGH",
                 "agent_id": agent_id,
                 "detail": f"Score reduced by {abs(contagion)} from interactions with low-trust agents",
             })
 
-    anomalies.sort(key=lambda x: 0 if x["severity"] == "high" else 1)
-    return {"anomalies": anomalies, "total": len(anomalies), "checked": len(scores)}
+    # 6) Sudden sybil clusters — wallets controlling 3+ agents
+    for wallet, agent_ids in wallet_agent_map.items():
+        if len(agent_ids) >= 3:
+            anomalies.append({
+                "type": "sybil_cluster",
+                "severity": "HIGH",
+                "agent_id": agent_ids[0],
+                "affected_agents": sorted(agent_ids),
+                "detail": f"Wallet {wallet[:10]}... controls {len(agent_ids)} agents: {sorted(agent_ids)}",
+            })
+
+    # 7) Recent sybil threats from threat feed (last 24h)
+    for t in recent_threats:
+        if t.get("threat_type") == "SYBIL_CLUSTER":
+            anomalies.append({
+                "type": "sybil_cluster_detected",
+                "severity": "HIGH",
+                "agent_id": t.get("agent_id"),
+                "detail": t.get("details", "Sybil cluster detected in last 24 hours"),
+            })
+
+    # Sort: HIGH first, then MEDIUM, then LOW
+    severity_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    anomalies.sort(key=lambda x: severity_order.get(x["severity"], 3))
+    return anomalies
+
+
+@app.get("/api/anomalies", tags=["Threats"])
+async def get_anomalies(
+    limit: int = Query(None, ge=1, le=500, description="Max anomalies to return"),
+    severity: str = Query(None, description="Filter by severity: HIGH, MEDIUM, or LOW"),
+):
+    """Detect and return current anomalies in the trust scoring system.
+
+    Detects: rapid score drops, suspicious perfect scores, sybil clusters,
+    score outliers, and toxic neighborhoods."""
+    scores = await db.get_all_scores()
+    scores = [_apply_decay(s) for s in scores]
+
+    # Build history map (batch fetch avoids N+1)
+    history_map = {}
+    for s in scores:
+        aid = s["agent_id"]
+        history_map[aid] = await db.get_score_history(aid, limit=5)
+
+    # Wallet-agent map for sybil cluster detection
+    wallet_agent_map = await db.get_wallet_agent_map()
+
+    # Recent threats (last 24h) for sybil cluster feed
+    all_threats = await db.get_threats(limit=200)
+    now = datetime.now(timezone.utc)
+    recent_threats = []
+    for t in all_threats:
+        try:
+            created = datetime.fromisoformat(t["created_at"])
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if (now - created).total_seconds() <= 86400:
+                recent_threats.append(t)
+        except (ValueError, KeyError):
+            pass
+
+    anomalies = _detect_anomalies(scores, history_map, wallet_agent_map, recent_threats)
+
+    # Filter by severity if requested
+    if severity:
+        sev_upper = severity.upper()
+        anomalies = [a for a in anomalies if a["severity"] == sev_upper]
+
+    total_before_limit = len(anomalies)
+
+    # Apply limit
+    if limit is not None:
+        anomalies = anomalies[:limit]
+
+    return {
+        "anomalies": anomalies,
+        "total": total_before_limit,
+        "returned": len(anomalies),
+        "checked": len(scores),
+    }
 
 
 # ─── Prometheus Metrics ───

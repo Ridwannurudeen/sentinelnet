@@ -21,9 +21,14 @@ async def main():
     api_module.db = agent.db
     api_module._agent_ref = agent
 
-    # Wire WebSocket broadcast into agent scoring
+    # Wire WebSocket broadcast + webhook firing into agent scoring
     original_analyze = agent.analyze_agent
     async def _analyze_with_broadcast(agent_id, sybil_override=False):
+        # Capture previous score/verdict before re-scoring
+        prev = await agent.db.get_score(agent_id)
+        prev_score = prev["trust_score"] if prev else None
+        prev_verdict = prev["verdict"] if prev else None
+
         result = await original_analyze(agent_id, sybil_override=sybil_override)
         if result:
             score = await agent.db.get_score(agent_id)
@@ -31,11 +36,14 @@ async def main():
                 await api_module.broadcast_score_update(
                     agent_id, result.trust_score, result.verdict, score.get("wallet", "")
                 )
-                # Also fire webhooks
+                # Fire webhooks with previous context for event detection
                 await api_module._fire_webhooks("score_update", {
                     "agent_id": agent_id,
                     "trust_score": result.trust_score,
                     "verdict": result.verdict,
+                    "previous_score": prev_score,
+                    "previous_verdict": prev_verdict,
+                    "sybil_flagged": bool(score.get("sybil_flagged", 0)),
                 })
         return result
     agent.analyze_agent = _analyze_with_broadcast
