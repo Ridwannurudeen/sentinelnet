@@ -10,9 +10,14 @@ Other agents query SentinelNet before transacting with unknown counterparties. O
 
 SentinelNet is not a demo. It's running in production on Base Mainnet.
 
-- **480+ agents scored** across all 3 verdict classes, scanning all 35K+ registered agents
-- **56 sybil agents flagged** across 8+ coordinated clusters (largest: 93 agents)
-- **126 threat events** detected — sybil clusters, trust degradations, contagion events
+- **2,700+ agents scored** across all 3 verdict classes, scanning all 35K+ registered agents
+- **1,642 sybil agents flagged** across 67 wallets and 859 coordinated clusters
+- **3,387 threat events** detected — sybil clusters, trust degradations, contagion events
+- **Agent marketplace** at [sentinelnet.gudman.xyz/marketplace](https://sentinelnet.gudman.xyz/marketplace) — browse, filter, TrustGate check
+- **WebSocket live feed** — real-time score updates streamed to connected clients
+- **Prometheus metrics** at [/metrics](https://sentinelnet.gudman.xyz/metrics) — production-grade observability
+- **Webhook system** — subscribe to trust change notifications
+- **Rate-limited API** — 100 req/hr free, 1000/hr with API key
 - **On-chain feedback** on the [ERC-8004 Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63)
 - **IPFS evidence** pinned for every score (e.g. [ipfs://QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm](https://gateway.pinata.cloud/ipfs/QmPv5FzyH57KACzejXEd756yX1D2GebPumsgLboAFnm7jm))
 - **Staking contract** at [`0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9`](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9)
@@ -113,7 +118,7 @@ Dual-method detection catches coordinated agent rings:
 
 Flagged agents get -20 point penalty and are immediately re-scored. Clusters are logged to the threat intelligence feed.
 
-**Real results**: Found 8+ sybil clusters including a 93-agent cluster, a 55-agent cluster, and a 52-agent cluster — all sharing the same wallet address.
+**Real results**: Found 859 sybil clusters totaling 1,642 flagged agents across 67 wallets — including clusters of 10+ agents registered on a single wallet address (`0x0049dCe82B...`, `0x039e96bB...`), all crushed to score 0 with maximum contagion penalty.
 
 ### Trust Decay
 
@@ -215,12 +220,19 @@ Modifiers: `onlyTrusted()`, `onlyNotRejected()`
 | `/trust/batch` | POST | Batch query up to 100 agents |
 | `/trust/graph/{agent_id}` | GET | Counterparty trust neighborhood |
 | `/badge/{agent_id}.svg` | GET | Embeddable SVG trust badge |
+| `/trust/compare?agents=1,2,3` | GET | Side-by-side agent comparison (max 10) |
 | `/api/scores` | GET | All scored agents with verdicts |
 | `/api/stats` | GET | Ecosystem statistics |
 | `/api/threats` | GET | Real-time threat intelligence feed |
+| `/api/anomalies` | GET | Anomaly detection (rapid drops, suspicious scores) |
+| `/api/marketplace` | GET | Paginated agent browse with filters |
 | `/api/graph-data` | GET | Full interaction graph for visualization |
+| `/api/webhooks` | POST/GET/DELETE | Register/list/remove webhook subscriptions |
+| `/api/keys` | POST | Register for API key (1000 req/hr) |
 | `/api/score/{agent_id}` | POST | Trigger on-demand scoring |
 | `/api/health` | GET | Health check |
+| `/metrics` | GET | Prometheus-compatible metrics |
+| `ws://host/ws/scores` | WebSocket | Real-time score update stream |
 
 Interactive API docs at [/docs](https://sentinelnet.gudman.xyz/docs).
 
@@ -260,7 +272,7 @@ python main.py
 
 ```bash
 pytest tests/ -v
-# 83 tests across 16 test files
+# 100 tests across 16 test files
 ```
 
 ## Project Structure
@@ -300,11 +312,12 @@ sentinelnet/
 │   ├── agent.html            # Agent profile pages
 │   ├── graph.html            # D3.js interactive trust network visualization
 │   └── docs.html             # Integration guide
-├── api.py                    # FastAPI REST server (11 endpoints)
-├── main.py                   # Entry point + self-score on startup
+├── landing/                  # Next.js static landing page (Framer Motion, Tailwind)
+├── api.py                    # FastAPI REST + WebSocket server (20+ endpoints)
+├── main.py                   # Entry point + WebSocket broadcast wiring
 ├── db.py                     # SQLite WAL cache + score history + threats
 ├── config.py                 # Pydantic Settings
-└── tests/                    # 83 tests, 16 files
+└── tests/                    # 100 tests, 16 files
 ```
 
 ## Tech Stack
