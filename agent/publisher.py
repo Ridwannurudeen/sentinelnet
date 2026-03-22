@@ -10,13 +10,16 @@ logger = logging.getLogger(__name__)
 
 class Publisher:
     PINATA_URL = "https://api.pinata.cloud/pinning/pinJSONToIPFS"
+    LIGHTHOUSE_URL = "https://node.lighthouse.storage/api/v0/add"
 
     def __init__(self, pinata_api_key: str, pinata_secret_key: str,
                  erc8004_client=None, pinata_jwt: str = "",
+                 lighthouse_api_key: str = "",
                  base_url: str = "https://sentinelnet.gudman.xyz"):
         self.pinata_api_key = pinata_api_key
         self.pinata_secret_key = pinata_secret_key
         self.pinata_jwt = pinata_jwt
+        self.lighthouse_api_key = lighthouse_api_key
         self.erc8004 = erc8004_client
         self.base_url = base_url
 
@@ -31,13 +34,19 @@ class Publisher:
         )
         evidence_hash = hashlib.sha256(json.dumps(evidence).encode()).digest()
 
-        # Try IPFS first, fall back to self-hosted evidence URI
+        # Try IPFS pinning: Pinata -> Lighthouse -> self-hosted fallback
         evidence_uri = ""
         if self.pinata_jwt or (self.pinata_api_key and self.pinata_secret_key):
             try:
                 evidence_uri = await self.pin_json(evidence)
             except Exception as e:
-                logger.warning(f"IPFS pin failed: {e}")
+                logger.warning(f"Pinata IPFS pin failed: {e}")
+
+        if not evidence_uri and self.lighthouse_api_key:
+            try:
+                evidence_uri = await self.pin_json_lighthouse(evidence)
+            except Exception as e:
+                logger.warning(f"Lighthouse IPFS pin failed: {e}")
 
         # Fallback: self-hosted evidence endpoint with content hash
         if not evidence_uri:
@@ -90,6 +99,22 @@ class Publisher:
             headers=headers,
         )
         return f"ipfs://{resp['IpfsHash']}"
+
+    async def pin_json_lighthouse(self, data: dict) -> str:
+        """Pin JSON to IPFS via Lighthouse Storage (free tier: 1GB)."""
+        headers = {
+            "Authorization": f"Bearer {self.lighthouse_api_key}",
+        }
+        payload = json.dumps(data).encode()
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                self.LIGHTHOUSE_URL,
+                headers=headers,
+                files={"file": ("evidence.json", payload, "application/json")},
+            )
+            r.raise_for_status()
+            resp = r.json()
+            return f"ipfs://{resp['Hash']}"
 
     async def _http_post(self, url: str, **kwargs) -> dict:
         async with httpx.AsyncClient() as client:

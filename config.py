@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     PINATA_API_KEY: str = ""
     PINATA_SECRET_KEY: str = ""
     PINATA_JWT: str = ""
+    LIGHTHOUSE_API_KEY: str = ""
 
     # Staking
     STAKE_AMOUNT_ETH: float = 0.001

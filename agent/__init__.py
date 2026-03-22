@@ -129,6 +129,7 @@ class SentinelNetAgent:
             pinata_secret_key=settings.PINATA_SECRET_KEY,
             erc8004_client=self.erc8004,
             pinata_jwt=settings.PINATA_JWT,
+            lighthouse_api_key=settings.LIGHTHOUSE_API_KEY,
         )
 
         # Graph

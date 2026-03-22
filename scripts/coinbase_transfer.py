@@ -14,10 +14,15 @@ import requests
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
-API_KEY_ID = "dc255f0a-8c42-45a8-8a64-5d8ff902f805"
-API_KEY_SECRET = "d8v/vccs/MZ7Xpp7no8wzBV68KJ1p/VlIIKJquYlonyi5Aa3pW0rbiaRtg4JxphweYWwCS0r0jzrmREE84RqQw=="
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY_ID = os.environ["CDP_API_KEY_ID"]
+API_KEY_SECRET = os.environ["CDP_API_SECRET"]
 BASE_URL = "https://api.coinbase.com"
-DEPLOY_WALLET = "0xA284Fe859008b641d6DD5A8Ba527F6a43043E6d9"
+DEPLOY_WALLET = os.environ.get("DEPLOY_WALLET", "0xB2Fae83de08b285cB3D6A77Ff520F6AD669D5f33")
 
 
 def build_jwt(method, path):

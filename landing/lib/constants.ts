@@ -58,8 +58,8 @@ export const FEATURES = [
 export const CONTRACTS = [
   {
     name: "TrustGate Oracle",
-    address: "0x985f68c98b0d1BB9B378D969C360783B64cfA4EB",
-    explorer: "https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB",
+    address: "0x10D8caC126849123Cc1fb5806054be6c90343CC8",
+    explorer: "https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8",
   },
   {
     name: "SentinelNetStaking",

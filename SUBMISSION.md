@@ -2,7 +2,7 @@
 
 ## One-liner
 
-Autonomous reputation watchdog that scored 3,237 agents, flagged 1,920 sybils, and logged 5,224 threats — zero human involvement.
+Autonomous reputation watchdog that scored 3,452 agents, unmasked 179 sybil networks controlling 1,993 fake agents, and rejected 72% of the ecosystem — zero human involvement.
 
 ## What it does
 
@@ -16,12 +16,22 @@ Any agent or contract can query SentinelNet before transacting with an unknown c
 
 ## What we found
 
-This is not theoretical. SentinelNet found real threats in the wild:
+This is not theoretical. SentinelNet found real threats in the live ERC-8004 ecosystem:
 
-- **1,920 sybil agents** across 78+ wallets — one wallet registered 10+ agents, all sharing the same address (`0x0049dCe82B...`). SentinelNet flagged them autonomously, applied -20 sybil penalty, and crushed all to score 0.
-- **859+ sybil clusters** detected through dual-method analysis (wallet-sharing + interaction graph cliques)
-- **5,224 threat events** logged — sybil clusters, trust degradations, and trust contagion spreading through the interaction graph
-- **2,295 agents REJECTED** (71% of scored agents) — the ERC-8004 ecosystem has a trust problem, and SentinelNet quantifies it
+### The 260-Agent Sybil Network
+
+One wallet (`0x67722c...`) registered **260 agents** — 88% with sequential IDs, a textbook mass-registration attack. SentinelNet flagged 253 as sybil, applied the -20 penalty, and REJECTED 254 of them. Without SentinelNet, any protocol composing with ERC-8004 would treat these 260 fake agents as legitimate.
+
+### The Full Picture
+
+- **179 sybil networks** detected — the top 3 operators alone control 549 fake agents
+- **1,993 sybil agents** flagged (58% of all agents are sybils)
+- **682 agents** hit by trust contagion — penalized an average of -11 points for associating with flagged counterparties
+- **259 ghost agents** with zero activity and zero longevity — registered but never transacted
+- **2,492 agents REJECTED** (72% of scored agents)
+- **Ecosystem health score: 29/100** — the ERC-8004 registry has a trust crisis, and SentinelNet is the only system quantifying it
+
+No human flagged these threats. No one curated a blocklist. Agent #31253 discovered, analyzed, and published every finding autonomously.
 
 ## How it works
 
@@ -34,7 +44,7 @@ This is not theoretical. SentinelNet found real threats in the wild:
 ## What makes this different
 
 - **Fully autonomous** — Agent #31253 runs 24/7 with zero human involvement. No curation, no moderation queue, no manual reviews. It discovers, scores, and publishes on its own.
-- **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 1,893 actual sybils in the wild, operating across 67+ wallets, and flagged every one of them.
+- **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 1,993 actual sybils operating across 179 networks, and flagged every one of them.
 - **8 integration paths** — Any protocol can plug in however they want: smart contract, Python SDK, JavaScript SDK, REST API, MCP, WebSocket, webhooks, or Prometheus. No vendor lock-in.
 - **On-chain verifiability** — Every trust score is backed by a TrustGate contract call, IPFS-pinned evidence, and staked ETH. Nothing is hand-waved.
 - **Gasless via Coinbase CDP Paymaster** — All on-chain writes (feedback, staking, trust degradation) routed through an ERC-4337 Smart Account with sponsored gas. Zero ETH needed. 355+ UserOperations sent.
@@ -42,7 +52,7 @@ This is not theoretical. SentinelNet found real threats in the wild:
 
 ## Integration paths
 
-- **Smart Contract**: [`TrustGate.sol`](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) — `require(gate.isTrusted(agentId))` in any contract
+- **Smart Contract**: [`TrustGate.sol`](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) — `require(gate.isTrusted(agentId))` in any contract
 - **Python SDK**: `pip install ./sdk/python` or import from `sdk/python/sentinelnet/` — `SentinelNet().is_trusted(42)`
 - **JavaScript SDK**: `npm install ./sdk/js` or import from `sdk/js/src/`
 - **REST API**: `GET /trust/{agent_id}` — 26+ endpoints with rate limiting
@@ -72,7 +82,7 @@ Everything is running in production right now:
 | Agent #31253 | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) |
 | Reputation feedback | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) |
 | Score staking | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) |
-| Trust gate | [TrustGate](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) |
+| Trust gate | [TrustGate](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) |
 | Evidence | IPFS / API (full analysis JSON per agent) |
 
 ## Tech stack
@@ -83,11 +93,11 @@ Python 3.11+ / FastAPI / SQLite WAL / web3.py / Coinbase CDP SDK / ERC-4337 Smar
 
 | | |
 |---|---|
-| **3,237** agents scored | **3,237** scores written on-chain |
-| **1,920** sybils flagged | **859+** sybil clusters detected |
-| **5,224** threats logged | **2,295** agents rejected (71%) |
-| **355+** on-chain UserOps via CDP Paymaster | **100** tests passing |
-| **28** API endpoints | **8** MCP tools |
+| **3,452** agents scored | **179** sybil networks unmasked |
+| **1,993** sybils flagged (58%) | **682** contagion-penalized agents |
+| **2,492** agents rejected (72%) | **259** ghost agents identified |
+| **355+** on-chain UserOps via CDP Paymaster | **66** tests passing |
+| **26+** API endpoints | **8** MCP tools |
 | **8** integration paths | **0** humans in the loop |
 
 ## Roadmap

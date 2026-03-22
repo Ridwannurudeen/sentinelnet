@@ -9,18 +9,22 @@ import sys
 if "nest_asyncio" in sys.modules:
     del sys.modules["nest_asyncio"]
 
+import os
+from dotenv import load_dotenv
 from cdp import CdpClient, EncodedCall
 from cdp.evm_smart_account import EvmSmartAccount
 from eth_account import Account
 from web3 import Web3
 
-PRIVATE_KEY = "0x5136fa1c0e8e05a3fa4df4254babb7e9a0cd0c3f1eeb91f9e4e5eafee6e535b4"
-API_KEY_ID = "dc255f0a-8c42-45a8-8a64-5d8ff902f805"
-API_SECRET = "d8v/vccs/MZ7Xpp7no8wzBV68KJ1p/VlIIKJquYlonyi5Aa3pW0rbiaRtg4JxphweYWwCS0r0jzrmREE84RqQw=="
+load_dotenv()
+
+PRIVATE_KEY = os.environ["PRIVATE_KEY"]
+API_KEY_ID = os.environ["CDP_API_KEY_ID"]
+API_SECRET = os.environ["CDP_API_SECRET"]
 NETWORK = "base"
-PAYMASTER_URL = "https://api.developer.coinbase.com/rpc/v1/base/ZCvk3bSsElw4OBdTMQIDo32Fb7nAa5dC"
+PAYMASTER_URL = os.environ["CDP_PAYMASTER_URL"]
 CREATE2_FACTORY = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
-SMART_ACCOUNT = "0x6663BeB922ab00A545c7b2c01986C6a5f275AaB9"
+SMART_ACCOUNT = os.environ.get("CDP_SMART_ACCOUNT", "0x6663BeB922ab00A545c7b2c01986C6a5f275AaB9")
 
 with open("/opt/sentinelnet/contracts/artifacts/contracts/TrustGate.sol/TrustGate.json") as f:
     artifact = json.load(f)

@@ -3,7 +3,7 @@
   "description": "Autonomous agent reputation watchdog for ERC-8004 on Base. Discovers registered agents, analyzes their on-chain behavior across Base and Ethereum, computes 5-dimensional trust scores, publishes verifiable evidence to IPFS, and writes composable reputation feedback on-chain.",
   "version": "1.0.0",
   "operator": {
-    "wallet": "0xA284Fe859008b641d6DD5A8Ba527F6a43043E6d9",
+    "wallet": "0xB2Fae83de08b285cB3D6A77Ff520F6AD669D5f33",
     "name": "Ridwan Nurudeen"
   },
   "identity": {

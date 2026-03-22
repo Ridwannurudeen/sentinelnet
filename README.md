@@ -258,7 +258,7 @@ Real-time feed of ecosystem threats detected autonomously:
 | Trust scores | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` per agent with IPFS URI |
 | Evidence | IPFS / API | Full analysis JSON pinned per agent |
 | Score stakes | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) | ETH staked per score, 72h challenge window |
-| Trust oracle | [TrustGate](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) | `isTrusted()`, `getTrustScore()` — composable queries |
+| Trust oracle | [TrustGate](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) | `isTrusted()`, `getTrustScore()` — composable queries |
 
 ## Setup
 
