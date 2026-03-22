@@ -33,7 +33,7 @@ This is not theoretical. SentinelNet found real threats in the wild:
 
 ## Integration paths
 
-- **Smart Contract**: [`TrustGate.sol`](https://basescan.org/address/0x7706a6304b744B1d1477f34F7097Ad1eE4973E33) — `require(gate.isTrusted(agentId))` in any contract
+- **Smart Contract**: [`TrustGate.sol`](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) — `require(gate.isTrusted(agentId))` in any contract
 - **Python SDK**: `pip install sentinelnet` — `SentinelNet().is_trusted(42)`
 - **JavaScript SDK**: `npm install sentinelnet`
 - **REST API**: `GET /trust/{agent_id}` — 20+ endpoints with rate limiting
@@ -63,7 +63,7 @@ Everything is running in production right now:
 | Agent #31253 | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) |
 | Reputation feedback | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) |
 | Score staking | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) |
-| Trust gate | [TrustGate](https://basescan.org/address/0x7706a6304b744B1d1477f34F7097Ad1eE4973E33) |
+| Trust gate | [TrustGate](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) |
 | Evidence | IPFS via Pinata (CID per agent) |
 
 ## Tech stack
