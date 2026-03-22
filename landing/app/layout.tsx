@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   },
   title: "SentinelNet — Trust Layer for ERC-8004 Agents on Base",
   description:
-    "Autonomous reputation scoring for ERC-8004 agents. 5-dimensional trust analysis with on-chain composability, IPFS evidence, and EAS attestations.",
+    "Autonomous reputation scoring for ERC-8004 agents. 5-dimensional trust analysis with on-chain composability, IPFS evidence, and gasless paymaster transactions.",
   openGraph: {
     title: "SentinelNet — Trust Layer for ERC-8004 Agents",
     description:

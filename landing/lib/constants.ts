@@ -49,9 +49,9 @@ export const FEATURES = [
   },
   {
     icon: "BadgeCheck",
-    title: "EAS Attestations",
+    title: "Gasless via Paymaster",
     description:
-      "Every trust score becomes a verifiable Ethereum Attestation on Base. On-chain proof that survives even if SentinelNet goes offline.",
+      "All on-chain writes routed through Coinbase CDP Paymaster. Zero gas cost. Smart Account batches multiple calls per UserOperation.",
   },
 ] as const;
 
