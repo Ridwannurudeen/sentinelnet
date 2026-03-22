@@ -28,6 +28,10 @@ logger = logging.getLogger("sentinelnet.api")
 _settings = Settings()
 _api_keys: dict = {}  # key -> {email, created_at} — dynamically registered keys
 
+# Anomaly detection cache (TTL-based to avoid recomputing 2000+ anomalies per request)
+_anomaly_cache: dict = {"anomalies": None, "checked": 0, "ts": 0}
+_ANOMALY_CACHE_TTL = 30  # seconds
+
 
 def _is_valid_api_key(key: str) -> bool:
     """Check if an API key is valid (either from config or dynamically registered)."""
@@ -82,19 +86,19 @@ def _explain_score(score_dict: dict) -> dict:
     elif act >= 40:
         explanations.append(f"Moderate on-chain activity (activity: {act}/100)")
     else:
-        explanations.append(f"Low transaction activity — limited on-chain presence (activity: {act}/100)")
+        explanations.append(f"Low transaction activity -- limited on-chain presence (activity: {act}/100)")
 
     cp = s.get("counterparty", 0)
     if cp >= 70:
         explanations.append(f"Interacts primarily with verified counterparties (counterparty: {cp}/100)")
     elif cp >= 40:
-        explanations.append(f"Mixed counterparty quality — some unverified interactions (counterparty: {cp}/100)")
+        explanations.append(f"Mixed counterparty quality -- some unverified interactions (counterparty: {cp}/100)")
     else:
         explanations.append(f"High ratio of flagged or unverified counterparties (counterparty: {cp}/100)")
 
     cr = s.get("contract_risk", 0)
     if cr >= 70:
-        explanations.append(f"Clean contract interactions — no malicious exposure (risk: {cr}/100)")
+        explanations.append(f"Clean contract interactions -- no malicious exposure (risk: {cr}/100)")
     elif cr >= 40:
         explanations.append(f"Some unverified contract interactions detected (risk: {cr}/100)")
     else:
@@ -106,7 +110,7 @@ def _explain_score(score_dict: dict) -> dict:
     elif ai >= 40:
         explanations.append(f"Partial ERC-8004 registration metadata (identity: {ai}/100)")
     else:
-        explanations.append(f"Minimal or no ERC-8004 metadata — bare registration (identity: {ai}/100)")
+        explanations.append(f"Minimal or no ERC-8004 metadata -- bare registration (identity: {ai}/100)")
 
     # Contagion
     contagion = s.get("contagion_adjustment", 0)
@@ -120,7 +124,7 @@ def _explain_score(score_dict: dict) -> dict:
         explanations.append("SYBIL WARNING: Agent flagged as part of a coordinated cluster (-20 penalty applied)")
 
     if s.get("is_stale"):
-        explanations.append(f"Score is stale — last scored {s.get('decay_days', '?')} days ago, decay applied")
+        explanations.append(f"Score is stale -- last scored {s.get('decay_days', '?')} days ago, decay applied")
 
     verdict = s.get("verdict", "UNSCORED")
     trust = s.get("trust_score", 0)
@@ -171,7 +175,7 @@ def _recovery_recommendations(s: dict) -> list:
         elif name == "activity" and val < 70:
             if val < 30:
                 recs.append({"dimension": "activity", "score": val, "priority": "high",
-                             "action": "Very low on-chain activity. Execute regular transactions on Base — interact with verified protocols like Uniswap, USDC, or WETH."})
+                             "action": "Very low on-chain activity. Execute regular transactions on Base -- interact with verified protocols like Uniswap, USDC, or WETH."})
             else:
                 recs.append({"dimension": "activity", "score": val, "priority": "medium",
                              "action": "Increase transaction frequency and maintain an ETH balance on Base. Active 60%+ of days maximizes this dimension."})
@@ -181,7 +185,7 @@ def _recovery_recommendations(s: dict) -> list:
                              "action": "Interact with verified protocols (Uniswap, USDC, WETH). Avoid transactions with flagged or unknown addresses."})
             else:
                 recs.append({"dimension": "counterparty", "score": val, "priority": "medium",
-                             "action": "Diversify interactions — engage with 30+ unique verified counterparties to maximize diversity bonus."})
+                             "action": "Diversify interactions -- engage with 30+ unique verified counterparties to maximize diversity bonus."})
         elif name == "contract_risk" and val < 70:
             if val < 30:
                 recs.append({"dimension": "contract_risk", "score": val, "priority": "high",
@@ -1447,15 +1451,20 @@ def _detect_anomalies(scores: list, history_map: dict, wallet_agent_map: dict,
     return anomalies
 
 
-@app.get("/api/anomalies", tags=["Threats"])
-async def get_anomalies(
-    limit: int = Query(None, ge=1, le=500, description="Max anomalies to return"),
-    severity: str = Query(None, description="Filter by severity: HIGH, MEDIUM, or LOW"),
-):
-    """Detect and return current anomalies in the trust scoring system.
+async def _compute_anomalies_cached() -> tuple:
+    """Return (anomalies_list, checked_count) using a TTL cache.
 
-    Detects: rapid score drops, suspicious perfect scores, sybil clusters,
-    score outliers, and toxic neighborhoods."""
+    The full anomaly computation is expensive (N+1 history queries for every
+    scored agent).  Cache the result for _ANOMALY_CACHE_TTL seconds so that
+    repeated requests (pagination, different severity filters) don't recompute.
+    """
+    now = time.monotonic()
+    if (
+        _anomaly_cache["anomalies"] is not None
+        and (now - _anomaly_cache["ts"]) < _ANOMALY_CACHE_TTL
+    ):
+        return _anomaly_cache["anomalies"], _anomaly_cache["checked"]
+
     scores = await db.get_all_scores()
     scores = [_apply_decay(s) for s in scores]
 
@@ -1470,36 +1479,59 @@ async def get_anomalies(
 
     # Recent threats (last 24h) for sybil cluster feed
     all_threats = await db.get_threats(limit=200)
-    now = datetime.now(timezone.utc)
+    utcnow = datetime.now(timezone.utc)
     recent_threats = []
     for t in all_threats:
         try:
             created = datetime.fromisoformat(t["created_at"])
             if created.tzinfo is None:
                 created = created.replace(tzinfo=timezone.utc)
-            if (now - created).total_seconds() <= 86400:
+            if (utcnow - created).total_seconds() <= 86400:
                 recent_threats.append(t)
         except (ValueError, KeyError):
             pass
 
     anomalies = _detect_anomalies(scores, history_map, wallet_agent_map, recent_threats)
 
+    _anomaly_cache["anomalies"] = anomalies
+    _anomaly_cache["checked"] = len(scores)
+    _anomaly_cache["ts"] = now
+    return anomalies, len(scores)
+
+
+@app.get("/api/anomalies", tags=["Threats"])
+async def get_anomalies(
+    limit: int = Query(50, ge=1, le=500, description="Max anomalies to return"),
+    offset: int = Query(0, ge=0, description="Number of anomalies to skip"),
+    severity: str = Query(None, description="Filter by severity: HIGH, MEDIUM, or LOW"),
+):
+    """Detect and return current anomalies in the trust scoring system.
+
+    Detects: rapid score drops, suspicious perfect scores, sybil clusters,
+    score outliers, and toxic neighborhoods.
+
+    Supports pagination via `limit` (default 50) and `offset` (default 0)."""
+    all_anomalies, checked = await _compute_anomalies_cached()
+
     # Filter by severity if requested
     if severity:
         sev_upper = severity.upper()
-        anomalies = [a for a in anomalies if a["severity"] == sev_upper]
+        filtered = [a for a in all_anomalies if a["severity"] == sev_upper]
+    else:
+        filtered = all_anomalies
 
-    total_before_limit = len(anomalies)
+    total = len(filtered)
 
-    # Apply limit
-    if limit is not None:
-        anomalies = anomalies[:limit]
+    # Apply offset + limit pagination
+    page = filtered[offset:offset + limit]
 
     return {
-        "anomalies": anomalies,
-        "total": total_before_limit,
-        "returned": len(anomalies),
-        "checked": len(scores),
+        "anomalies": page,
+        "total": total,
+        "returned": len(page),
+        "limit": limit,
+        "offset": offset,
+        "checked": checked,
     }
 
 

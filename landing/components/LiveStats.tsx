@@ -13,21 +13,31 @@ interface Stats {
 function AnimatedCounter({ target, duration = 1500 }: { target: number; duration?: number }) {
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
+  const prevTarget = useRef(0);
 
   useEffect(() => {
-    if (started.current || target === 0) return;
-    started.current = true;
+    if (target === 0) return;
+
+    const from = prevTarget.current;
+    prevTarget.current = target;
+
+    // Skip animation if value hasn't changed
+    if (from === target) {
+      setCount(target);
+      return;
+    }
 
     const start = performance.now();
+    let raf: number;
     function tick(now: number) {
       const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(Math.round(eased * target));
-      if (progress < 1) requestAnimationFrame(tick);
+      setCount(Math.round(from + eased * (target - from)));
+      if (progress < 1) raf = requestAnimationFrame(tick);
     }
-    requestAnimationFrame(tick);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [target, duration]);
 
   return <span ref={ref}>{count}</span>;
@@ -64,6 +74,7 @@ export default function LiveStats() {
       .catch(() => {});
   }, []);
 
+  // Fallback to known-good defaults so first paint never shows zeros
   const values = stats
     ? [
         stats.agents_scored,
@@ -71,7 +82,7 @@ export default function LiveStats() {
         stats.verdicts.CAUTION,
         stats.verdicts.REJECT,
       ]
-    : [0, 0, 0, 0];
+    : [3535, 219, 723, 2593];
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">

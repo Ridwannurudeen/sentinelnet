@@ -3,13 +3,17 @@ import pytest
 import pytest_asyncio
 from datetime import datetime, timezone, timedelta
 from httpx import AsyncClient, ASGITransport
-from api import app, db, _detect_anomalies
+from api import app, db, _detect_anomalies, _anomaly_cache
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def init_db():
     db.path = ":memory:"
     await db.init()
+    # Invalidate anomaly cache between tests
+    _anomaly_cache["anomalies"] = None
+    _anomaly_cache["checked"] = 0
+    _anomaly_cache["ts"] = 0
     yield
     await db.close()
 
@@ -209,7 +213,7 @@ async def test_severity_filter_case_insensitive():
 
 @pytest.mark.asyncio
 async def test_response_structure():
-    """Verify response shape includes total, returned, checked."""
+    """Verify response shape includes total, returned, checked, limit, offset."""
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
         r = await client.get("/api/anomalies")
     data = r.json()
@@ -217,6 +221,10 @@ async def test_response_structure():
     assert "total" in data
     assert "returned" in data
     assert "checked" in data
+    assert "limit" in data
+    assert "offset" in data
+    assert data["limit"] == 50  # default
+    assert data["offset"] == 0  # default
     assert isinstance(data["anomalies"], list)
 
 
@@ -285,3 +293,48 @@ async def test_detect_anomalies_sybil_from_threats():
     sybil_threats = [a for a in anomalies if a["type"] == "sybil_cluster_detected"]
     assert len(sybil_threats) == 1
     assert sybil_threats[0]["agent_id"] == 99
+
+
+# ─── Pagination (offset) ───
+
+@pytest.mark.asyncio
+async def test_offset_param():
+    """?offset=N skips the first N anomalies."""
+    # Create a sybil cluster (3 agents = 1 sybil_cluster anomaly)
+    # plus suspicious_high_score for each (longevity < 20 and trust >= 70)
+    await db.save_score(1, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
+    await db.save_score(2, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
+    await db.save_score(3, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
+    async with AsyncClient(transport=_transport(), base_url="http://test") as client:
+        r_all = await client.get("/api/anomalies?limit=500")
+        total = r_all.json()["total"]
+        # Now fetch with offset=2
+        r_page = await client.get(f"/api/anomalies?offset=2&limit=500")
+    data = r_page.json()
+    assert data["offset"] == 2
+    assert data["total"] == total
+    assert data["returned"] == max(total - 2, 0)
+
+
+@pytest.mark.asyncio
+async def test_offset_and_limit_combined():
+    """?offset=1&limit=1 returns exactly one anomaly from the middle."""
+    await db.save_score(1, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
+    await db.save_score(2, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
+    await db.save_score(3, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
+    async with AsyncClient(transport=_transport(), base_url="http://test") as client:
+        r = await client.get("/api/anomalies?offset=1&limit=1")
+    data = r.json()
+    assert data["returned"] == 1
+    assert data["offset"] == 1
+    assert data["limit"] == 1
+
+
+@pytest.mark.asyncio
+async def test_default_limit_is_50():
+    """Default limit should be 50 when not specified."""
+    async with AsyncClient(transport=_transport(), base_url="http://test") as client:
+        r = await client.get("/api/anomalies")
+    data = r.json()
+    assert data["limit"] == 50
+    assert data["offset"] == 0
