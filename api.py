@@ -338,6 +338,48 @@ async def stats():
     }
 
 
+# ─── Agent Comparison (must be before /trust/{agent_id} to avoid route conflict) ───
+
+@app.get("/trust/compare", tags=["Trust"])
+async def compare_agents(agents: str = Query(..., description="Comma-separated agent IDs (max 10)")):
+    """Compare trust scores across multiple agents side-by-side."""
+    try:
+        agent_ids = [int(x.strip()) for x in agents.split(",")]
+    except ValueError:
+        raise HTTPException(400, "Provide comma-separated integer agent IDs")
+    if len(agent_ids) > 10:
+        raise HTTPException(400, "Maximum 10 agents for comparison")
+
+    results = []
+    for aid in agent_ids:
+        score = await db.get_score(aid)
+        if score:
+            score = _apply_decay(score)
+            results.append({
+                "agent_id": aid,
+                "trust_score": score["trust_score"],
+                "verdict": score["verdict"],
+                "dimensions": {
+                    "longevity": score["longevity"],
+                    "activity": score["activity"],
+                    "counterparty": score["counterparty"],
+                    "contract_risk": score["contract_risk"],
+                    "agent_identity": score.get("agent_identity", 0),
+                },
+                "sybil_flagged": bool(score.get("sybil_flagged")),
+                "contagion_adjustment": score.get("contagion_adjustment", 0),
+            })
+        else:
+            results.append({"agent_id": aid, "error": "Not scored"})
+
+    scored = [r for r in results if "trust_score" in r]
+    scored.sort(key=lambda x: x["trust_score"], reverse=True)
+    for i, r in enumerate(scored):
+        r["rank"] = i + 1
+
+    return {"agents": results, "compared": len(agent_ids), "found": len(scored)}
+
+
 @app.get("/trust/{agent_id}", tags=["Trust"])
 async def get_trust(agent_id: int):
     """Get trust score for a specific agent with decay and explanation."""
@@ -976,49 +1018,6 @@ async def register_api_key(request: Request):
     key = "sk-sn-" + hashlib.sha256(raw.encode()).hexdigest()[:32]
     _api_keys[key] = {"email": email, "created_at": datetime.now(timezone.utc).isoformat()}
     return {"api_key": key, "rate_limit": RATE_LIMIT_AUTH, "note": "Include as X-API-Key header"}
-
-
-# ─── Agent Comparison ───
-
-@app.get("/trust/compare", tags=["Trust"])
-async def compare_agents(agents: str = Query(..., description="Comma-separated agent IDs (max 10)")):
-    """Compare trust scores across multiple agents side-by-side."""
-    try:
-        agent_ids = [int(x.strip()) for x in agents.split(",")]
-    except ValueError:
-        raise HTTPException(400, "Provide comma-separated integer agent IDs")
-    if len(agent_ids) > 10:
-        raise HTTPException(400, "Maximum 10 agents for comparison")
-
-    results = []
-    for aid in agent_ids:
-        score = await db.get_score(aid)
-        if score:
-            score = _apply_decay(score)
-            results.append({
-                "agent_id": aid,
-                "trust_score": score["trust_score"],
-                "verdict": score["verdict"],
-                "dimensions": {
-                    "longevity": score["longevity"],
-                    "activity": score["activity"],
-                    "counterparty": score["counterparty"],
-                    "contract_risk": score["contract_risk"],
-                    "agent_identity": score.get("agent_identity", 0),
-                },
-                "sybil_flagged": bool(score.get("sybil_flagged")),
-                "contagion_adjustment": score.get("contagion_adjustment", 0),
-            })
-        else:
-            results.append({"agent_id": aid, "error": "Not scored"})
-
-    # Rankings among compared set
-    scored = [r for r in results if "trust_score" in r]
-    scored.sort(key=lambda x: x["trust_score"], reverse=True)
-    for i, r in enumerate(scored):
-        r["rank"] = i + 1
-
-    return {"agents": results, "compared": len(agent_ids), "found": len(scored)}
 
 
 # ─── Anomaly Detection ───
