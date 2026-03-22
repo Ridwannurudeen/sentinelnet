@@ -5,6 +5,12 @@ Trust scoring for ERC-8004 agents on Base.
 ## Install
 
 ```bash
+pip install sentinelnet
+```
+
+Or from source:
+
+```bash
 pip install git+https://github.com/Ridwannurudeen/sentinelnet.git#subdirectory=sdk/python
 ```
 

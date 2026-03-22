@@ -1,12 +1,14 @@
 import asyncio
 import math
 import os
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from web3 import Web3
 from db import Database
@@ -850,3 +852,319 @@ async def trigger_score(agent_id: int):
         raise
     except Exception as e:
         raise HTTPException(500, f"Scoring failed: {str(e)}")
+
+
+# ─── WebSocket Live Feed ───
+
+class ConnectionManager:
+    """Manages WebSocket connections for live score updates."""
+    def __init__(self):
+        self.active: List[WebSocket] = []
+
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.active.append(ws)
+
+    def disconnect(self, ws: WebSocket):
+        if ws in self.active:
+            self.active.remove(ws)
+
+    async def broadcast(self, data: dict):
+        dead = []
+        for ws in self.active:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
+
+
+ws_manager = ConnectionManager()
+
+
+@app.websocket("/ws/scores")
+async def ws_scores(websocket: WebSocket):
+    """WebSocket endpoint streaming real-time score updates."""
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # Keep alive
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+
+
+async def broadcast_score_update(agent_id: int, score: int, verdict: str, wallet: str):
+    """Called by the agent after scoring — broadcasts to all connected WebSocket clients."""
+    await ws_manager.broadcast({
+        "event": "score_update",
+        "agent_id": agent_id,
+        "trust_score": score,
+        "verdict": verdict,
+        "wallet": wallet[:10] + "..." if wallet else "",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "connections": len(ws_manager.active),
+    })
+
+
+# ─── Rate Limiting ───
+
+_rate_limits: dict = defaultdict(list)  # ip -> [timestamps]
+RATE_LIMIT_FREE = 100       # requests per hour (unauthenticated)
+RATE_LIMIT_AUTH = 1000       # requests per hour (with API key)
+_api_keys: dict = {}         # key -> {email, created_at}
+_api_key_counter = 0
+
+
+def _check_rate_limit(ip: str, api_key: str = None) -> tuple:
+    """Returns (allowed: bool, limit: int, remaining: int, reset: int)."""
+    now = time.time()
+    cutoff = now - 3600
+    limit = RATE_LIMIT_AUTH if (api_key and api_key in _api_keys) else RATE_LIMIT_FREE
+    # Clean old entries
+    _rate_limits[ip] = [t for t in _rate_limits[ip] if t > cutoff]
+    remaining = max(0, limit - len(_rate_limits[ip]))
+    reset = int(cutoff + 3600)
+    if remaining <= 0:
+        return False, limit, 0, reset
+    _rate_limits[ip].append(now)
+    return True, limit, remaining - 1, reset
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    # Skip rate limiting for pages, static assets, and WebSocket
+    path = request.url.path
+    if path.startswith("/_next") or path.startswith("/ws") or not path.startswith("/api"):
+        return await call_next(request)
+
+    ip = request.client.host if request.client else "unknown"
+    api_key = request.headers.get("x-api-key", "")
+    allowed, limit, remaining, reset = _check_rate_limit(ip, api_key)
+
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Rate limit exceeded", "limit": limit, "reset": reset},
+            headers={
+                "X-RateLimit-Limit": str(limit),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(reset),
+                "Retry-After": str(reset - int(time.time())),
+            },
+        )
+
+    response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+    response.headers["X-RateLimit-Reset"] = str(reset)
+    return response
+
+
+@app.post("/api/keys", tags=["Auth"])
+async def register_api_key(request: Request):
+    """Register for an API key to get higher rate limits (1000 req/hr).
+    Body: {"email": "dev@example.com"}"""
+    global _api_key_counter
+    body = await request.json()
+    email = body.get("email", "")
+    if not email or "@" not in email:
+        raise HTTPException(400, "Provide a valid email")
+    import hashlib
+    _api_key_counter += 1
+    raw = f"sentinelnet-{email}-{_api_key_counter}-{time.time()}"
+    key = "sk-sn-" + hashlib.sha256(raw.encode()).hexdigest()[:32]
+    _api_keys[key] = {"email": email, "created_at": datetime.now(timezone.utc).isoformat()}
+    return {"api_key": key, "rate_limit": RATE_LIMIT_AUTH, "note": "Include as X-API-Key header"}
+
+
+# ─── Agent Comparison ───
+
+@app.get("/trust/compare", tags=["Trust"])
+async def compare_agents(agents: str = Query(..., description="Comma-separated agent IDs (max 10)")):
+    """Compare trust scores across multiple agents side-by-side."""
+    try:
+        agent_ids = [int(x.strip()) for x in agents.split(",")]
+    except ValueError:
+        raise HTTPException(400, "Provide comma-separated integer agent IDs")
+    if len(agent_ids) > 10:
+        raise HTTPException(400, "Maximum 10 agents for comparison")
+
+    results = []
+    for aid in agent_ids:
+        score = await db.get_score(aid)
+        if score:
+            score = _apply_decay(score)
+            results.append({
+                "agent_id": aid,
+                "trust_score": score["trust_score"],
+                "verdict": score["verdict"],
+                "dimensions": {
+                    "longevity": score["longevity"],
+                    "activity": score["activity"],
+                    "counterparty": score["counterparty"],
+                    "contract_risk": score["contract_risk"],
+                    "agent_identity": score.get("agent_identity", 0),
+                },
+                "sybil_flagged": bool(score.get("sybil_flagged")),
+                "contagion_adjustment": score.get("contagion_adjustment", 0),
+            })
+        else:
+            results.append({"agent_id": aid, "error": "Not scored"})
+
+    # Rankings among compared set
+    scored = [r for r in results if "trust_score" in r]
+    scored.sort(key=lambda x: x["trust_score"], reverse=True)
+    for i, r in enumerate(scored):
+        r["rank"] = i + 1
+
+    return {"agents": results, "compared": len(agent_ids), "found": len(scored)}
+
+
+# ─── Anomaly Detection ───
+
+@app.get("/api/anomalies", tags=["Threats"])
+async def get_anomalies():
+    """Detect and return current anomalies: rapid score drops, suspicious spikes,
+    and potential gaming behavior."""
+    scores = await db.get_all_scores()
+    scores = [_apply_decay(s) for s in scores]
+    anomalies = []
+
+    for s in scores:
+        agent_id = s["agent_id"]
+        trust = s["trust_score"]
+        raw = s.get("trust_score_raw", trust)
+
+        # Check history for rapid drops
+        history = await db.get_score_history(agent_id, limit=5)
+        if len(history) >= 2:
+            prev = history[1]["trust_score"]
+            curr = history[0]["trust_score"]
+            drop = prev - curr
+            if drop >= 15:
+                anomalies.append({
+                    "type": "rapid_drop",
+                    "severity": "high" if drop >= 25 else "medium",
+                    "agent_id": agent_id,
+                    "detail": f"Score dropped {drop} points ({prev} → {curr}) in recent scoring",
+                    "previous_score": prev,
+                    "current_score": curr,
+                })
+
+        # Suspicious: very new but very high score
+        if s.get("longevity", 0) < 20 and trust >= 70:
+            anomalies.append({
+                "type": "suspicious_high_score",
+                "severity": "medium",
+                "agent_id": agent_id,
+                "detail": f"New wallet (longevity={s['longevity']}) with unusually high score ({trust})",
+            })
+
+        # Heavy contagion
+        contagion = s.get("contagion_adjustment", 0)
+        if contagion <= -10:
+            anomalies.append({
+                "type": "toxic_neighborhood",
+                "severity": "high",
+                "agent_id": agent_id,
+                "detail": f"Score reduced by {abs(contagion)} from interactions with low-trust agents",
+            })
+
+    anomalies.sort(key=lambda x: 0 if x["severity"] == "high" else 1)
+    return {"anomalies": anomalies, "total": len(anomalies), "checked": len(scores)}
+
+
+# ─── Prometheus Metrics ───
+
+_metrics = {
+    "agents_scored_total": 0,
+    "verdicts": {"TRUST": 0, "CAUTION": 0, "REJECT": 0},
+    "api_requests_total": 0,
+    "sybil_detections_total": 0,
+    "ws_connections_active": 0,
+}
+
+
+@app.get("/metrics", tags=["System"], response_class=Response)
+async def prometheus_metrics():
+    """Prometheus-compatible metrics endpoint."""
+    scores = await db.get_all_scores()
+    verdicts = {"TRUST": 0, "CAUTION": 0, "REJECT": 0}
+    for s in scores:
+        v = s.get("verdict", "").upper()
+        if v in verdicts:
+            verdicts[v] += 1
+    sybil_count = sum(1 for s in scores if s.get("sybil_flagged"))
+
+    lines = [
+        "# HELP sentinelnet_agents_scored_total Total number of agents scored",
+        "# TYPE sentinelnet_agents_scored_total gauge",
+        f"sentinelnet_agents_scored_total {len(scores)}",
+        "# HELP sentinelnet_verdicts_total Verdict distribution",
+        "# TYPE sentinelnet_verdicts_total gauge",
+        f'sentinelnet_verdicts_total{{verdict="TRUST"}} {verdicts["TRUST"]}',
+        f'sentinelnet_verdicts_total{{verdict="CAUTION"}} {verdicts["CAUTION"]}',
+        f'sentinelnet_verdicts_total{{verdict="REJECT"}} {verdicts["REJECT"]}',
+        "# HELP sentinelnet_sybil_detections_total Number of agents flagged as sybil",
+        "# TYPE sentinelnet_sybil_detections_total gauge",
+        f"sentinelnet_sybil_detections_total {sybil_count}",
+        "# HELP sentinelnet_websocket_connections_active Active WebSocket connections",
+        "# TYPE sentinelnet_websocket_connections_active gauge",
+        f"sentinelnet_websocket_connections_active {len(ws_manager.active)}",
+    ]
+    return Response(content="\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
+
+
+# ─── Marketplace ───
+
+@app.get("/marketplace", response_class=HTMLResponse, include_in_schema=False)
+async def marketplace_page():
+    return FileResponse("dashboard/marketplace.html")
+
+
+@app.get("/api/marketplace", tags=["Marketplace"])
+async def marketplace_list(
+    verdict: str = Query(None, description="Filter by verdict: TRUST, CAUTION, REJECT"),
+    min_score: int = Query(0, ge=0, le=100, description="Minimum trust score"),
+    sort: str = Query("score", description="Sort by: score, recent"),
+    search: str = Query(None, description="Search by agent ID or wallet"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+):
+    """Browse scored agents for the marketplace with filtering and pagination."""
+    scores = await db.get_all_scores()
+    scores = [_apply_decay(s) for s in scores]
+
+    # Filters
+    if verdict:
+        scores = [s for s in scores if s.get("verdict", "").upper() == verdict.upper()]
+    if min_score > 0:
+        scores = [s for s in scores if s.get("trust_score", 0) >= min_score]
+    if search:
+        search_lower = search.lower()
+        scores = [s for s in scores if search_lower in str(s["agent_id"]) or search_lower in s.get("wallet", "").lower()]
+
+    # Sort
+    if sort == "score":
+        scores.sort(key=lambda s: s.get("trust_score", 0), reverse=True)
+    elif sort == "recent":
+        scores.sort(key=lambda s: s.get("scored_at", ""), reverse=True)
+
+    total = len(scores)
+    start = (page - 1) * per_page
+    agents = scores[start:start + per_page]
+
+    # Enrich with classification labels
+    for a in agents:
+        edges = await db.get_edges(a["agent_id"])
+        a["classification"] = _classify_agent(a, edges)
+        a["explanation"] = _explain_score(a)
+
+    return {
+        "agents": agents,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": math.ceil(total / per_page) if total else 0,
+    }

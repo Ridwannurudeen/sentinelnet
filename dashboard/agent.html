@@ -243,7 +243,12 @@
                             <div class="big-verdict" style="color:${col(s.trust_score)}">${s.verdict}</div>
                             ${decayInfo}
                             <div class="badge-embed">
-                                Embed: <code>&lt;img src="/badge/${agentId}.svg"&gt;</code>
+                                <div style="margin-bottom:4px">Embed this badge:</div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('![Trust](https://sentinelnet.gudman.xyz/badge/${agentId}.svg)');this.textContent='Copied!';setTimeout(()=>this.textContent='Markdown',1500)" title="Click to copy Markdown">Markdown</code>
+                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('<img src=&quot;https://sentinelnet.gudman.xyz/badge/${agentId}.svg&quot; alt=&quot;SentinelNet Trust&quot;>');this.textContent='Copied!';setTimeout(()=>this.textContent='HTML',1500)" title="Click to copy HTML">HTML</code>
+                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('https://sentinelnet.gudman.xyz/badge/${agentId}.svg');this.textContent='Copied!';setTimeout(()=>this.textContent='URL',1500)" title="Click to copy URL">URL</code>
+                                </div>
                             </div>
                         </div>
                     </div>

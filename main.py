@@ -20,6 +20,25 @@ async def main():
     import api as api_module
     api_module.db = agent.db
     api_module._agent_ref = agent
+
+    # Wire WebSocket broadcast into agent scoring
+    original_analyze = agent.analyze_agent
+    async def _analyze_with_broadcast(agent_id, sybil_override=False):
+        result = await original_analyze(agent_id, sybil_override=sybil_override)
+        if result:
+            score = await agent.db.get_score(agent_id)
+            if score:
+                await api_module.broadcast_score_update(
+                    agent_id, result.trust_score, result.verdict, score.get("wallet", "")
+                )
+                # Also fire webhooks
+                await api_module._fire_webhooks("score_update", {
+                    "agent_id": agent_id,
+                    "trust_score": result.trust_score,
+                    "verdict": result.verdict,
+                })
+        return result
+    agent.analyze_agent = _analyze_with_broadcast
     try:
         import mcp.server as mcp_module
         mcp_module.db = agent.db
