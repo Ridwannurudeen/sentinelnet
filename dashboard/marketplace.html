@@ -6,7 +6,7 @@
     <title>Agent Marketplace — SentinelNet</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
     <style>
-        :root { --bg: #080810; --card: #0f0f1a; --card-hover: #14142a; --border: #1e1e3a; --border-bright: #2a2a50; --text: #e8e8f0; --muted: #555570; --sec: #8888aa; --blue: #0088ff; --cyan: #00ccff; --trust: #00dd77; --caution: #ffaa22; --reject: #ff3344; --sybil: #cc44ff; }
+        :root { --bg: #080810; --card: #0f0f1a; --card-hover: #14142a; --border: #1e1e3a; --border-bright: #2a2a50; --text: #e8e8f0; --muted: #555570; --sec: #8888aa; --blue: #0088ff; --cyan: #00ccff; --trust: #00dd77; --caution: #ffaa22; --reject: #ff3344; --sybil: #cc44ff; --gold: #ffd700; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
         a { color: var(--blue); text-decoration: none; }
@@ -17,6 +17,7 @@
         .nav .sep { color: var(--muted); }
         .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
         .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
+        .nav-link.nav-active { color: var(--cyan); border-color: var(--cyan); }
 
         .container { max-width: 1200px; margin: 0 auto; padding: 28px; }
         h1 { font-size: 28px; margin-bottom: 6px; }
@@ -29,26 +30,50 @@
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
         /* Filters */
-        .filters { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+        .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
         .filter-btn { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; font-size: 12px; color: var(--sec); cursor: pointer; transition: all 0.15s; }
         .filter-btn:hover, .filter-btn.active { border-color: var(--cyan); color: var(--cyan); }
         .filter-btn.active-trust { border-color: var(--trust); color: var(--trust); }
         .filter-btn.active-caution { border-color: var(--caution); color: var(--caution); }
         .filter-btn.active-reject { border-color: var(--reject); color: var(--reject); }
+        .filter-btn.active-gold { border-color: var(--gold); color: var(--gold); }
         .search-input { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; font-size: 12px; color: var(--text); outline: none; width: 200px; }
         .search-input:focus { border-color: var(--cyan); }
         .search-input::placeholder { color: var(--muted); }
+
+        /* Sort dropdown */
+        .sort-select { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--sec); outline: none; cursor: pointer; -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238888aa'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+        .sort-select:focus { border-color: var(--cyan); }
+        .sort-select option { background: var(--card); color: var(--text); }
+
+        /* Score range slider */
+        .range-filter { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; color: var(--sec); flex-wrap: wrap; }
+        .range-filter label { font-weight: 600; color: var(--text); white-space: nowrap; }
+        .range-track { position: relative; flex: 1; min-width: 200px; height: 36px; }
+        .range-track input[type="range"] { -webkit-appearance: none; appearance: none; position: absolute; width: 100%; height: 4px; top: 16px; background: transparent; pointer-events: none; outline: none; }
+        .range-track input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--cyan); border: 2px solid var(--bg); cursor: pointer; pointer-events: all; position: relative; z-index: 2; }
+        .range-track input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--cyan); border: 2px solid var(--bg); cursor: pointer; pointer-events: all; }
+        .range-bar { position: absolute; height: 4px; top: 16px; background: rgba(255,255,255,0.06); width: 100%; border-radius: 2px; }
+        .range-bar-fill { position: absolute; height: 4px; top: 16px; background: var(--cyan); border-radius: 2px; opacity: 0.4; }
+        .range-values { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
+        .range-val { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--cyan); min-width: 36px; text-align: center; }
 
         /* Agent Grid */
         .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 
         .agent-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: all 0.2s; cursor: pointer; position: relative; overflow: hidden; }
-        .agent-card:hover { border-color: var(--border-bright); background: var(--card-hover); transform: translateY(-2px); }
+        .agent-card:hover { border-color: var(--border-bright); background: var(--card-hover); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,204,255,0.08); }
         .agent-card.trust-border { border-left: 3px solid var(--trust); }
         .agent-card.caution-border { border-left: 3px solid var(--caution); }
         .agent-card.reject-border { border-left: 3px solid var(--reject); }
 
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        /* Watchlist star */
+        .watchlist-star { position: absolute; top: 12px; right: 12px; background: none; border: none; cursor: pointer; font-size: 20px; color: var(--muted); transition: all 0.15s; z-index: 2; padding: 4px; line-height: 1; }
+        .watchlist-star:hover { color: var(--gold); transform: scale(1.2); }
+        .watchlist-star.watched { color: var(--gold); text-shadow: 0 0 8px rgba(255,215,0,0.4); }
+        .watched-badge { display: inline-block; width: 6px; height: 6px; background: var(--gold); border-radius: 50%; margin-left: 6px; vertical-align: middle; }
+
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; padding-right: 28px; }
         .agent-name { font-size: 18px; font-weight: 700; color: var(--cyan); }
         .agent-wallet { font-size: 11px; color: var(--muted); font-family: monospace; margin-top: 2px; }
         .score-badge { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -95,9 +120,45 @@
         .modal p { font-size: 13px; color: var(--sec); margin-bottom: 8px; }
         .modal .close-btn { margin-top: 16px; }
 
-        .empty { text-align: center; padding: 60px; color: var(--muted); }
+        /* Skeleton loading */
+        .skeleton-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; overflow: hidden; }
+        .skeleton-line { height: 14px; background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; margin-bottom: 10px; }
+        .skeleton-line.w60 { width: 60%; }
+        .skeleton-line.w40 { width: 40%; }
+        .skeleton-line.w80 { width: 80%; }
+        .skeleton-line.w100 { width: 100%; }
+        .skeleton-line.h28 { height: 28px; }
+        .skeleton-line.h4 { height: 4px; }
+        .skeleton-dims { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 12px 0; }
+        .skeleton-dim { height: 40px; background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; }
+        .skeleton-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .skeleton-btn { height: 34px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; flex: 1; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
-        @media (max-width: 700px) { .agent-grid { grid-template-columns: 1fr; } .filters { flex-direction: column; } .search-input { width: 100%; } }
+        /* Empty state */
+        .empty-state { text-align: center; padding: 80px 40px; }
+        .empty-state .empty-icon { margin-bottom: 24px; }
+        .empty-state .empty-icon svg { width: 120px; height: 120px; opacity: 0.5; }
+        .empty-state .empty-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+        .empty-state .empty-desc { font-size: 13px; color: var(--muted); max-width: 400px; margin: 0 auto 20px; line-height: 1.6; }
+        .empty-state .btn-clear-filters { background: rgba(0,204,255,0.1); color: var(--cyan); border: 1px solid rgba(0,204,255,0.3); padding: 10px 24px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+        .empty-state .btn-clear-filters:hover { background: rgba(0,204,255,0.2); }
+
+        /* Error state */
+        .error-state { text-align: center; padding: 80px 40px; }
+        .error-state .error-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; }
+        .error-state .error-title { font-size: 20px; font-weight: 700; color: var(--reject); margin-bottom: 8px; }
+        .error-state .error-desc { font-size: 13px; color: var(--muted); max-width: 400px; margin: 0 auto 20px; line-height: 1.6; }
+        .error-state .btn-retry { background: rgba(255,51,68,0.1); color: var(--reject); border: 1px solid rgba(255,51,68,0.3); padding: 10px 24px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+        .error-state .btn-retry:hover { background: rgba(255,51,68,0.2); }
+
+        @media (max-width: 700px) {
+            .agent-grid { grid-template-columns: 1fr; }
+            .filters { flex-direction: column; }
+            .search-input { width: 100%; }
+            .range-track { min-width: 140px; }
+            .nav { flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+        }
     </style>
 </head>
 <body>
@@ -106,9 +167,12 @@
         <span class="sep">/</span>
         <span style="color:var(--text)">Agent Marketplace</span>
         <span style="margin-left:auto;display:flex;gap:8px">
-            <a href="/" class="nav-link">&larr; Home</a>
+            <a href="/" class="nav-link">Home</a>
             <a href="/dashboard" class="nav-link">Dashboard</a>
-            <a href="/graph" class="nav-link">Trust Network</a>
+            <a href="/marketplace" class="nav-link nav-active">Marketplace</a>
+            <a href="/graph" class="nav-link">Graph</a>
+            <a href="/leaderboard" class="nav-link">Leaderboard</a>
+            <a href="/docs-guide" class="nav-link">Docs</a>
         </span>
     </div>
 
@@ -124,10 +188,31 @@
 
         <div class="filters">
             <input type="text" class="search-input" id="search" placeholder="Search agent ID or wallet...">
+            <select class="sort-select" id="sort-select">
+                <option value="score_desc">Score: High &rarr; Low</option>
+                <option value="score_asc">Score: Low &rarr; High</option>
+                <option value="newest">Newest First</option>
+            </select>
             <button class="filter-btn active" data-verdict="">All</button>
             <button class="filter-btn" data-verdict="TRUST">Trusted</button>
             <button class="filter-btn" data-verdict="CAUTION">Caution</button>
             <button class="filter-btn" data-verdict="REJECT">Rejected</button>
+            <button class="filter-btn" id="watched-filter" title="Show watched agents only">&#9733; Watched</button>
+        </div>
+
+        <div class="range-filter">
+            <label>Score Range:</label>
+            <div class="range-track" id="range-track">
+                <div class="range-bar"></div>
+                <div class="range-bar-fill" id="range-fill"></div>
+                <input type="range" id="range-min" min="0" max="100" value="0" step="1">
+                <input type="range" id="range-max" min="0" max="100" value="100" step="1">
+            </div>
+            <div class="range-values">
+                <span class="range-val" id="range-min-val">0</span>
+                <span style="color:var(--muted)">&ndash;</span>
+                <span class="range-val" id="range-max-val">100</span>
+            </div>
         </div>
 
         <div class="agent-grid" id="grid"></div>
@@ -145,25 +230,126 @@
     </div>
 
     <script>
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
         let currentVerdict = '';
         let currentSearch = '';
         let currentPage = 1;
+        let currentSort = 'score_desc';
+        let watchedOnly = false;
+        let scoreMin = 0;
+        let scoreMax = 100;
+        let allAgents = [];
         const PER_PAGE = 20;
+
+        // --- Watchlist (localStorage) ---
+        function getWatchlist() {
+            try {
+                return JSON.parse(localStorage.getItem('sentinelnet_watchlist') || '[]');
+            } catch { return []; }
+        }
+        function setWatchlist(list) {
+            try { localStorage.setItem('sentinelnet_watchlist', JSON.stringify(list)); } catch(e) {}
+        }
+        function isWatched(agentId) {
+            return getWatchlist().includes(String(agentId));
+        }
+        function toggleWatch(agentId) {
+            const list = getWatchlist();
+            const id = String(agentId);
+            const idx = list.indexOf(id);
+            if (idx === -1) { list.push(id); } else { list.splice(idx, 1); }
+            setWatchlist(list);
+            renderAgents();
+        }
+
+        // --- Score range slider ---
+        const rangeMin = document.getElementById('range-min');
+        const rangeMax = document.getElementById('range-max');
+        const rangeMinVal = document.getElementById('range-min-val');
+        const rangeMaxVal = document.getElementById('range-max-val');
+        const rangeFill = document.getElementById('range-fill');
+
+        function updateRangeUI() {
+            let lo = parseInt(rangeMin.value);
+            let hi = parseInt(rangeMax.value);
+            if (lo > hi) { [lo, hi] = [hi, lo]; }
+            rangeMinVal.textContent = lo;
+            rangeMaxVal.textContent = hi;
+            const pctLo = lo;
+            const pctHi = hi;
+            rangeFill.style.left = pctLo + '%';
+            rangeFill.style.width = (pctHi - pctLo) + '%';
+        }
+
+        rangeMin.addEventListener('input', () => {
+            if (parseInt(rangeMin.value) > parseInt(rangeMax.value)) {
+                rangeMin.value = rangeMax.value;
+            }
+            scoreMin = parseInt(rangeMin.value);
+            updateRangeUI();
+            renderAgents();
+        });
+        rangeMax.addEventListener('input', () => {
+            if (parseInt(rangeMax.value) < parseInt(rangeMin.value)) {
+                rangeMax.value = rangeMin.value;
+            }
+            scoreMax = parseInt(rangeMax.value);
+            updateRangeUI();
+            renderAgents();
+        });
+        updateRangeUI();
+
+        // --- Sort ---
+        document.getElementById('sort-select').addEventListener('change', (e) => {
+            currentSort = e.target.value;
+            currentPage = 1;
+            loadAgents();
+        });
+
+        // --- Watched Only filter ---
+        document.getElementById('watched-filter').addEventListener('click', () => {
+            watchedOnly = !watchedOnly;
+            const btn = document.getElementById('watched-filter');
+            if (watchedOnly) {
+                btn.classList.add('active-gold');
+            } else {
+                btn.classList.remove('active-gold');
+            }
+            renderAgents();
+        });
 
         // WebSocket for live updates
         let ws;
+        let _wsReconnectDelay = 3000;
+        const _wsMaxDelay = 60000;
         function connectWS() {
             const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(proto + '//' + location.host + '/ws/scores');
-            ws.onopen = () => { document.getElementById('ws-status').textContent = 'streaming updates'; };
+            ws.onopen = () => {
+                _wsReconnectDelay = 3000;
+                document.getElementById('ws-status').textContent = 'streaming updates';
+            };
             ws.onmessage = (e) => {
-                const data = JSON.parse(e.data);
+                let data;
+                try {
+                    data = JSON.parse(e.data);
+                } catch (err) {
+                    console.error('WebSocket: invalid JSON', err);
+                    return;
+                }
                 if (data.event === 'score_update') {
-                    // Flash the updated card
-                    const card = document.querySelector(`[data-agent="${data.agent_id}"]`);
-                    if (card) {
-                        card.style.boxShadow = '0 0 20px rgba(0,204,255,0.3)';
-                        setTimeout(() => card.style.boxShadow = '', 2000);
+                    // Validate agent_id as integer before using in selector
+                    const safeAgentId = String(data.agent_id).replace(/[^0-9]/g, '');
+                    if (safeAgentId) {
+                        const card = document.querySelector('[data-agent="' + CSS.escape(safeAgentId) + '"]');
+                        if (card) {
+                            card.style.boxShadow = '0 0 20px rgba(0,204,255,0.3)';
+                            setTimeout(() => card.style.boxShadow = '', 2000);
+                        }
                     }
                     // Reload after a short delay to show fresh data
                     clearTimeout(window._reloadTimer);
@@ -172,15 +358,16 @@
             };
             ws.onclose = () => {
                 document.getElementById('ws-status').textContent = 'reconnecting...';
-                setTimeout(connectWS, 3000);
+                setTimeout(connectWS, _wsReconnectDelay);
+                _wsReconnectDelay = Math.min(_wsReconnectDelay * 2, _wsMaxDelay);
             };
         }
         connectWS();
 
-        // Filters
-        document.querySelectorAll('.filter-btn').forEach(btn => {
+        // Verdict filters
+        document.querySelectorAll('.filter-btn[data-verdict]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active', 'active-trust', 'active-caution', 'active-reject'));
+                document.querySelectorAll('.filter-btn[data-verdict]').forEach(b => b.classList.remove('active', 'active-trust', 'active-caution', 'active-reject'));
                 const v = btn.dataset.verdict;
                 currentVerdict = v;
                 currentPage = 1;
@@ -207,21 +394,31 @@
 
         function renderCard(agent) {
             const v = agent.verdict || 'UNSCORED';
-            const vLower = v.toLowerCase();
+            const vLower = escapeHtml(v).toLowerCase();
+            const safeId = escapeHtml(agent.agent_id);
+            const safeWallet = escapeHtml(agent.wallet || '');
+            const safeScore = escapeHtml(agent.trust_score);
+            const safeV = escapeHtml(v);
             const dims = ['longevity', 'activity', 'counterparty', 'contract_risk', 'agent_identity'];
             const dimLabels = ['LON', 'ACT', 'CP', 'RISK', 'ID'];
             const labels = agent.classification?.labels || [];
+            const watched = isWatched(agent.agent_id);
+            // Sanitize agent_id for use in onclick — ensure numeric only
+            const numericId = String(agent.agent_id).replace(/[^0-9]/g, '');
 
             return `
-                <div class="agent-card ${vLower}-border" data-agent="${agent.agent_id}">
+                <div class="agent-card ${vLower}-border" data-agent="${safeId}">
+                    <button class="watchlist-star ${watched ? 'watched' : ''}" onclick="event.stopPropagation();toggleWatch(${numericId})" title="${watched ? 'Remove from watchlist' : 'Add to watchlist'}">
+                        ${watched ? '&#9733;' : '&#9734;'}
+                    </button>
                     <div class="card-header">
                         <div>
-                            <div class="agent-name">Agent #${agent.agent_id}</div>
-                            <div class="agent-wallet">${agent.wallet || ''}</div>
+                            <div class="agent-name">Agent #${safeId}${watched ? '<span class="watched-badge"></span>' : ''}</div>
+                            <div class="agent-wallet">${safeWallet}</div>
                         </div>
                         <div style="text-align:right">
-                            <div class="score-badge score-${vLower}">${agent.trust_score}</div>
-                            <span class="verdict-pill pill-${vLower}">${v}</span>
+                            <div class="score-badge score-${vLower}">${safeScore}</div>
+                            <span class="verdict-pill pill-${vLower}">${safeV}</span>
                         </div>
                     </div>
                     <div class="dims">
@@ -230,21 +427,118 @@
                             return `<div class="dim">
                                 <div class="dim-label">${dimLabels[i]}</div>
                                 <div class="dim-bar"><div class="fill" style="width:${val}%;background:${dimColor(val)}"></div></div>
-                                <div class="dim-val" style="color:${dimColor(val)}">${val}</div>
+                                <div class="dim-val" style="color:${dimColor(val)}">${escapeHtml(val)}</div>
                             </div>`;
                         }).join('')}
                     </div>
                     <div class="card-labels">
-                        ${labels.map(l => `<span class="label-tag${l === 'sybil_suspect' ? ' sybil' : ''}">${l.replace(/_/g, ' ')}</span>`).join('')}
+                        ${labels.map(l => `<span class="label-tag${l === 'sybil_suspect' ? ' sybil' : ''}">${escapeHtml(l.replace(/_/g, ' '))}</span>`).join('')}
                         ${agent.sybil_flagged ? '<span class="label-tag sybil">SYBIL</span>' : ''}
                     </div>
                     <div class="card-actions">
-                        <button class="btn btn-trust" onclick="trustGate(${agent.agent_id}, ${agent.trust_score}, '${v}')">TrustGate Check</button>
-                        <a href="/agent/${agent.agent_id}" class="btn btn-primary" style="text-decoration:none">View Profile</a>
-                        <a href="/badge/${agent.agent_id}.svg" target="_blank" class="btn btn-outline" style="text-decoration:none">Badge</a>
+                        <button class="btn btn-trust" onclick="trustGate(${numericId}, ${Number(agent.trust_score) || 0}, '${safeV}')">TrustGate Check</button>
+                        <a href="/agent/${encodeURIComponent(agent.agent_id)}" class="btn btn-primary" style="text-decoration:none">View Profile</a>
+                        <a href="/badge/${encodeURIComponent(agent.agent_id)}.svg" target="_blank" class="btn btn-outline" style="text-decoration:none">Badge</a>
                     </div>
                 </div>
             `;
+        }
+
+        function renderSkeletons(count) {
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                html += `
+                    <div class="skeleton-card">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+                            <div style="flex:1">
+                                <div class="skeleton-line w60 h28"></div>
+                                <div class="skeleton-line w40" style="height:10px"></div>
+                            </div>
+                            <div style="width:60px">
+                                <div class="skeleton-line w100 h28"></div>
+                                <div class="skeleton-line w80" style="height:10px"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-dims">
+                            <div class="skeleton-dim"></div>
+                            <div class="skeleton-dim"></div>
+                            <div class="skeleton-dim"></div>
+                            <div class="skeleton-dim"></div>
+                            <div class="skeleton-dim"></div>
+                        </div>
+                        <div class="skeleton-line w80" style="height:10px;margin-top:10px"></div>
+                        <div class="skeleton-actions">
+                            <div class="skeleton-btn"></div>
+                            <div class="skeleton-btn"></div>
+                            <div class="skeleton-btn"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            return html;
+        }
+
+        function renderEmptyState() {
+            return `
+                <div class="empty-state" style="grid-column: 1 / -1;">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="60" cy="52" r="36" stroke="var(--border-bright)" stroke-width="2" fill="none"/>
+                            <path d="M44 52 L54 62 L76 40" stroke="var(--muted)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <circle cx="60" cy="52" r="48" stroke="var(--border)" stroke-width="1" stroke-dasharray="4 4" fill="none"/>
+                            <line x1="94" y1="86" x2="112" y2="104" stroke="var(--muted)" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="112" cy="104" r="6" stroke="var(--muted)" stroke-width="2" fill="none"/>
+                        </svg>
+                    </div>
+                    <div class="empty-title">No agents match your filters</div>
+                    <div class="empty-desc">
+                        Try adjusting the score range, changing your verdict filter, or broadening your search query. You can also check your watchlist filter.
+                    </div>
+                    <button class="btn-clear-filters" onclick="clearAllFilters()">Clear All Filters</button>
+                </div>
+            `;
+        }
+
+        function renderErrorState(message) {
+            return `
+                <div class="error-state" style="grid-column: 1 / -1;">
+                    <div class="error-icon">&#9888;</div>
+                    <div class="error-title">Failed to Load Agents</div>
+                    <div class="error-desc">
+                        ${escapeHtml(message || 'Something went wrong while fetching agent data. The API may be temporarily unavailable.')}
+                    </div>
+                    <button class="btn-retry" onclick="loadAgents()">Retry</button>
+                </div>
+            `;
+        }
+
+        function clearAllFilters() {
+            // Reset verdict
+            currentVerdict = '';
+            document.querySelectorAll('.filter-btn[data-verdict]').forEach(b => b.classList.remove('active', 'active-trust', 'active-caution', 'active-reject'));
+            document.querySelector('.filter-btn[data-verdict=""]').classList.add('active');
+
+            // Reset search
+            currentSearch = '';
+            document.getElementById('search').value = '';
+
+            // Reset sort
+            currentSort = 'score_desc';
+            document.getElementById('sort-select').value = 'score_desc';
+
+            // Reset watched
+            watchedOnly = false;
+            document.getElementById('watched-filter').classList.remove('active-gold');
+
+            // Reset score range
+            scoreMin = 0;
+            scoreMax = 100;
+            rangeMin.value = 0;
+            rangeMax.value = 100;
+            updateRangeUI();
+
+            currentPage = 1;
+            loadAgents();
         }
 
         function trustGate(agentId, score, verdict) {
@@ -252,15 +546,18 @@
             const title = document.getElementById('modal-title');
             const body = document.getElementById('modal-body');
             const detail = document.getElementById('modal-detail');
+            const safeId = escapeHtml(agentId);
+            const safeScore = escapeHtml(score);
+            const safeVerdict = escapeHtml(verdict);
 
             if (verdict === 'TRUST' && score >= 55) {
                 title.innerHTML = '<span style="color:var(--trust)">&#10003; TrustGate: PASSED</span>';
-                body.textContent = `Agent #${agentId} passes the TrustGate with a score of ${score}. Safe to interact.`;
-                detail.innerHTML = '<p style="font-size:11px;color:var(--muted);margin-top:12px">On-chain: <code>TrustGate.isTrusted(' + agentId + ') → true</code></p>';
+                body.textContent = 'Agent #' + safeId + ' passes the TrustGate with a score of ' + safeScore + '. Safe to interact.';
+                detail.innerHTML = '<p style="font-size:11px;color:var(--muted);margin-top:12px">On-chain: <code>TrustGate.isTrusted(' + safeId + ') &rarr; true</code></p>';
             } else {
                 title.innerHTML = '<span style="color:var(--reject)">&#10007; TrustGate: BLOCKED</span>';
-                body.textContent = `Agent #${agentId} is BLOCKED by TrustGate (score: ${score}, verdict: ${verdict}). Interaction denied.`;
-                detail.innerHTML = '<p style="font-size:11px;color:var(--muted);margin-top:12px">On-chain: <code>TrustGate.isTrusted(' + agentId + ') → false</code></p>';
+                body.textContent = 'Agent #' + safeId + ' is BLOCKED by TrustGate (score: ' + safeScore + ', verdict: ' + safeVerdict + '). Interaction denied.';
+                detail.innerHTML = '<p style="font-size:11px;color:var(--muted);margin-top:12px">On-chain: <code>TrustGate.isTrusted(' + safeId + ') &rarr; false</code></p>';
             }
             modal.classList.add('show');
         }
@@ -278,29 +575,85 @@
             document.getElementById('pagination').innerHTML = html;
         }
 
-        function goPage(p) { currentPage = p; loadAgents(); }
+        let totalAgents = 0;
+        function goPage(p) {
+            const maxPage = Math.max(1, Math.ceil(totalAgents / PER_PAGE));
+            p = Math.max(1, Math.min(p, maxPage));
+            currentPage = p;
+            loadAgents();
+        }
+
+        // Client-side filtering (score range + watchlist) applied after API fetch
+        function filterAgentsClientSide(agents) {
+            return agents.filter(a => {
+                const score = a.trust_score ?? 0;
+                if (score < scoreMin || score > scoreMax) return false;
+                if (watchedOnly && !isWatched(a.agent_id)) return false;
+                return true;
+            });
+        }
+
+        function renderAgents() {
+            const grid = document.getElementById('grid');
+            const filtered = filterAgentsClientSide(allAgents);
+
+            if (filtered.length === 0) {
+                grid.innerHTML = renderEmptyState();
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(renderCard).join('');
+        }
 
         async function loadAgents() {
-            const params = new URLSearchParams({ page: currentPage, per_page: PER_PAGE, sort: 'score' });
+            const grid = document.getElementById('grid');
+
+            // Show skeletons
+            grid.innerHTML = renderSkeletons(6);
+            document.getElementById('pagination').innerHTML = '';
+
+            // Map sort values to API parameters
+            const sortMap = {
+                'score_desc': { sort: 'score', order: 'desc' },
+                'score_asc': { sort: 'score', order: 'asc' },
+                'newest': { sort: 'newest', order: 'desc' }
+            };
+            const sortParams = sortMap[currentSort] || sortMap['score_desc'];
+
+            const params = new URLSearchParams({
+                page: currentPage,
+                per_page: PER_PAGE,
+                sort: sortParams.sort,
+                order: sortParams.order
+            });
             if (currentVerdict) params.set('verdict', currentVerdict);
             if (currentSearch) params.set('search', currentSearch);
 
             try {
                 const r = await fetch('/api/marketplace?' + params);
+                if (!r.ok) {
+                    throw new Error(`API returned ${r.status}: ${r.statusText}`);
+                }
                 const data = await r.json();
-                const grid = document.getElementById('grid');
 
-                if (!data.agents || data.agents.length === 0) {
-                    grid.innerHTML = '<div class="empty">No agents match your filters.</div>';
+                allAgents = data.agents || [];
+                totalAgents = data.total || 0;
+                document.getElementById('total-count').textContent = `${data.total} agents scored`;
+
+                const filtered = filterAgentsClientSide(allAgents);
+
+                if (filtered.length === 0) {
+                    grid.innerHTML = renderEmptyState();
                     document.getElementById('pagination').innerHTML = '';
                     return;
                 }
 
-                grid.innerHTML = data.agents.map(renderCard).join('');
-                document.getElementById('total-count').textContent = `${data.total} agents scored`;
+                grid.innerHTML = filtered.map(renderCard).join('');
                 renderPagination(data.total, data.page, data.per_page);
             } catch (e) {
-                document.getElementById('grid').innerHTML = '<div class="empty">Failed to load agents.</div>';
+                console.error('Failed to load agents:', e);
+                grid.innerHTML = renderErrorState(e.message || 'Could not reach the SentinelNet API. Please check your connection and try again.');
             }
         }
 

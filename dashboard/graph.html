@@ -13,13 +13,15 @@
         .nav .left { display: flex; align-items: center; gap: 16px; font-size: 13px; }
         .nav .logo { color: var(--cyan); font-weight: 800; font-size: 18px; text-decoration: none; }
         .nav .sep { color: var(--muted); }
-        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
+        .nav-links { display: flex; gap: 8px; align-items: center; }
+        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; transition: color 0.15s, border-color 0.15s; }
         .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
+        .nav-link.active { color: var(--cyan); border-color: var(--cyan); background: rgba(0,204,255,0.06); }
         a { color: var(--blue); text-decoration: none; }
         #graph-container { width: 100vw; height: calc(100vh - 53px); position: relative; }
         svg { width: 100%; height: 100%; }
 
-        .tooltip { position: absolute; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; pointer-events: none; opacity: 0; transition: opacity 0.15s; font-size: 12px; z-index: 20; min-width: 180px; }
+        .tooltip { position: absolute; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; pointer-events: none; opacity: 0; transition: opacity 0.15s; font-size: 12px; z-index: 20; min-width: 180px; max-width: 260px; }
         .tooltip .tt-id { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
         .tooltip .tt-score { font-size: 24px; font-weight: 800; }
         .tooltip .tt-verdict { font-size: 11px; font-weight: 600; text-transform: uppercase; }
@@ -34,9 +36,47 @@
         .controls { position: absolute; top: 20px; right: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; font-size: 11px; z-index: 10; }
         .controls label { display: block; margin-bottom: 6px; color: var(--sec); }
         .controls input[type=range] { width: 120px; }
+        .controls .ctrl-btn { display: block; width: 100%; margin-top: 8px; padding: 6px 12px; background: rgba(0,204,255,0.08); border: 1px solid var(--cyan); color: var(--cyan); border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; text-align: center; transition: background 0.15s; }
+        .controls .ctrl-btn:hover { background: rgba(0,204,255,0.15); }
+        .controls .sybil-toggle { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--sec); cursor: pointer; }
+        .controls .sybil-toggle input { accent-color: var(--sybil); cursor: pointer; }
+
         .stat-bar { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 20px; font-size: 12px; z-index: 10; display: flex; gap: 20px; }
         .stat-bar span { color: var(--sec); }
         .stat-bar strong { color: var(--cyan); }
+
+        /* Search box */
+        .search-box { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; gap: 6px; align-items: center; }
+        .search-box input { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 12px; width: 180px; outline: none; transition: border-color 0.15s; font-family: inherit; }
+        .search-box input::placeholder { color: var(--muted); }
+        .search-box input:focus { border-color: var(--cyan); }
+        .search-box .search-clear { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--sec); font-size: 11px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+        .search-box .search-clear:hover { border-color: var(--reject); color: var(--reject); }
+
+        /* Loading spinner */
+        .loader-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 30; background: var(--bg); }
+        .loader-spinner { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--cyan); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .loader-text { margin-top: 16px; font-size: 13px; color: var(--sec); letter-spacing: 0.3px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Error state */
+        .error-state { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 30; background: var(--bg); }
+        .error-state .error-icon { font-size: 42px; margin-bottom: 14px; color: var(--reject); }
+        .error-state .error-msg { font-size: 15px; color: var(--sec); margin-bottom: 18px; max-width: 400px; text-align: center; line-height: 1.5; }
+        .error-state .retry-btn { padding: 10px 24px; background: rgba(255,51,68,0.1); border: 1px solid var(--reject); color: var(--reject); border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+        .error-state .retry-btn:hover { background: rgba(255,51,68,0.2); }
+
+        /* Sybil pulse animation */
+        @keyframes sybilPulse {
+            0%, 100% { stroke-opacity: 1; stroke-width: 3; }
+            50% { stroke-opacity: 0.4; stroke-width: 5; }
+        }
+        .sybil-pulse { animation: sybilPulse 1.2s ease-in-out infinite; }
+
+        /* Search highlight glow */
+        .search-highlight {
+            filter: url(#glow);
+        }
     </style>
 </head>
 <body>
@@ -44,17 +84,41 @@
         <div class="left">
             <a href="/" class="logo">SentinelNet</a>
             <span class="sep">/</span>
-            <a href="/dashboard">Dashboard</a>
-            <span class="sep">/</span>
             <span style="color:var(--text)">Trust Network</span>
         </div>
-        <span style="display:flex;gap:8px"><a href="/" class="nav-link">← Home</a></span>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/marketplace" class="nav-link">Marketplace</a>
+            <a href="/graph" class="nav-link active">Graph</a>
+            <a href="/leaderboard" class="nav-link">Leaderboard</a>
+            <a href="/docs-guide" class="nav-link">Docs</a>
+        </div>
     </div>
 
     <div id="graph-container">
-        <div class="stat-bar" id="stats"></div>
+        <!-- Loading spinner -->
+        <div class="loader-overlay" id="loader">
+            <div class="loader-spinner"></div>
+            <div class="loader-text">Loading trust network...</div>
+        </div>
+
+        <!-- Error state -->
+        <div class="error-state" id="error-state">
+            <div class="error-icon">!</div>
+            <div class="error-msg" id="error-msg">Failed to load trust network data. Please check your connection and try again.</div>
+            <button class="retry-btn" id="retry-btn">Retry</button>
+        </div>
+
+        <!-- Search box -->
+        <div class="search-box" id="search-box" style="display:none;">
+            <input type="text" id="search-input" placeholder="Search agent ID..." />
+            <button class="search-clear" id="search-clear">Clear</button>
+        </div>
+
+        <div class="stat-bar" id="stats" style="display:none;"></div>
         <div class="tooltip" id="tooltip"></div>
-        <div class="legend">
+        <div class="legend" id="legend" style="display:none;">
             <div class="legend-item"><div class="legend-dot" style="background:var(--trust)"></div> Trusted (>=55)</div>
             <div class="legend-item"><div class="legend-dot" style="background:var(--caution)"></div> Caution (40-54)</div>
             <div class="legend-item"><div class="legend-dot" style="background:var(--reject)"></div> Rejected (<40)</div>
@@ -62,17 +126,31 @@
             <div class="legend-item" style="margin-top:8px;color:var(--muted)">Lines = interactions</div>
             <div class="legend-item" style="color:var(--muted)">Node size = trust score</div>
         </div>
-        <div class="controls">
+        <div class="controls" id="controls" style="display:none;">
             <label>Link Distance <input type="range" id="dist" min="20" max="200" value="80"></label>
             <label>Charge Strength <input type="range" id="charge" min="-300" max="-10" value="-80"></label>
+            <button class="ctrl-btn" id="reset-zoom">Reset Zoom</button>
+            <label class="sybil-toggle">
+                <input type="checkbox" id="sybil-toggle" />
+                Highlight Sybil Clusters
+            </label>
         </div>
     </div>
 
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
         const width = window.innerWidth;
         const height = window.innerHeight - 53;
         const tooltip = document.getElementById('tooltip');
+        const loader = document.getElementById('loader');
+        const errorState = document.getElementById('error-state');
+        const errorMsg = document.getElementById('error-msg');
+        const retryBtn = document.getElementById('retry-btn');
 
         function col(v, sybil) {
             if (sybil) return 'var(--sybil)';
@@ -81,100 +159,288 @@
             return 'var(--reject)';
         }
 
+        function colRaw(v, sybil) {
+            if (sybil) return '#cc44ff';
+            if (v === 'TRUST') return '#00dd77';
+            if (v === 'CAUTION') return '#ffaa22';
+            return '#ff3344';
+        }
+
         const svg = d3.select('#graph-container').append('svg')
             .attr('viewBox', [0, 0, width, height]);
 
+        // Glow filter for search highlight
+        const defs = svg.append('defs');
+        const glowFilter = defs.append('filter')
+            .attr('id', 'glow')
+            .attr('x', '-50%').attr('y', '-50%')
+            .attr('width', '200%').attr('height', '200%');
+        glowFilter.append('feGaussianBlur')
+            .attr('stdDeviation', '4')
+            .attr('result', 'coloredBlur');
+        const feMerge = glowFilter.append('feMerge');
+        feMerge.append('feMergeNode').attr('in', 'coloredBlur');
+        feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
         const g = svg.append('g');
 
-        // Zoom
-        svg.call(d3.zoom().scaleExtent([0.1, 8]).on('zoom', ({transform}) => {
+        // Zoom with stored transform for reset
+        const initialTransform = d3.zoomIdentity;
+        const zoomBehavior = d3.zoom().scaleExtent([0.1, 8]).on('zoom', ({transform}) => {
             g.attr('transform', transform);
-        }));
-
-        fetch('/api/graph-data').then(r => r.json()).then(data => {
-            const { nodes, links } = data;
-
-            // Stats
-            document.getElementById('stats').innerHTML = `
-                <span>Nodes: <strong>${nodes.length}</strong></span>
-                <span>Edges: <strong>${links.length}</strong></span>
-                <span>Sybil: <strong style="color:var(--sybil)">${nodes.filter(n=>n.sybil).length}</strong></span>
-            `;
-
-            const simulation = d3.forceSimulation(nodes)
-                .force('link', d3.forceLink(links).id(d => d.id).distance(80))
-                .force('charge', d3.forceManyBody().strength(-80))
-                .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(d => Math.max(4, d.score / 8) + 2));
-
-            // Links
-            const link = g.append('g')
-                .selectAll('line')
-                .data(links)
-                .join('line')
-                .attr('stroke', '#1e1e3a')
-                .attr('stroke-opacity', 0.4)
-                .attr('stroke-width', d => Math.min(Math.sqrt(d.weight), 3));
-
-            // Nodes
-            const node = g.append('g')
-                .selectAll('circle')
-                .data(nodes)
-                .join('circle')
-                .attr('r', d => Math.max(4, d.score / 8))
-                .attr('fill', d => col(d.verdict, d.sybil))
-                .attr('stroke', d => d.sybil ? 'var(--sybil)' : 'none')
-                .attr('stroke-width', d => d.sybil ? 2 : 0)
-                .attr('opacity', 0.85)
-                .call(d3.drag()
-                    .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-                    .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-                    .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
-                );
-
-            // Tooltip
-            node.on('mouseover', (e, d) => {
-                const color = col(d.verdict, d.sybil);
-                let badges = '';
-                if (d.sybil) badges += '<span class="tt-badge" style="background:rgba(204,68,255,0.15);color:var(--sybil)">SYBIL</span> ';
-                if (d.contagion && d.contagion !== 0) badges += `<span class="tt-badge" style="background:rgba(0,136,255,0.1);color:var(--blue)">CONTAGION ${d.contagion > 0 ? '+' : ''}${d.contagion}</span>`;
-
-                tooltip.innerHTML = `
-                    <div class="tt-id">Agent #${d.id}</div>
-                    <div class="tt-score" style="color:${color}">${d.score}</div>
-                    <div class="tt-verdict" style="color:${color}">${d.verdict}</div>
-                    <div class="tt-wallet">${d.wallet}</div>
-                    <div style="margin-top:4px">Identity: ${d.identity}/100</div>
-                    ${badges ? '<div style="margin-top:6px">' + badges + '</div>' : ''}
-                `;
-                tooltip.style.opacity = 1;
-                tooltip.style.left = (e.pageX + 15) + 'px';
-                tooltip.style.top = (e.pageY - 53) + 'px';
-            }).on('mousemove', (e) => {
-                tooltip.style.left = (e.pageX + 15) + 'px';
-                tooltip.style.top = (e.pageY - 53) + 'px';
-            }).on('mouseout', () => {
-                tooltip.style.opacity = 0;
-            }).on('click', (e, d) => {
-                window.open(`/agent/${d.id}`, '_blank');
-            });
-
-            simulation.on('tick', () => {
-                link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-                node.attr('cx', d => d.x).attr('cy', d => d.y);
-            });
-
-            // Controls
-            document.getElementById('dist').addEventListener('input', function() {
-                simulation.force('link').distance(+this.value);
-                simulation.alpha(0.3).restart();
-            });
-            document.getElementById('charge').addEventListener('input', function() {
-                simulation.force('charge').strength(+this.value);
-                simulation.alpha(0.3).restart();
-            });
         });
+        svg.call(zoomBehavior);
+
+        // Reset zoom button
+        document.getElementById('reset-zoom').addEventListener('click', () => {
+            svg.transition().duration(500).call(zoomBehavior.transform, initialTransform);
+        });
+
+        // Clamp tooltip position so it never overflows viewport
+        function positionTooltip(pageX, pageY) {
+            const pad = 15;
+            const ttRect = tooltip.getBoundingClientRect();
+            const ttW = ttRect.width || 200;
+            const ttH = ttRect.height || 120;
+            let left = pageX + pad;
+            let top = pageY - 53;
+
+            // Clamp right edge
+            if (left + ttW > window.innerWidth - 10) {
+                left = pageX - ttW - pad;
+            }
+            // Clamp bottom edge
+            if (top + ttH > window.innerHeight - 10) {
+                top = window.innerHeight - ttH - 10;
+            }
+            // Clamp left edge
+            if (left < 10) {
+                left = 10;
+            }
+            // Clamp top edge
+            if (top < 10) {
+                top = 10;
+            }
+
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+        }
+
+        let _listenersAttached = false;
+        let _currentSimulation = null;
+
+        function loadGraph() {
+            // Show loader, hide error
+            loader.style.display = 'flex';
+            errorState.style.display = 'none';
+
+            // Stop previous simulation if any
+            if (_currentSimulation) _currentSimulation.stop();
+
+            // Clear any previous graph elements
+            g.selectAll('*').remove();
+
+            fetch('/api/graph-data')
+                .then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+                    return r.json();
+                })
+                .then(data => {
+                    const { nodes, links } = data;
+
+                    // Hide loader, show UI elements
+                    loader.style.display = 'none';
+                    document.getElementById('stats').style.display = 'flex';
+                    document.getElementById('legend').style.display = 'block';
+                    document.getElementById('controls').style.display = 'block';
+                    document.getElementById('search-box').style.display = 'flex';
+
+                    // Stats
+                    document.getElementById('stats').innerHTML = `
+                        <span>Nodes: <strong>${escapeHtml(nodes.length)}</strong></span>
+                        <span>Edges: <strong>${escapeHtml(links.length)}</strong></span>
+                        <span>Sybil: <strong style="color:var(--sybil)">${escapeHtml(nodes.filter(n=>n.sybil).length)}</strong></span>
+                    `;
+
+                    const simulation = d3.forceSimulation(nodes)
+                        .force('link', d3.forceLink(links).id(d => d.id).distance(80))
+                        .force('charge', d3.forceManyBody().strength(-80))
+                        .force('center', d3.forceCenter(width / 2, height / 2))
+                        .force('collision', d3.forceCollide().radius(d => Math.max(4, d.score / 8) + 2));
+                    _currentSimulation = simulation;
+
+                    // Links
+                    const link = g.append('g')
+                        .selectAll('line')
+                        .data(links)
+                        .join('line')
+                        .attr('stroke', '#1e1e3a')
+                        .attr('stroke-opacity', 0.4)
+                        .attr('stroke-width', d => Math.min(Math.sqrt(d.weight), 3));
+
+                    // Nodes
+                    const node = g.append('g')
+                        .selectAll('circle')
+                        .data(nodes)
+                        .join('circle')
+                        .attr('r', d => Math.max(4, d.score / 8))
+                        .attr('fill', d => col(d.verdict, d.sybil))
+                        .attr('stroke', d => d.sybil ? 'var(--sybil)' : 'none')
+                        .attr('stroke-width', d => d.sybil ? 2 : 0)
+                        .attr('opacity', 0.85)
+                        .style('cursor', 'pointer')
+                        .call(d3.drag()
+                            .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+                            .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+                            .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+                        );
+
+                    // Tooltip
+                    node.on('mouseover', (e, d) => {
+                        const color = col(d.verdict, d.sybil);
+                        let badges = '';
+                        if (d.sybil) badges += '<span class="tt-badge" style="background:rgba(204,68,255,0.15);color:var(--sybil)">SYBIL</span> ';
+                        if (d.contagion && d.contagion !== 0) badges += `<span class="tt-badge" style="background:rgba(0,136,255,0.1);color:var(--blue)">CONTAGION ${escapeHtml(d.contagion > 0 ? '+' : '')}${escapeHtml(d.contagion)}</span>`;
+
+                        tooltip.innerHTML = `
+                            <div class="tt-id">Agent #${escapeHtml(d.id)}</div>
+                            <div class="tt-score" style="color:${color}">${escapeHtml(d.score)}</div>
+                            <div class="tt-verdict" style="color:${color}">${escapeHtml(d.verdict)}</div>
+                            <div class="tt-wallet">${escapeHtml(d.wallet)}</div>
+                            <div style="margin-top:4px">Identity: ${escapeHtml(d.identity)}/100</div>
+                            ${badges ? '<div style="margin-top:6px">' + badges + '</div>' : ''}
+                        `;
+                        tooltip.style.opacity = 1;
+                        positionTooltip(e.pageX, e.pageY);
+                    }).on('mousemove', (e) => {
+                        positionTooltip(e.pageX, e.pageY);
+                    }).on('mouseout', () => {
+                        tooltip.style.opacity = 0;
+                    }).on('click', (e, d) => {
+                        window.location.href = `/agent/${encodeURIComponent(d.id)}`;
+                    });
+
+                    simulation.on('tick', () => {
+                        link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+                            .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+                        node.attr('cx', d => d.x).attr('cy', d => d.y);
+                    });
+
+                    if (!_listenersAttached) {
+                        _listenersAttached = true;
+
+                    // Controls — link distance
+                    document.getElementById('dist').addEventListener('input', function() {
+                        simulation.force('link').distance(+this.value);
+                        simulation.alpha(0.3).restart();
+                    });
+
+                    // Controls — charge strength
+                    document.getElementById('charge').addEventListener('input', function() {
+                        simulation.force('charge').strength(+this.value);
+                        simulation.alpha(0.3).restart();
+                    });
+
+                    // Search functionality
+                    const searchInput = document.getElementById('search-input');
+                    const searchClear = document.getElementById('search-clear');
+                    let highlightedId = null;
+
+                    function clearSearch() {
+                        highlightedId = null;
+                        searchInput.value = '';
+                        node.attr('r', d => Math.max(4, d.score / 8))
+                            .attr('opacity', 0.85)
+                            .classed('search-highlight', false);
+                        link.attr('stroke-opacity', 0.4);
+                    }
+
+                    function doSearch(val) {
+                        const query = val.trim();
+                        if (!query) {
+                            clearSearch();
+                            return;
+                        }
+
+                        const match = nodes.find(n => String(n.id) === query);
+                        if (!match) {
+                            // Dim everything slightly to show "not found"
+                            node.attr('opacity', 0.3).classed('search-highlight', false);
+                            link.attr('stroke-opacity', 0.1);
+                            highlightedId = null;
+                            return;
+                        }
+
+                        highlightedId = match.id;
+
+                        // Dim non-matching, highlight matching
+                        node.attr('opacity', d => d.id === highlightedId ? 1 : 0.15)
+                            .attr('r', d => d.id === highlightedId ? Math.max(4, d.score / 8) * 2 : Math.max(4, d.score / 8))
+                            .classed('search-highlight', d => d.id === highlightedId);
+                        link.attr('stroke-opacity', d =>
+                            (d.source.id === highlightedId || d.target.id === highlightedId) ? 0.7 : 0.05
+                        );
+
+                        // Center viewport on found node
+                        const scale = 1.5;
+                        const tx = width / 2 - match.x * scale;
+                        const ty = height / 2 - match.y * scale;
+                        svg.transition().duration(600).call(
+                            zoomBehavior.transform,
+                            d3.zoomIdentity.translate(tx, ty).scale(scale)
+                        );
+                    }
+
+                    searchInput.addEventListener('input', function() {
+                        doSearch(this.value);
+                    });
+
+                    searchInput.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') doSearch(this.value);
+                        if (e.key === 'Escape') clearSearch();
+                    });
+
+                    searchClear.addEventListener('click', clearSearch);
+
+                    // Sybil cluster highlight toggle
+                    const sybilToggle = document.getElementById('sybil-toggle');
+                    sybilToggle.addEventListener('change', function() {
+                        if (this.checked) {
+                            // Dim non-sybil, highlight sybil with pulse
+                            node.attr('opacity', d => d.sybil ? 1 : 0.2)
+                                .classed('sybil-pulse', d => d.sybil);
+                            link.attr('stroke-opacity', d => {
+                                const srcSybil = (typeof d.source === 'object') ? d.source.sybil : nodes.find(n => n.id === d.source)?.sybil;
+                                const tgtSybil = (typeof d.target === 'object') ? d.target.sybil : nodes.find(n => n.id === d.target)?.sybil;
+                                return (srcSybil && tgtSybil) ? 0.7 : 0.05;
+                            });
+                        } else {
+                            // Restore normal state
+                            if (highlightedId !== null) {
+                                doSearch(searchInput.value);
+                            } else {
+                                node.attr('opacity', 0.85).classed('sybil-pulse', false);
+                                link.attr('stroke-opacity', 0.4);
+                            }
+                        }
+                    });
+
+                    } // end _listenersAttached guard
+
+                })
+                .catch(err => {
+                    // Hide loader, show error
+                    loader.style.display = 'none';
+                    errorMsg.textContent = `Failed to load trust network: ${err.message}`;
+                    errorState.style.display = 'flex';
+                });
+        }
+
+        // Retry button
+        retryBtn.addEventListener('click', loadGraph);
+
+        // Initial load
+        loadGraph();
     </script>
 </body>
 </html>

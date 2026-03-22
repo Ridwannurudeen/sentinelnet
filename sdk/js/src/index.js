@@ -58,7 +58,8 @@ class SentinelNet {
    * @param {boolean} [applyDecay=true]
    */
   async getScores(applyDecay = true) {
-    return this._fetch(`/api/scores?apply_decay=${applyDecay}`);
+    const params = new URLSearchParams({ apply_decay: String(applyDecay) });
+    return this._fetch(`/api/scores?${params}`);
   }
 
   /** Get aggregate trust statistics. */
@@ -72,7 +73,8 @@ class SentinelNet {
    * @param {number} [limit=50]
    */
   async getHistory(agentId, limit = 50) {
-    return this._fetch(`/trust/${agentId}/history?limit=${limit}`);
+    const params = new URLSearchParams({ limit: String(limit) });
+    return this._fetch(`/trust/${agentId}/history?${params}`);
   }
 
   /**
@@ -100,7 +102,8 @@ class SentinelNet {
    * @param {number} [limit=50]
    */
   async getThreats(limit = 50) {
-    return this._fetch(`/api/threats?limit=${limit}`);
+    const params = new URLSearchParams({ limit: String(limit) });
+    return this._fetch(`/api/threats?${params}`);
   }
 
   /** Get full agent interaction graph (nodes + links). */
@@ -144,6 +147,67 @@ class SentinelNet {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Compare trust scores side-by-side for multiple agents.
+   * @param {number[]} agentIds
+   * @returns {Promise<Object>}
+   */
+  async getComparison(agentIds) {
+    return this._fetch(`/trust/compare?agents=${agentIds.join(",")}`);
+  }
+
+  /**
+   * Get statistical anomalies detected across the agent ecosystem.
+   * @returns {Promise<Object>}
+   */
+  async getAnomalies() {
+    return this._fetch("/api/anomalies");
+  }
+
+  /**
+   * Get behavioral classification for an agent.
+   * @param {number} agentId
+   * @returns {Promise<Object>}
+   */
+  async getClassification(agentId) {
+    return this._fetch(`/api/classify/${agentId}`);
+  }
+
+  /**
+   * Register a webhook for real-time notifications.
+   * @param {string} url - Webhook endpoint URL
+   * @param {string[]} events - Event types to subscribe to
+   * @param {string} [secret] - Optional signing secret
+   * @returns {Promise<Object>}
+   */
+  async registerWebhook(url, events, secret) {
+    const body = { url, events };
+    if (secret) body.secret = secret;
+    return this._fetch("/api/webhooks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * List all registered webhooks.
+   * @returns {Promise<Object>}
+   */
+  async listWebhooks() {
+    return this._fetch("/api/webhooks");
+  }
+
+  /**
+   * Delete a webhook by ID.
+   * @param {string} webhookId
+   * @returns {Promise<Object>}
+   */
+  async deleteWebhook(webhookId) {
+    const safeId = String(webhookId).replace(/[^a-zA-Z0-9_-]/g, '');
+    return this._fetch(`/api/webhooks/${safeId}`, { method: "DELETE" });
   }
 }
 

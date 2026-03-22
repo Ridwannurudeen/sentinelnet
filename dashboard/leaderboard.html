@@ -16,9 +16,20 @@
         .nav .sep { color: var(--muted); }
         .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
         .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
+        .nav-link.active { color: var(--cyan); border-color: var(--cyan); }
         .container { max-width: 1200px; margin: 0 auto; padding: 28px; }
         h1 { font-size: 28px; margin-bottom: 6px; }
         .subtitle { font-size: 14px; color: var(--sec); margin-bottom: 28px; }
+
+        /* Status bar: last updated + countdown */
+        .status-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 12px; color: var(--muted); }
+        .status-bar .last-updated { display: flex; align-items: center; gap: 6px; }
+        .status-bar .countdown { display: flex; align-items: center; gap: 6px; }
+        .countdown-ring { width: 18px; height: 18px; position: relative; }
+        .countdown-ring svg { transform: rotate(-90deg); }
+        .countdown-ring circle { fill: none; stroke-width: 2; }
+        .countdown-ring .track { stroke: var(--border); }
+        .countdown-ring .progress { stroke: var(--cyan); stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
 
         .boards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
         @media (max-width: 900px) { .boards { grid-template-columns: 1fr; } }
@@ -38,7 +49,8 @@
         .rank.top2 { color: #c0c0c0; }
         .rank.top3 { color: #cd7f32; }
         .item-info { flex: 1; min-width: 0; }
-        .item-agent { font-size: 13px; font-weight: 600; color: var(--cyan); }
+        .item-agent { font-size: 13px; font-weight: 600; color: var(--cyan); transition: color 0.15s; }
+        .item-agent:hover { color: #44ddff; text-decoration: underline; }
         .item-wallet { font-size: 10px; color: var(--muted); font-family: monospace; }
         .item-score { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .item-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
@@ -53,11 +65,53 @@
 
         .health-section { margin-bottom: 28px; }
         .health-bar { display: flex; align-items: center; gap: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+        .health-score-wrap { position: relative; cursor: pointer; }
         .health-score { font-size: 48px; font-weight: 800; }
         .health-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
         .health-detail { font-size: 13px; color: var(--sec); margin-top: 4px; }
         .health-meter { flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
         .health-meter .fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+
+        /* Health tooltip */
+        .health-tooltip { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; width: 260px; font-size: 12px; color: var(--sec); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; transform: translateX(-50%) translateY(4px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+        .health-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #1a1a2e; }
+        .health-score-wrap:hover .health-tooltip,
+        .health-score-wrap.tooltip-active .health-tooltip { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+        .tooltip-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+        .tooltip-row + .tooltip-row { border-top: 1px solid var(--border); }
+        .tooltip-weight { font-size: 10px; color: var(--muted); }
+        .tooltip-value { font-weight: 700; color: var(--text); }
+        .tooltip-title { font-weight: 700; color: var(--text); margin-bottom: 8px; font-size: 12px; }
+
+        /* Show more button */
+        .show-more-btn { display: block; width: 100%; padding: 10px 20px; background: none; border: none; border-top: 1px solid var(--border); color: var(--cyan); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; font-family: inherit; }
+        .show-more-btn:hover { background: rgba(0,204,255,0.05); color: #44ddff; }
+
+        /* Loading skeletons */
+        @keyframes shimmer {
+            0% { background-position: -400px 0; }
+            100% { background-position: 400px 0; }
+        }
+        .skeleton-item { display: flex; align-items: center; padding: 10px 20px; gap: 12px; border-bottom: 1px solid var(--border); }
+        .skeleton-item:last-child { border-bottom: none; }
+        .skeleton-block { border-radius: 6px; background: linear-gradient(90deg, var(--border) 25%, rgba(255,255,255,0.04) 50%, var(--border) 75%); background-size: 800px 100%; animation: shimmer 1.5s ease-in-out infinite; }
+        .skeleton-rank { width: 24px; height: 18px; }
+        .skeleton-info { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+        .skeleton-name { width: 80px; height: 14px; }
+        .skeleton-wallet { width: 100px; height: 10px; }
+        .skeleton-score { width: 32px; height: 22px; }
+        .skeleton-badge { width: 50px; height: 18px; border-radius: 10px; }
+        .skeleton-health-score { width: 60px; height: 48px; border-radius: 8px; }
+        .skeleton-health-text { width: 260px; height: 14px; }
+        .skeleton-health-bar { width: 100%; height: 8px; border-radius: 4px; margin-top: 8px; }
+
+        /* Error state */
+        .error-state { background: var(--card); border: 1px solid rgba(255,51,68,0.3); border-radius: 12px; padding: 40px 28px; text-align: center; }
+        .error-state .error-icon { font-size: 36px; margin-bottom: 12px; }
+        .error-state .error-title { font-size: 16px; font-weight: 700; color: var(--reject); margin-bottom: 6px; }
+        .error-state .error-msg { font-size: 13px; color: var(--sec); margin-bottom: 18px; max-width: 400px; margin-left: auto; margin-right: auto; }
+        .retry-btn { padding: 8px 20px; background: rgba(255,51,68,0.1); border: 1px solid rgba(255,51,68,0.3); border-radius: 8px; color: var(--reject); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s, border-color 0.15s; font-family: inherit; }
+        .retry-btn:hover { background: rgba(255,51,68,0.2); border-color: rgba(255,51,68,0.5); }
     </style>
 </head>
 <body>
@@ -66,9 +120,12 @@
         <span class="sep">/</span>
         <span style="color:var(--text)">Leaderboard</span>
         <span style="margin-left:auto;display:flex;gap:8px">
-            <a href="/" class="nav-link">← Home</a>
+            <a href="/" class="nav-link">Home</a>
             <a href="/dashboard" class="nav-link">Dashboard</a>
-            <a href="/graph" class="nav-link">Trust Network</a>
+            <a href="/marketplace" class="nav-link">Marketplace</a>
+            <a href="/graph" class="nav-link">Graph</a>
+            <a href="/leaderboard" class="nav-link active">Leaderboard</a>
+            <a href="/docs-guide" class="nav-link">Docs</a>
         </span>
     </div>
 
@@ -76,11 +133,49 @@
         <h1>Leaderboard</h1>
         <p class="subtitle">Rankings across the ERC-8004 agent ecosystem on Base</p>
 
+        <div class="status-bar">
+            <div class="last-updated">
+                <span id="last-updated-text">Last updated: --</span>
+            </div>
+            <div class="countdown">
+                <div class="countdown-ring">
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                        <circle class="track" cx="9" cy="9" r="7"></circle>
+                        <circle class="progress" id="countdown-circle" cx="9" cy="9" r="7" stroke-dasharray="43.98" stroke-dashoffset="0"></circle>
+                    </svg>
+                </div>
+                <span id="countdown-text">Refreshing in 30s...</span>
+            </div>
+        </div>
+
         <div class="health-section">
-            <div class="health-bar">
-                <div>
+            <div class="health-bar" id="health-bar">
+                <div class="health-score-wrap" id="health-score-wrap">
                     <div class="health-label">Ecosystem Health</div>
                     <div class="health-score" id="health-score">--</div>
+                    <div class="health-tooltip" id="health-tooltip">
+                        <div class="tooltip-title">Health Score Breakdown</div>
+                        <div class="tooltip-row">
+                            <span>Avg Trust Score</span>
+                            <span class="tooltip-weight">40%</span>
+                            <span class="tooltip-value" id="tt-avg">--</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span>Trust Ratio</span>
+                            <span class="tooltip-weight">30%</span>
+                            <span class="tooltip-value" id="tt-trust">--</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span>Inverse Sybil</span>
+                            <span class="tooltip-weight">30%</span>
+                            <span class="tooltip-value" id="tt-sybil">--</span>
+                        </div>
+                        <div class="tooltip-row" style="margin-top:6px;border-top:1px solid var(--border);padding-top:8px">
+                            <span style="font-weight:700;color:var(--text)">Total</span>
+                            <span></span>
+                            <span class="tooltip-value" id="tt-total">--</span>
+                        </div>
+                    </div>
                 </div>
                 <div style="flex:1">
                     <div class="health-detail" id="health-detail">Loading...</div>
@@ -91,7 +186,16 @@
             </div>
         </div>
 
-        <div class="boards">
+        <div id="error-container" style="display:none">
+            <div class="error-state">
+                <div class="error-icon">&#9888;</div>
+                <div class="error-title">Failed to load leaderboard data</div>
+                <div class="error-msg" id="error-msg">Could not connect to the SentinelNet API. Check your connection and try again.</div>
+                <button class="retry-btn" onclick="retryLoad()">Retry</button>
+            </div>
+        </div>
+
+        <div class="boards" id="boards-container">
             <div class="board">
                 <div class="board-header">
                     <span class="icon" style="color:var(--trust)">&#9650;</span>
@@ -120,47 +224,212 @@
     </div>
 
     <script>
+        // --- State ---
+        const REFRESH_INTERVAL = 30;
+        const DEFAULT_SHOW = 15;
+        const MAX_SHOW = 50;
+        let countdown = REFRESH_INTERVAL;
+        let countdownTimer = null;
+        let expandedBoards = { trusted: false, suspicious: false, sybil: false };
+        let cachedData = { trusted: [], suspicious: [], sybils: [], verdicts: {}, scores: [] };
+
+        // --- XSS Protection ---
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        // --- Utility functions (unchanged logic) ---
         function col(v) { return v >= 55 ? 'var(--trust)' : v >= 40 ? 'var(--caution)' : 'var(--reject)'; }
         function shortW(w) { return w ? w.slice(0,6) + '...' + w.slice(-4) : '--'; }
         function badgeClass(v) { return v === 'TRUST' ? 'badge-trust' : v === 'CAUTION' ? 'badge-caution' : 'badge-reject'; }
         function rankClass(i) { return i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : ''; }
 
-        function renderList(el, items, showScore) {
-            if (!items.length) { el.innerHTML = '<div class="empty">No data yet</div>'; return; }
-            el.innerHTML = items.slice(0, 15).map((s, i) => {
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        // --- Skeleton loading ---
+        function renderSkeletons(el, count) {
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                html += `<li class="skeleton-item">
+                    <div class="skeleton-block skeleton-rank"></div>
+                    <div class="skeleton-info">
+                        <div class="skeleton-block skeleton-name"></div>
+                        <div class="skeleton-block skeleton-wallet"></div>
+                    </div>
+                    <div class="skeleton-block skeleton-score"></div>
+                    <div class="skeleton-block skeleton-badge"></div>
+                </li>`;
+            }
+            el.innerHTML = html;
+        }
+
+        function showLoadingState() {
+            renderSkeletons(document.getElementById('top-trusted'), 5);
+            renderSkeletons(document.getElementById('top-suspicious'), 5);
+            renderSkeletons(document.getElementById('top-sybil'), 5);
+        }
+
+        // --- Render list with "show more" ---
+        function renderList(el, items, boardKey) {
+            if (!items.length) {
+                el.innerHTML = '<div class="empty">No data yet</div>';
+                removeShowMoreBtn(el);
+                return;
+            }
+            const expanded = expandedBoards[boardKey];
+            const limit = expanded ? Math.min(items.length, MAX_SHOW) : Math.min(items.length, DEFAULT_SHOW);
+            const visible = items.slice(0, limit);
+
+            el.innerHTML = visible.map((s, i) => {
+                const safeId = escapeHtml(s.agent_id);
+                const safeScore = escapeHtml(s.trust_score);
+                const safeVerdict = escapeHtml(s.verdict);
                 const sybilTag = s.sybil_flagged ? ' <span class="item-badge badge-sybil">SYBIL</span>' : '';
                 return `<li class="board-item">
                     <span class="rank ${rankClass(i)}">${i + 1}</span>
                     <div class="item-info">
-                        <a class="item-agent" href="/agent/${s.agent_id}">#${s.agent_id}</a>${sybilTag}
-                        <div class="item-wallet">${shortW(s.wallet)}</div>
+                        <a class="item-agent" href="/agent/${encodeURIComponent(s.agent_id)}">#${safeId}</a>${sybilTag}
+                        <div class="item-wallet">${escapeHtml(shortW(s.wallet))}</div>
                     </div>
-                    <span class="item-score" style="color:${col(s.trust_score)}">${s.trust_score}</span>
-                    <span class="item-badge ${badgeClass(s.verdict)}">${s.verdict}</span>
+                    <span class="item-score" style="color:${col(s.trust_score)}">${safeScore}</span>
+                    <span class="item-badge ${badgeClass(s.verdict)}">${safeVerdict}</span>
                 </li>`;
             }).join('');
+
+            // Show more / show less button
+            const board = el.closest('.board');
+            let existingBtn = board.querySelector('.show-more-btn');
+
+            if (items.length > DEFAULT_SHOW) {
+                if (!existingBtn) {
+                    existingBtn = document.createElement('button');
+                    existingBtn.className = 'show-more-btn';
+                    board.appendChild(existingBtn);
+                }
+                if (expanded) {
+                    existingBtn.textContent = 'Show fewer';
+                    existingBtn.onclick = function() {
+                        expandedBoards[boardKey] = false;
+                        renderList(el, items, boardKey);
+                    };
+                } else {
+                    const remaining = Math.min(items.length, MAX_SHOW);
+                    existingBtn.textContent = `Show all ${remaining} agents`;
+                    existingBtn.onclick = function() {
+                        expandedBoards[boardKey] = true;
+                        renderList(el, items, boardKey);
+                    };
+                }
+            } else {
+                removeShowMoreBtn(el);
+            }
         }
 
+        function removeShowMoreBtn(el) {
+            const board = el.closest('.board');
+            const btn = board ? board.querySelector('.show-more-btn') : null;
+            if (btn) btn.remove();
+        }
+
+        // --- Error / success display ---
+        function showError(msg) {
+            document.getElementById('boards-container').style.display = 'none';
+            document.getElementById('health-bar').style.display = 'none';
+            const errContainer = document.getElementById('error-container');
+            errContainer.style.display = 'block';
+            if (msg) document.getElementById('error-msg').textContent = msg;
+        }
+
+        function hideError() {
+            document.getElementById('error-container').style.display = 'none';
+            document.getElementById('boards-container').style.display = '';
+            document.getElementById('health-bar').style.display = '';
+        }
+
+        function retryLoad() {
+            hideError();
+            showLoadingState();
+            load();
+            resetCountdown();
+        }
+
+        // --- Countdown timer ---
+        function startCountdown() {
+            if (countdownTimer) clearInterval(countdownTimer);
+            countdown = REFRESH_INTERVAL;
+            updateCountdownDisplay();
+            countdownTimer = setInterval(function() {
+                countdown--;
+                if (countdown <= 0) {
+                    countdown = REFRESH_INTERVAL;
+                    load();
+                }
+                updateCountdownDisplay();
+            }, 1000);
+        }
+
+        function resetCountdown() {
+            countdown = REFRESH_INTERVAL;
+            updateCountdownDisplay();
+        }
+
+        function updateCountdownDisplay() {
+            document.getElementById('countdown-text').textContent = 'Refreshing in ' + countdown + 's...';
+            // Update the circular progress
+            const circumference = 2 * Math.PI * 7; // r=7
+            const offset = circumference * (1 - countdown / REFRESH_INTERVAL);
+            document.getElementById('countdown-circle').style.strokeDashoffset = offset;
+        }
+
+        // --- Health tooltip (click toggle for mobile) ---
+        document.addEventListener('DOMContentLoaded', function() {
+            var wrap = document.getElementById('health-score-wrap');
+            if (wrap) {
+                wrap.addEventListener('click', function(e) {
+                    wrap.classList.toggle('tooltip-active');
+                });
+            }
+            // Close tooltip on outside click
+            document.addEventListener('click', function(e) {
+                if (wrap && !wrap.contains(e.target)) {
+                    wrap.classList.remove('tooltip-active');
+                }
+            });
+        });
+
+        // --- Main data load ---
         async function load() {
             try {
                 const r = await fetch('/api/scores?apply_decay=true');
+                if (!r.ok) throw new Error('API returned status ' + r.status);
                 const data = await r.json();
                 const scores = data.scores || [];
 
+                hideError();
+
+                // Update last-updated timestamp
+                document.getElementById('last-updated-text').textContent = 'Last updated: ' + formatTime(new Date());
+
                 // Most trusted
                 const trusted = [...scores].sort((a, b) => b.trust_score - a.trust_score);
-                renderList(document.getElementById('top-trusted'), trusted);
-                document.getElementById('trusted-count').textContent = `${data.verdicts.TRUST || 0} trusted`;
+                cachedData.trusted = trusted;
+                renderList(document.getElementById('top-trusted'), trusted, 'trusted');
+                document.getElementById('trusted-count').textContent = (data.verdicts.TRUST || 0) + ' trusted';
 
-                // Most suspicious (lowest scores, non-sybil first then sybil)
+                // Most suspicious (lowest scores)
                 const suspicious = [...scores].sort((a, b) => a.trust_score - b.trust_score);
-                renderList(document.getElementById('top-suspicious'), suspicious);
-                document.getElementById('suspicious-count').textContent = `${data.verdicts.REJECT || 0} rejected`;
+                cachedData.suspicious = suspicious;
+                renderList(document.getElementById('top-suspicious'), suspicious, 'suspicious');
+                document.getElementById('suspicious-count').textContent = (data.verdicts.REJECT || 0) + ' rejected';
 
                 // Sybil flagged
                 const sybils = scores.filter(s => s.sybil_flagged).sort((a, b) => a.trust_score - b.trust_score);
-                renderList(document.getElementById('top-sybil'), sybils);
-                document.getElementById('sybil-count').textContent = `${sybils.length} flagged`;
+                cachedData.sybils = sybils;
+                renderList(document.getElementById('top-sybil'), sybils, 'sybil');
+                document.getElementById('sybil-count').textContent = sybils.length + ' flagged';
 
                 // Ecosystem health score
                 const total = scores.length;
@@ -168,26 +437,41 @@
                     const avgScore = scores.reduce((a, s) => a + s.trust_score, 0) / total;
                     const trustPct = (data.verdicts.TRUST || 0) / total;
                     const sybilPct = sybils.length / total;
+
+                    const avgComponent = avgScore * 0.4;
+                    const trustComponent = trustPct * 100 * 0.3;
+                    const sybilComponent = (1 - sybilPct) * 100 * 0.3;
+
                     // Health = weighted: 40% avg score, 30% trust ratio, 30% inverse sybil ratio
-                    const health = Math.round(
-                        avgScore * 0.4 +
-                        trustPct * 100 * 0.3 +
-                        (1 - sybilPct) * 100 * 0.3
-                    );
+                    const health = Math.round(avgComponent + trustComponent + sybilComponent);
+
                     const healthEl = document.getElementById('health-score');
                     healthEl.textContent = health;
                     healthEl.style.color = col(health);
                     document.getElementById('health-fill').style.width = health + '%';
                     document.getElementById('health-fill').style.background = col(health);
                     document.getElementById('health-detail').textContent =
-                        `${total} agents scored | ${Math.round(trustPct*100)}% trusted | ${sybils.length} sybil flagged (${Math.round(sybilPct*100)}%)`;
+                        total + ' agents scored | ' + Math.round(trustPct*100) + '% trusted | ' + sybils.length + ' sybil flagged (' + Math.round(sybilPct*100) + '%)';
+
+                    // Update tooltip breakdown
+                    document.getElementById('tt-avg').textContent = avgComponent.toFixed(1);
+                    document.getElementById('tt-trust').textContent = trustComponent.toFixed(1);
+                    document.getElementById('tt-sybil').textContent = sybilComponent.toFixed(1);
+                    document.getElementById('tt-total').textContent = health;
+                } else {
+                    document.getElementById('health-score').textContent = '--';
+                    document.getElementById('health-detail').textContent = 'No agents scored yet';
                 }
             } catch (e) {
-                console.error(e);
+                console.error('Leaderboard load failed:', e);
+                showError('Could not connect to the SentinelNet API. ' + (e.message || 'Check your connection and try again.'));
             }
         }
+
+        // --- Init ---
+        showLoadingState();
         load();
-        setInterval(load, 30000);
+        startCountdown();
     </script>
 </body>
 </html>

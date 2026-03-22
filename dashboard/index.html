@@ -29,7 +29,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
 
-        /* ─── Header ─── */
+        /* --- Header --- */
         .header { background: var(--bg-header); border-bottom: 1px solid var(--border); padding: 20px 28px; display: flex; justify-content: space-between; align-items: center; }
         .header-left { display: flex; align-items: center; gap: 14px; }
         .logo { font-size: 28px; font-weight: 800; color: var(--accent-cyan); letter-spacing: -0.5px; }
@@ -39,7 +39,7 @@
         .live-dot { width: 7px; height: 7px; background: var(--trust); border-radius: 50%; animation: pulse 2s infinite; }
         .chain-badge { background: rgba(0,136,255,0.08); border: 1px solid rgba(0,136,255,0.2); border-radius: 20px; padding: 5px 12px; font-size: 12px; color: var(--accent-blue); font-weight: 500; }
 
-        /* ─── Stats Grid ─── */
+        /* --- Stats Grid --- */
         .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 20px 28px; }
         .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; transition: border-color 0.2s; }
         .stat-card:hover { border-color: var(--border-bright); }
@@ -51,7 +51,7 @@
         .stat-card.sybil .stat-value { color: var(--sybil); }
         .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
-        /* ─── Distribution Bar ─── */
+        /* --- Distribution Bar --- */
         .dist-section { padding: 0 28px 16px; }
         .dist-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg-card); }
         .dist-bar .seg { transition: width 0.5s ease; }
@@ -62,7 +62,7 @@
         .dist-legend span { display: flex; align-items: center; gap: 5px; }
         .dist-legend .dot { width: 8px; height: 8px; border-radius: 2px; }
 
-        /* ─── Controls ─── */
+        /* --- Controls --- */
         .controls { padding: 0 28px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
         .search-box { flex: 1; min-width: 200px; max-width: 360px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 14px; color: var(--text-primary); font-size: 13px; outline: none; transition: border-color 0.2s; }
         .search-box:focus { border-color: var(--accent-blue); }
@@ -70,13 +70,20 @@
         .filter-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.2s; font-weight: 500; }
         .filter-btn:hover { border-color: var(--border-bright); color: var(--text-primary); }
         .filter-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(0,136,255,0.06); }
-        .refresh-info { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+        .refresh-info { margin-left: auto; font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 10px; }
+        .refresh-select { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--text-secondary); font-size: 11px; outline: none; cursor: pointer; }
+        .refresh-select:focus { border-color: var(--accent-blue); }
+        .export-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; color: var(--accent-cyan); font-size: 12px; cursor: pointer; transition: all 0.2s; font-weight: 500; }
+        .export-btn:hover { border-color: var(--accent-cyan); background: rgba(0,204,255,0.06); }
 
-        /* ─── Table ─── */
+        /* --- Table --- */
         .table-section { padding: 0 28px 28px; }
         .table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { background: rgba(14,14,30,0.8); padding: 10px 14px; text-align: left; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; position: sticky; top: 0; }
+        th { background: rgba(14,14,30,0.8); padding: 10px 14px; text-align: left; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; position: sticky; top: 0; cursor: pointer; user-select: none; white-space: nowrap; }
+        th:hover { color: var(--text-secondary); }
+        th .sort-arrow { display: inline-block; margin-left: 4px; font-size: 9px; opacity: 0.4; transition: opacity 0.2s; }
+        th.sorted .sort-arrow { opacity: 1; color: var(--accent-cyan); }
         td { padding: 10px 14px; border-top: 1px solid var(--border); font-size: 13px; }
         tr:hover td { background: var(--bg-card-hover); }
         .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--text-secondary); }
@@ -100,12 +107,41 @@
         .agent-id-link:hover { text-decoration: underline; }
         .decay-info { font-size: 10px; color: var(--text-muted); }
 
-        /* ─── Footer ─── */
+        /* --- Skeleton Loading --- */
+        .skeleton-row td { padding: 12px 14px; border-top: 1px solid var(--border); }
+        .skeleton-bar { height: 14px; background: linear-gradient(90deg, var(--bg-card-hover) 25%, rgba(42,42,80,0.5) 50%, var(--bg-card-hover) 75%); background-size: 200% 100%; border-radius: 4px; animation: skeleton-shimmer 1.5s ease infinite; }
+        .skeleton-bar.narrow { max-width: 60px; }
+        .skeleton-bar.medium { max-width: 90px; }
+        .skeleton-bar.wide { max-width: 140px; }
+        .skeleton-bar.badge { max-width: 70px; height: 22px; border-radius: 12px; }
+        @keyframes skeleton-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* --- Error State --- */
+        .error-state { text-align: center; padding: 48px; }
+        .error-state .error-icon { font-size: 32px; margin-bottom: 12px; }
+        .error-state .error-msg { color: var(--reject); font-size: 14px; margin-bottom: 16px; }
+        .error-state .error-detail { color: var(--text-muted); font-size: 12px; margin-bottom: 16px; }
+        .retry-btn { background: rgba(255,51,68,0.1); border: 1px solid rgba(255,51,68,0.3); border-radius: var(--radius); padding: 8px 20px; color: var(--reject); font-size: 13px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .retry-btn:hover { background: rgba(255,51,68,0.2); border-color: var(--reject); }
+
+        /* --- Pagination --- */
+        .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 16px 28px 8px; }
+        .page-btn { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.2s; font-weight: 500; min-width: 34px; text-align: center; }
+        .page-btn:hover:not(:disabled) { border-color: var(--border-bright); color: var(--text-primary); }
+        .page-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(0,136,255,0.06); }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .page-info { font-size: 11px; color: var(--text-muted); margin: 0 8px; }
+        .page-ellipsis { color: var(--text-muted); font-size: 12px; padding: 0 4px; }
+
+        /* --- Footer --- */
         .footer { padding: 20px 28px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); }
         .footer a { color: var(--accent-blue); text-decoration: none; }
         .footer a:hover { text-decoration: underline; }
 
-        /* ─── Responsive ─── */
+        /* --- Responsive --- */
         @media (max-width: 1100px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (max-width: 700px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -117,23 +153,24 @@
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* ─── Threat Ticker ─── */
+        /* --- Threat Ticker --- */
         .threat-ticker { background: rgba(255,51,68,0.04); border-bottom: 1px solid rgba(255,51,68,0.15); padding: 0; overflow: hidden; height: 32px; position: relative; }
-        .threat-ticker-inner { display: flex; align-items: center; height: 100%; animation: ticker-scroll 30s linear infinite; white-space: nowrap; }
-        .threat-item { display: inline-flex; align-items: center; gap: 6px; padding: 0 24px; font-size: 11px; color: var(--text-secondary); }
+        .threat-ticker-inner { display: flex; align-items: center; height: 100%; animation: ticker-scroll 30s linear infinite; white-space: nowrap; will-change: transform; }
+        .threat-item { display: inline-flex; align-items: center; gap: 6px; padding: 0 24px; font-size: 11px; color: var(--text-secondary); flex-shrink: 0; }
         .threat-item .threat-dot { width: 5px; height: 5px; border-radius: 50%; }
         .threat-item .threat-dot.high { background: var(--reject); }
         .threat-item .threat-dot.medium { background: var(--caution); }
         .threat-item .threat-dot.low { background: var(--accent-blue); }
         .threat-item .threat-time { color: var(--text-muted); font-size: 10px; }
-        .threat-label { display: inline-flex; align-items: center; gap: 4px; padding: 0 12px; font-size: 10px; color: var(--reject); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(255,51,68,0.08); height: 100%; flex-shrink: 0; }
+        .threat-label { display: inline-flex; align-items: center; gap: 4px; padding: 0 12px; font-size: 10px; color: var(--reject); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(255,51,68,0.08); height: 100%; flex-shrink: 0; position: relative; z-index: 1; }
         @keyframes ticker-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .no-threats .threat-ticker-inner { animation: none; }
         .no-threats .threat-item { color: var(--text-muted); }
 
-        /* ─── Nav Links ─── */
+        /* --- Nav Links --- */
         .nav-link { color: var(--text-secondary); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
         .nav-link:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); text-decoration: none; }
+        .nav-link.nav-active { color: var(--accent-cyan); border-color: var(--accent-cyan); background: rgba(0,204,255,0.06); }
     </style>
 </head>
 <body>
@@ -145,12 +182,12 @@
             </div>
         </div>
         <div class="header-right">
-            <a href="/" class="nav-link">← Home</a>
+            <a href="/" class="nav-link">Home</a>
+            <a href="/dashboard" class="nav-link nav-active">Dashboard</a>
             <a href="/marketplace" class="nav-link">Marketplace</a>
+            <a href="/graph" class="nav-link">Graph</a>
             <a href="/leaderboard" class="nav-link">Leaderboard</a>
-            <a href="/graph" class="nav-link">Trust Network</a>
-            <a href="/api/contracts" class="nav-link" target="_blank">Contracts</a>
-            <a href="/docs-guide" class="nav-link">API Docs</a>
+            <a href="/docs-guide" class="nav-link">Docs</a>
             <div class="chain-badge">Base Mainnet</div>
             <div class="live-badge"><span class="live-dot"></span> Live</div>
         </div>
@@ -230,7 +267,16 @@
         <button class="filter-btn" data-filter="CAUTION">Caution</button>
         <button class="filter-btn" data-filter="REJECT">Reject</button>
         <button class="filter-btn" data-filter="SYBIL">Sybil</button>
-        <div class="refresh-info" id="refresh-info">Next refresh in 15s</div>
+        <button class="export-btn" id="export-csv" title="Export filtered scores as CSV">Export CSV</button>
+        <div class="refresh-info" id="refresh-info">
+            <span id="last-updated">Waiting for data...</span>
+            <select class="refresh-select" id="refresh-rate" title="Auto-refresh interval">
+                <option value="5000">5s</option>
+                <option value="15000" selected>15s</option>
+                <option value="30000">30s</option>
+                <option value="0">Off</option>
+            </select>
+        </div>
     </div>
 
     <div class="table-section">
@@ -238,25 +284,26 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Agent</th>
+                        <th data-sort="agent_id">Agent <span class="sort-arrow"></span></th>
                         <th>Wallet</th>
-                        <th>Score</th>
-                        <th>Verdict</th>
-                        <th>Longevity</th>
-                        <th>Activity</th>
-                        <th>Counterparty</th>
-                        <th>Risk</th>
-                        <th>Identity</th>
+                        <th data-sort="trust_score" class="sorted">Score <span class="sort-arrow">&#9660;</span></th>
+                        <th data-sort="verdict">Verdict <span class="sort-arrow"></span></th>
+                        <th data-sort="longevity">Longevity <span class="sort-arrow"></span></th>
+                        <th data-sort="activity">Activity <span class="sort-arrow"></span></th>
+                        <th data-sort="counterparty">Counterparty <span class="sort-arrow"></span></th>
+                        <th data-sort="contract_risk">Risk <span class="sort-arrow"></span></th>
+                        <th data-sort="agent_identity">Identity <span class="sort-arrow"></span></th>
                         <th>Evidence</th>
-                        <th>Scored</th>
+                        <th data-sort="scored_at">Scored <span class="sort-arrow"></span></th>
                     </tr>
                 </thead>
                 <tbody id="scores-body">
-                    <tr><td colspan="11" class="empty-state">Loading scores...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
+
+    <div class="pagination" id="pagination"></div>
 
     <div class="footer">
         <div>
@@ -272,12 +319,44 @@
     </div>
 
     <script>
+        // ─── State ───
         let allScores = [];
+        let filteredScores = [];
         let activeFilter = 'all';
+        let currentPage = 1;
+        const PAGE_SIZE = 20;
+        let sortColumn = 'trust_score';
+        let sortDirection = 'desc';
+        let lastFetchTime = null;
+        let refreshIntervalId = null;
+        let threatIntervalId = null;
+        let lastUpdatedTickId = null;
+        let fetchErrorState = false;
 
+        // ─── Restore refresh preference ───
+        (function restoreRefreshRate() {
+            const saved = localStorage.getItem('sentinelnet_refresh_rate');
+            if (saved !== null) {
+                const sel = document.getElementById('refresh-rate');
+                for (let i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === saved) {
+                        sel.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        })();
+
+        // ─── XSS Protection ───
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        // ─── Helpers ───
         function verdictBadge(v) {
-            const cls = (v || '').toLowerCase();
-            return `<span class="verdict-badge verdict-${cls}">${v}</span>`;
+            const cls = (escapeHtml(v) || '').toLowerCase();
+            return '<span class="verdict-badge verdict-' + cls + '">' + escapeHtml(v) + '</span>';
         }
 
         function scoreColor(s) {
@@ -309,80 +388,253 @@
         }
 
         function evidenceLink(uri, tx) {
-            const parts = [];
+            var parts = [];
             if (uri && uri.startsWith('ipfs://')) {
-                const cid = uri.replace('ipfs://', '');
-                parts.push(`<a class="evidence-link" href="https://gateway.pinata.cloud/ipfs/${cid}" target="_blank" title="${uri}">IPFS</a>`);
+                var cid = uri.replace('ipfs://', '');
+                parts.push('<a class="evidence-link" href="https://gateway.pinata.cloud/ipfs/' + encodeURIComponent(cid) + '" target="_blank" title="' + escapeHtml(uri) + '">IPFS</a>');
             }
             if (tx && tx.length > 10) {
-                parts.push(`<a class="evidence-link" href="https://basescan.org/tx/0x${tx.replace(/^0x/,'')}" target="_blank" title="${tx}">Tx</a>`);
+                var cleanTx = tx.replace(/^0x/, '');
+                parts.push('<a class="evidence-link" href="https://basescan.org/tx/0x' + encodeURIComponent(cleanTx) + '" target="_blank" title="' + escapeHtml(tx) + '">Tx</a>');
             }
             return parts.join(' ') || '<span style="color:var(--text-muted)">--</span>';
         }
 
+        function escapeCSV(val) {
+            var s = String(val == null ? '' : val);
+            // Prevent formula injection in spreadsheets
+            if (/^[=+\-@\t\r]/.test(s)) {
+                s = "'" + s;
+            }
+            if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1 || s.indexOf("'") === 0) {
+                return '"' + s.replace(/"/g, '""') + '"';
+            }
+            return s;
+        }
+
+        // ─── Skeleton Loading ───
+        function renderSkeleton() {
+            var tbody = document.getElementById('scores-body');
+            var rows = '';
+            for (var i = 0; i < 10; i++) {
+                rows += '<tr class="skeleton-row">' +
+                    '<td><div class="skeleton-bar narrow"></div></td>' +
+                    '<td><div class="skeleton-bar medium"></div></td>' +
+                    '<td><div class="skeleton-bar narrow"></div></td>' +
+                    '<td><div class="skeleton-bar badge"></div></td>' +
+                    '<td><div class="skeleton-bar narrow"></div></td>' +
+                    '<td><div class="skeleton-bar narrow"></div></td>' +
+                    '<td><div class="skeleton-bar narrow"></div></td>' +
+                    '<td><div class="skeleton-bar narrow"></div></td>' +
+                    '<td><div class="skeleton-bar narrow"></div></td>' +
+                    '<td><div class="skeleton-bar medium"></div></td>' +
+                    '<td><div class="skeleton-bar medium"></div></td>' +
+                '</tr>';
+            }
+            tbody.innerHTML = rows;
+        }
+
+        // ─── Error State ───
+        function renderError(errMsg) {
+            var tbody = document.getElementById('scores-body');
+            tbody.innerHTML = '<tr><td colspan="11" class="error-state">' +
+                '<div class="error-icon">!</div>' +
+                '<div class="error-msg">Failed to load agent scores</div>' +
+                '<div class="error-detail">' + escapeHtml(errMsg || 'Network error or API unavailable') + '</div>' +
+                '<button class="retry-btn" onclick="fetchAll()">Retry</button>' +
+            '</td></tr>';
+            document.getElementById('pagination').innerHTML = '';
+        }
+
+        // ─── Sorting ───
+        function sortScores(scores) {
+            var col = sortColumn;
+            var dir = sortDirection === 'asc' ? 1 : -1;
+            return scores.slice().sort(function(a, b) {
+                var va = a[col], vb = b[col];
+                if (col === 'scored_at') {
+                    va = va ? new Date(va).getTime() : 0;
+                    vb = vb ? new Date(vb).getTime() : 0;
+                } else if (col === 'verdict') {
+                    va = (va || '').toLowerCase();
+                    vb = (vb || '').toLowerCase();
+                } else {
+                    va = (va !== undefined && va !== null) ? Number(va) : -1;
+                    vb = (vb !== undefined && vb !== null) ? Number(vb) : -1;
+                }
+                if (va < vb) return -1 * dir;
+                if (va > vb) return 1 * dir;
+                return 0;
+            });
+        }
+
+        function updateSortHeaders() {
+            var ths = document.querySelectorAll('th[data-sort]');
+            ths.forEach(function(th) {
+                var arrow = th.querySelector('.sort-arrow');
+                if (th.dataset.sort === sortColumn) {
+                    th.classList.add('sorted');
+                    arrow.innerHTML = sortDirection === 'asc' ? '&#9650;' : '&#9660;';
+                } else {
+                    th.classList.remove('sorted');
+                    arrow.innerHTML = '';
+                }
+            });
+        }
+
+        // ─── Table Rendering ───
         function renderTable(scores) {
-            const tbody = document.getElementById('scores-body');
+            var tbody = document.getElementById('scores-body');
             if (!scores.length) {
                 tbody.innerHTML = '<tr><td colspan="11" class="empty-state">No agents match the current filter.</td></tr>';
+                document.getElementById('pagination').innerHTML = '';
                 return;
             }
-            tbody.innerHTML = scores.map(s => {
-                const sybil = s.sybil_flagged ? '<span class="sybil-tag">SYBIL</span>' : '';
-                const stale = s.is_stale ? '<span class="stale-tag">STALE</span>' : '';
-                const decay = s.decay_days > 0.1 ? `<div class="decay-info">${s.trust_score_raw}\u2192${s.trust_score} (${s.decay_days}d)</div>` : '';
-                const ai = s.agent_identity !== undefined ? s.agent_identity : '--';
-                return `<tr>
-                    <td><a class="agent-id-link" href="/agent/${s.agent_id}">#${s.agent_id}</a>${sybil}${stale}</td>
-                    <td><span class="mono" title="${s.wallet}">${shortWallet(s.wallet)}</span></td>
-                    <td class="score-cell" style="color:${scoreColor(s.trust_score)}">
-                        ${s.trust_score}
-                        <span class="score-bar"><span class="fill" style="width:${s.trust_score}%;background:${scoreColor(s.trust_score)}"></span></span>
-                        ${decay}
-                    </td>
-                    <td>${verdictBadge(s.verdict)}</td>
-                    <td class="dim-cell ${dimClass(s.longevity)}">${s.longevity}</td>
-                    <td class="dim-cell ${dimClass(s.activity)}">${s.activity}</td>
-                    <td class="dim-cell ${dimClass(s.counterparty)}">${s.counterparty}</td>
-                    <td class="dim-cell ${dimClass(s.contract_risk)}">${s.contract_risk}</td>
-                    <td class="dim-cell ${dimClass(ai)}">${ai}</td>
-                    <td>${evidenceLink(s.evidence_uri, s.feedback_tx)}</td>
-                    <td style="font-size:12px;color:var(--text-secondary)">${timeAgo(s.scored_at)}</td>
-                </tr>`;
+
+            var totalPages = Math.ceil(scores.length / PAGE_SIZE);
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+            var start = (currentPage - 1) * PAGE_SIZE;
+            var pageScores = scores.slice(start, start + PAGE_SIZE);
+
+            tbody.innerHTML = pageScores.map(function(s) {
+                var safeId = escapeHtml(s.agent_id);
+                var safeWallet = escapeHtml(s.wallet);
+                var safeScore = escapeHtml(s.trust_score);
+                var sybil = s.sybil_flagged ? '<span class="sybil-tag">SYBIL</span>' : '';
+                var stale = s.is_stale ? '<span class="stale-tag">STALE</span>' : '';
+                var decay = s.decay_days > 0.1 ? '<div class="decay-info">' + escapeHtml(s.trust_score_raw) + '\u2192' + safeScore + ' (' + escapeHtml(s.decay_days) + 'd)</div>' : '';
+                var ai = s.agent_identity !== undefined ? s.agent_identity : '--';
+                return '<tr>' +
+                    '<td><a class="agent-id-link" href="/agent/' + encodeURIComponent(s.agent_id) + '">#' + safeId + '</a>' + sybil + stale + '</td>' +
+                    '<td><span class="mono" title="' + safeWallet + '">' + escapeHtml(shortWallet(s.wallet)) + '</span></td>' +
+                    '<td class="score-cell" style="color:' + scoreColor(s.trust_score) + '">' +
+                        safeScore +
+                        '<span class="score-bar"><span class="fill" style="width:' + s.trust_score + '%;background:' + scoreColor(s.trust_score) + '"></span></span>' +
+                        decay +
+                    '</td>' +
+                    '<td>' + verdictBadge(s.verdict) + '</td>' +
+                    '<td class="dim-cell ' + dimClass(s.longevity) + '">' + escapeHtml(s.longevity) + '</td>' +
+                    '<td class="dim-cell ' + dimClass(s.activity) + '">' + escapeHtml(s.activity) + '</td>' +
+                    '<td class="dim-cell ' + dimClass(s.counterparty) + '">' + escapeHtml(s.counterparty) + '</td>' +
+                    '<td class="dim-cell ' + dimClass(s.contract_risk) + '">' + escapeHtml(s.contract_risk) + '</td>' +
+                    '<td class="dim-cell ' + dimClass(ai) + '">' + escapeHtml(ai) + '</td>' +
+                    '<td>' + evidenceLink(s.evidence_uri, s.feedback_tx) + '</td>' +
+                    '<td style="font-size:12px;color:var(--text-secondary)">' + timeAgo(s.scored_at) + '</td>' +
+                '</tr>';
             }).join('');
+
+            renderPagination(scores.length, totalPages);
         }
 
+        // ─── Pagination ───
+        function renderPagination(totalItems, totalPages) {
+            var container = document.getElementById('pagination');
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            var html = '';
+            html += '<button class="page-btn" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="goToPage(' + (currentPage - 1) + ')">&laquo; Prev</button>';
+
+            var pages = [];
+            pages.push(1);
+            if (currentPage > 3) pages.push('...');
+            for (var i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+                pages.push(i);
+            }
+            if (currentPage < totalPages - 2) pages.push('...');
+            if (totalPages > 1) pages.push(totalPages);
+
+            // Deduplicate pages
+            var seen = {};
+            pages = pages.filter(function(p) {
+                if (p === '...') return true;
+                if (seen[p]) return false;
+                seen[p] = true;
+                return true;
+            });
+
+            pages.forEach(function(p) {
+                if (p === '...') {
+                    html += '<span class="page-ellipsis">...</span>';
+                } else {
+                    html += '<button class="page-btn' + (p === currentPage ? ' active' : '') + '" onclick="goToPage(' + p + ')">' + p + '</button>';
+                }
+            });
+
+            html += '<button class="page-btn" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="goToPage(' + (currentPage + 1) + ')">Next &raquo;</button>';
+            html += '<span class="page-info">' + totalItems + ' agents</span>';
+
+            container.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            renderTable(filteredScores);
+            document.querySelector('.table-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // ─── Filter + Sort Pipeline ───
         function applyFilters() {
-            const q = document.getElementById('search').value.toLowerCase().trim();
-            let filtered = allScores;
+            var q = document.getElementById('search').value.toLowerCase().trim();
+            var filtered = allScores;
             if (activeFilter === 'SYBIL') {
-                filtered = filtered.filter(s => s.sybil_flagged);
+                filtered = filtered.filter(function(s) { return s.sybil_flagged; });
             } else if (activeFilter !== 'all') {
-                filtered = filtered.filter(s => (s.verdict || '').toUpperCase() === activeFilter);
+                filtered = filtered.filter(function(s) { return (s.verdict || '').toUpperCase() === activeFilter; });
             }
             if (q) {
-                filtered = filtered.filter(s =>
-                    String(s.agent_id).includes(q) ||
-                    (s.wallet || '').toLowerCase().includes(q)
-                );
+                filtered = filtered.filter(function(s) {
+                    return String(s.agent_id).includes(q) ||
+                        (s.wallet || '').toLowerCase().includes(q);
+                });
             }
-            renderTable(filtered);
+            filteredScores = sortScores(filtered);
+            renderTable(filteredScores);
         }
 
-        async function fetchAll() {
-            try {
-                const r = await fetch('/api/scores');
-                const data = await r.json();
-                allScores = data.scores || [];
+        // ─── Last Updated Ticker ───
+        function updateLastUpdatedDisplay() {
+            var el = document.getElementById('last-updated');
+            if (!lastFetchTime) {
+                el.textContent = 'Waiting for data...';
+                return;
+            }
+            var secAgo = Math.floor((Date.now() - lastFetchTime) / 1000);
+            if (secAgo < 2) {
+                el.textContent = 'Updated just now';
+            } else {
+                el.textContent = 'Updated ' + secAgo + 's ago';
+            }
+        }
 
-                const total = data.total || 0;
+        // ─── Fetch Data ───
+        var _fetchInProgress = false;
+        async function fetchAll() {
+            if (_fetchInProgress) return;
+            _fetchInProgress = true;
+            try {
+                if (!allScores.length && !fetchErrorState) {
+                    renderSkeleton();
+                }
+                var r = await fetch('/api/scores');
+                if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+                var data = await r.json();
+                allScores = data.scores || [];
+                fetchErrorState = false;
+                lastFetchTime = Date.now();
+
+                var total = data.total || 0;
                 document.getElementById('agents-count').textContent = total;
-                const avg = allScores.length > 0
-                    ? Math.round(allScores.reduce((a, s) => a + s.trust_score, 0) / allScores.length)
+                var avg = allScores.length > 0
+                    ? Math.round(allScores.reduce(function(a, s) { return a + s.trust_score; }, 0) / allScores.length)
                     : 0;
                 document.getElementById('avg-score').textContent = avg;
 
-                const v = data.verdicts || {};
-                const t = v.TRUST || 0, c = v.CAUTION || 0, rj = v.REJECT || 0;
+                var v = data.verdicts || {};
+                var t = v.TRUST || 0, c = v.CAUTION || 0, rj = v.REJECT || 0;
                 document.getElementById('trust-count').textContent = t;
                 document.getElementById('caution-count').textContent = c;
                 document.getElementById('reject-count').textContent = rj;
@@ -398,96 +650,162 @@
                 }
 
                 // Histogram
-                const buckets = [0,0,0,0,0];
-                allScores.forEach(s => {
-                    const ts = s.trust_score;
+                var buckets = [0,0,0,0,0];
+                allScores.forEach(function(s) {
+                    var ts = s.trust_score;
                     if (ts >= 75) buckets[4]++;
                     else if (ts >= 55) buckets[3]++;
                     else if (ts >= 40) buckets[2]++;
                     else if (ts >= 20) buckets[1]++;
                     else buckets[0]++;
                 });
-                const maxB = Math.max(...buckets, 1);
-                const colors = ['var(--reject)','var(--reject)','var(--caution)','var(--trust)','var(--trust)'];
-                document.getElementById('histogram').innerHTML = buckets.map((b, i) => {
-                    const pct = Math.max(b / maxB * 100, 2);
-                    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
-                        <span style="font-size:10px;color:var(--text-secondary)">${b}</span>
-                        <div style="width:100%;height:${pct}%;min-height:3px;background:${colors[i]};border-radius:3px;opacity:0.7"></div>
-                    </div>`;
+                var maxB = Math.max.apply(null, buckets.concat([1]));
+                var colors = ['var(--reject)','var(--reject)','var(--caution)','var(--trust)','var(--trust)'];
+                document.getElementById('histogram').innerHTML = buckets.map(function(b, i) {
+                    var pct = Math.max(b / maxB * 100, 2);
+                    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
+                        '<span style="font-size:10px;color:var(--text-secondary)">' + b + '</span>' +
+                        '<div style="width:100%;height:' + pct + '%;min-height:3px;background:' + colors[i] + ';border-radius:3px;opacity:0.7"></div>' +
+                    '</div>';
                 }).join('');
 
                 // Ecosystem health score
                 if (total > 0) {
-                    const avgS = allScores.reduce((a, s) => a + s.trust_score, 0) / total;
-                    const trustPct = t / total;
-                    const sybilPct = (data.sybil_flagged || 0) / total;
-                    const health = Math.round(avgS * 0.4 + trustPct * 100 * 0.3 + (1 - sybilPct) * 100 * 0.3);
-                    const hCol = health >= 55 ? 'var(--trust)' : health >= 40 ? 'var(--caution)' : 'var(--reject)';
+                    var avgS = allScores.reduce(function(a, s) { return a + s.trust_score; }, 0) / total;
+                    var trustPct = t / total;
+                    var sybilPct = (data.sybil_flagged || 0) / total;
+                    var health = Math.round(avgS * 0.4 + trustPct * 100 * 0.3 + (1 - sybilPct) * 100 * 0.3);
+                    var hCol = health >= 55 ? 'var(--trust)' : health >= 40 ? 'var(--caution)' : 'var(--reject)';
                     document.getElementById('health-score').textContent = health;
                     document.getElementById('health-score').style.color = hCol;
-                    const label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'At Risk';
+                    var label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'At Risk';
                     document.getElementById('health-label').textContent = label;
                     document.getElementById('health-label').style.color = hCol;
                 }
 
                 applyFilters();
+                updateLastUpdatedDisplay();
             } catch (e) {
                 console.error('Fetch failed:', e);
+                fetchErrorState = true;
+                if (!allScores.length) {
+                    renderError(e.message);
+                }
+            } finally {
+                _fetchInProgress = false;
             }
         }
 
-        // Filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        // ─── Filter Buttons ───
+        document.querySelectorAll('.filter-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
                 btn.classList.add('active');
                 activeFilter = btn.dataset.filter;
+                currentPage = 1;
                 applyFilters();
             });
         });
 
-        // Search
-        document.getElementById('search').addEventListener('input', applyFilters);
+        // ─── Search ───
+        document.getElementById('search').addEventListener('input', function() {
+            currentPage = 1;
+            applyFilters();
+        });
 
-        // Threat feed
+        // ─── Column Sorting ───
+        document.querySelectorAll('th[data-sort]').forEach(function(th) {
+            th.addEventListener('click', function() {
+                var col = th.dataset.sort;
+                if (sortColumn === col) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortColumn = col;
+                    sortDirection = 'desc';
+                }
+                updateSortHeaders();
+                currentPage = 1;
+                applyFilters();
+            });
+        });
+
+        // ─── Refresh Rate Control ───
+        function getRefreshRate() {
+            return parseInt(document.getElementById('refresh-rate').value, 10);
+        }
+
+        function setupAutoRefresh() {
+            if (refreshIntervalId) clearInterval(refreshIntervalId);
+            if (threatIntervalId) clearInterval(threatIntervalId);
+            var rate = getRefreshRate();
+            if (rate > 0) {
+                refreshIntervalId = setInterval(fetchAll, rate);
+                threatIntervalId = setInterval(fetchThreats, rate * 2);
+            }
+        }
+
+        document.getElementById('refresh-rate').addEventListener('change', function() {
+            try { localStorage.setItem('sentinelnet_refresh_rate', this.value); } catch(e) {}
+            setupAutoRefresh();
+        });
+
+        // ─── "Last updated" tick ───
+        lastUpdatedTickId = setInterval(updateLastUpdatedDisplay, 1000);
+
+        // ─── CSV Export ───
+        document.getElementById('export-csv').addEventListener('click', function() {
+            if (!filteredScores.length) return;
+            var headers = ['agent_id','wallet','trust_score','verdict','longevity','activity','counterparty','contract_risk','agent_identity','sybil_flagged','is_stale','scored_at'];
+            var rows = [headers.join(',')];
+            filteredScores.forEach(function(s) {
+                rows.push(headers.map(function(h) {
+                    return escapeCSV(s[h]);
+                }).join(','));
+            });
+            var csv = rows.join('\n');
+            var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'sentinelnet_scores_' + new Date().toISOString().slice(0,10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // ─── Threat Feed ───
         async function fetchThreats() {
             try {
-                const r = await fetch('/api/threats?limit=20');
-                const data = await r.json();
-                const threats = data.threats || [];
-                const inner = document.getElementById('threat-inner');
-                const ticker = document.getElementById('threat-ticker');
+                var r = await fetch('/api/threats?limit=20');
+                var data = await r.json();
+                var threats = data.threats || [];
+                var inner = document.getElementById('threat-inner');
+                var ticker = document.getElementById('threat-ticker');
                 if (!threats.length) {
                     ticker.classList.add('no-threats');
                     inner.innerHTML = '<div class="threat-item"><span class="threat-dot medium"></span> No active threats — ecosystem healthy</div>';
                     return;
                 }
                 ticker.classList.remove('no-threats');
-                const items = threats.map(t => {
-                    const time = timeAgo(t.created_at);
-                    const dotClass = t.severity === 'HIGH' ? 'high' : t.severity === 'MEDIUM' ? 'medium' : 'low';
-                    const agentLink = t.agent_id ? `Agent #${t.agent_id}` : '';
-                    return `<div class="threat-item"><span class="threat-dot ${dotClass}"></span> <strong>${t.threat_type.replace(/_/g,' ')}</strong> ${agentLink} — ${t.details.slice(0,80)} <span class="threat-time">${time}</span></div>`;
+                var items = threats.map(function(t) {
+                    var time = timeAgo(t.created_at);
+                    var dotClass = t.severity === 'HIGH' ? 'high' : t.severity === 'MEDIUM' ? 'medium' : 'low';
+                    var agentLink = t.agent_id ? 'Agent #' + escapeHtml(t.agent_id) : '';
+                    return '<div class="threat-item"><span class="threat-dot ' + dotClass + '"></span> <strong>' + escapeHtml(t.threat_type.replace(/_/g,' ')) + '</strong> ' + agentLink + ' — ' + escapeHtml(t.details.slice(0,80)) + ' <span class="threat-time">' + time + '</span></div>';
                 }).join('');
-                // Duplicate for infinite scroll effect
+                // Duplicate content for seamless infinite scroll loop
                 inner.innerHTML = items + items;
             } catch (e) {
                 console.error('Threats fetch failed:', e);
             }
         }
 
-        // Initial load + auto-refresh
+        // ─── Init ───
+        renderSkeleton();
         fetchAll();
         fetchThreats();
-        setInterval(fetchAll, 15000);
-        setInterval(fetchThreats, 30000);
-
-        let countdown = 15;
-        setInterval(() => {
-            countdown = countdown <= 0 ? 15 : countdown - 1;
-            document.getElementById('refresh-info').textContent = `Next refresh in ${countdown}s`;
-        }, 1000);
+        setupAutoRefresh();
     </script>
 </body>
 </html>

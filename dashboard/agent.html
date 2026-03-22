@@ -11,12 +11,32 @@
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
         a { color: var(--blue); text-decoration: none; }
         a:hover { text-decoration: underline; }
-        .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 16px; font-size: 13px; }
-        .nav .logo { color: var(--cyan); font-weight: 800; font-size: 18px; }
+
+        /* Nav */
+        .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 16px; font-size: 13px; flex-wrap: wrap; }
+        .nav .logo { color: var(--cyan); font-weight: 800; font-size: 18px; text-decoration: none; }
+        .nav .logo:hover { text-decoration: none; opacity: 0.85; }
         .nav .sep { color: var(--muted); }
-        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
+        .nav .breadcrumb-link { color: var(--sec); text-decoration: none; }
+        .nav .breadcrumb-link:hover { color: var(--cyan); text-decoration: underline; }
+        .nav .breadcrumb-current { color: var(--text); font-weight: 600; }
+        .nav-links { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.15s; }
         .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
+        .nav-link.active { color: var(--cyan); border-color: var(--cyan); }
+
+        /* Layout */
         .container { max-width: 960px; margin: 0 auto; padding: 28px; }
+
+        /* Top bar (back + share) */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .back-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--sec); font-size: 13px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); text-decoration: none; transition: all 0.15s; cursor: pointer; }
+        .back-btn:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
+        .share-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--sec); font-size: 13px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; transition: all 0.15s; }
+        .share-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+        .share-btn.copied { color: var(--trust); border-color: var(--trust); }
+
+        /* Hero */
         .hero { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
         .hero-left h1 { font-size: 28px; color: var(--cyan); }
         .hero-left .wallet { font-family: 'SF Mono', monospace; font-size: 13px; color: var(--sec); margin-top: 6px; }
@@ -25,12 +45,16 @@
         .big-verdict { font-size: 16px; font-weight: 700; margin-top: 4px; }
         .badge-embed { margin-top: 8px; font-size: 11px; color: var(--muted); }
         .badge-embed code { background: var(--card); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+
+        /* Dimension grid */
         .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
         .dim-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
         .dim-card .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
         .dim-card .val { font-size: 28px; font-weight: 700; margin: 8px 0 4px; }
         .dim-card .bar { height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
         .dim-card .bar .fill { height: 100%; border-radius: 2px; }
+
+        /* Sections */
         .section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .section h2 { font-size: 14px; color: var(--sec); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
         .explanation { list-style: none; }
@@ -43,32 +67,195 @@
         .chart-canvas { width: 100%; height: 100%; }
         .neighbors-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
         .neighbor { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 12px; color: var(--sec); display: flex; justify-content: space-between; }
+
+        /* Loading state */
         .loading { text-align: center; padding: 60px; color: var(--muted); }
-        @media (max-width: 700px) { .grid { grid-template-columns: repeat(2, 1fr); } .hero { flex-direction: column; } .hero-right { text-align: left; } }
+
+        /* Skeleton loading */
+        @keyframes skeleton-pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.15; }
+        }
+        .skeleton { background: var(--border); border-radius: 6px; animation: skeleton-pulse 1.5s ease-in-out infinite; }
+        .skeleton-hero { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .skeleton-hero-left { flex: 1; }
+        .skeleton-hero-right { text-align: right; }
+        .skeleton-title { width: 220px; height: 32px; margin-bottom: 10px; }
+        .skeleton-wallet { width: 340px; height: 16px; margin-bottom: 10px; }
+        .skeleton-links { display: flex; gap: 12px; margin-top: 12px; }
+        .skeleton-link { width: 100px; height: 32px; border-radius: 8px; }
+        .skeleton-score { width: 100px; height: 60px; margin-left: auto; margin-bottom: 8px; }
+        .skeleton-verdict { width: 80px; height: 20px; margin-left: auto; }
+        .skeleton-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+        .skeleton-dim { height: 100px; border-radius: 10px; }
+        .skeleton-section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .skeleton-section-title { width: 140px; height: 14px; margin-bottom: 16px; }
+        .skeleton-chart { width: 100%; height: 120px; border-radius: 6px; }
+        .skeleton-line { height: 14px; margin-bottom: 10px; border-radius: 4px; }
+        .skeleton-line:nth-child(2) { width: 90%; }
+        .skeleton-line:nth-child(3) { width: 75%; }
+        .skeleton-line:nth-child(4) { width: 85%; }
+        .skeleton-neighbors { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+        .skeleton-neighbor { height: 38px; border-radius: 6px; }
+
+        /* Error state */
+        .error-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 48px; text-align: center; max-width: 500px; margin: 60px auto; }
+        .error-card .error-icon { font-size: 48px; margin-bottom: 16px; display: block; }
+        .error-card .error-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+        .error-card .error-msg { font-size: 14px; color: var(--sec); margin-bottom: 24px; line-height: 1.5; }
+        .error-card .error-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px; background: var(--blue); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; transition: opacity 0.15s; }
+        .error-card .error-btn:hover { opacity: 0.85; text-decoration: none; }
+        .error-card .error-id { font-family: 'SF Mono', monospace; font-size: 12px; color: var(--muted); margin-top: 16px; }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            .grid, .skeleton-grid { grid-template-columns: repeat(2, 1fr); }
+            .hero, .skeleton-hero { flex-direction: column; }
+            .hero-right { text-align: left; }
+            .skeleton-score, .skeleton-verdict { margin-left: 0; }
+            .nav { padding: 12px 16px; gap: 10px; }
+            .nav-links { margin-left: 0; margin-top: 8px; width: 100%; }
+        }
     </style>
 </head>
 <body>
     <div class="nav">
         <a href="/" class="logo">SentinelNet</a>
         <span class="sep">/</span>
-        <a href="/dashboard">Dashboard</a>
+        <a href="/dashboard" class="breadcrumb-link">Dashboard</a>
         <span class="sep">/</span>
-        <span style="color:var(--text)" id="nav-agent">Agent</span>
-        <span style="margin-left:auto"><a href="/" class="nav-link">← Home</a></span>
+        <span class="breadcrumb-current" id="nav-agent">Agent</span>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/dashboard" class="nav-link active">Dashboard</a>
+            <a href="/marketplace" class="nav-link">Marketplace</a>
+            <a href="/graph" class="nav-link">Graph</a>
+            <a href="/leaderboard" class="nav-link">Leaderboard</a>
+            <a href="/docs-guide" class="nav-link">Docs</a>
+        </div>
     </div>
 
     <div class="container" id="content">
-        <div class="loading">Loading agent profile...</div>
+        <!-- Skeleton loading state -->
+        <div id="skeleton-loading">
+            <div class="top-bar">
+                <div class="skeleton" style="width:160px;height:34px;border-radius:8px"></div>
+                <div class="skeleton" style="width:120px;height:34px;border-radius:8px"></div>
+            </div>
+            <div class="skeleton-hero">
+                <div class="skeleton-hero-left">
+                    <div class="skeleton skeleton-title"></div>
+                    <div class="skeleton skeleton-wallet"></div>
+                    <div class="skeleton-links">
+                        <div class="skeleton skeleton-link"></div>
+                        <div class="skeleton skeleton-link"></div>
+                        <div class="skeleton skeleton-link"></div>
+                    </div>
+                </div>
+                <div class="skeleton-hero-right">
+                    <div class="skeleton skeleton-score"></div>
+                    <div class="skeleton skeleton-verdict"></div>
+                </div>
+            </div>
+            <div class="skeleton-grid">
+                <div class="skeleton skeleton-dim"></div>
+                <div class="skeleton skeleton-dim"></div>
+                <div class="skeleton skeleton-dim"></div>
+                <div class="skeleton skeleton-dim"></div>
+                <div class="skeleton skeleton-dim"></div>
+            </div>
+            <div class="skeleton-section">
+                <div class="skeleton skeleton-section-title"></div>
+                <div class="skeleton skeleton-line" style="width:100%"></div>
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line"></div>
+            </div>
+            <div class="skeleton-section">
+                <div class="skeleton skeleton-section-title"></div>
+                <div class="skeleton skeleton-chart"></div>
+            </div>
+            <div class="skeleton-section">
+                <div class="skeleton skeleton-section-title"></div>
+                <div class="skeleton-neighbors">
+                    <div class="skeleton skeleton-neighbor"></div>
+                    <div class="skeleton skeleton-neighbor"></div>
+                    <div class="skeleton skeleton-neighbor"></div>
+                    <div class="skeleton skeleton-neighbor"></div>
+                    <div class="skeleton skeleton-neighbor"></div>
+                    <div class="skeleton skeleton-neighbor"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actual content injected here -->
+        <div id="agent-content" style="display:none"></div>
     </div>
 
     <script>
-        const agentId = window.location.pathname.split('/').pop();
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        const agentId = window.location.pathname.split('/').pop().replace(/[^0-9]/g, '');
         document.getElementById('nav-agent').textContent = `Agent #${agentId}`;
+        document.title = `Agent #${agentId} — SentinelNet`;
+
+        let refreshTimer = null;
+        let _loadInProgress = false;
 
         function col(v) { return v >= 55 ? 'var(--trust)' : v >= 40 ? 'var(--caution)' : 'var(--reject)'; }
 
-        async function load() {
-            const container = document.getElementById('content');
+        function shareAgent() {
+            const btn = document.getElementById('share-btn');
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                btn.classList.add('copied');
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> Share Agent';
+                }, 2000);
+            });
+        }
+
+        function showError(title, message) {
+            const skeleton = document.getElementById('skeleton-loading');
+            const content = document.getElementById('agent-content');
+            skeleton.style.display = 'none';
+            content.style.display = 'block';
+            content.innerHTML = `
+                <div class="error-card">
+                    <span class="error-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--reject)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </span>
+                    <div class="error-title">${escapeHtml(title)}</div>
+                    <div class="error-msg">${escapeHtml(message)}</div>
+                    <a href="/dashboard" class="error-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                        Back to Dashboard
+                    </a>
+                    <div class="error-id">Agent ID: ${escapeHtml(agentId)}</div>
+                </div>
+            `;
+        }
+
+        async function load(silent) {
+            if (_loadInProgress) return;
+            _loadInProgress = true;
+            const skeleton = document.getElementById('skeleton-loading');
+            const content = document.getElementById('agent-content');
+
+            // Only show skeleton on first load, not silent refreshes
+            if (!silent) {
+                skeleton.style.display = 'block';
+                content.style.display = 'none';
+            }
+
             try {
                 const [scoreRes, histRes, graphRes, classRes] = await Promise.allSettled([
                     fetch(`/trust/${agentId}`).then(r => r.ok ? r.json() : null),
@@ -81,13 +268,18 @@
                 const graph = graphRes.value;
                 const classData = classRes.value;
 
-                if (!s) { container.innerHTML = `<div class="loading">Agent #${agentId} has not been scored yet.</div>`; return; }
+                if (!s) {
+                    if (!silent) {
+                        showError('Agent Not Scored', 'Agent #' + escapeHtml(agentId) + ' has not been scored yet. This agent may not exist or hasn\'t been analyzed by the scoring engine.');
+                    }
+                    return;
+                }
 
                 const exp = s.explanation || {};
-                const factors = (exp.factors || []).map(f => `<li>${f}</li>`).join('');
+                const factors = (exp.factors || []).map(f => `<li>${escapeHtml(f)}</li>`).join('');
                 const sybilTag = s.sybil_flagged ? '<span style="color:var(--sybil);font-size:13px;font-weight:600"> SYBIL FLAGGED</span>' : '';
                 const staleTag = s.is_stale ? '<span style="color:var(--muted);font-size:13px"> (STALE)</span>' : '';
-                const decayInfo = s.decay_days > 0.1 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">Raw: ${s.trust_score_raw} | Decayed: ${s.trust_score} (${s.decay_days}d)</div>` : '';
+                const decayInfo = s.decay_days > 0.1 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">Raw: ${escapeHtml(s.trust_score_raw)} | Decayed: ${escapeHtml(s.trust_score)} (${escapeHtml(s.decay_days)}d)</div>` : '';
 
                 const dims = [
                     { label: 'Longevity', val: s.longevity, weight: '15%' },
@@ -99,7 +291,7 @@
                 const dimCards = dims.map(d => `
                     <div class="dim-card">
                         <div class="label">${d.label} (${d.weight})</div>
-                        <div class="val" style="color:${col(d.val)}">${d.val}</div>
+                        <div class="val" style="color:${col(d.val)}">${escapeHtml(d.val)}</div>
                         <div class="bar"><div class="fill" style="width:${d.val}%;background:${col(d.val)}"></div></div>
                     </div>
                 `).join('');
@@ -108,21 +300,21 @@
                 let linkHtml = '';
                 if (s.evidence_uri && s.evidence_uri.startsWith('ipfs://')) {
                     const cid = s.evidence_uri.replace('ipfs://', '');
-                    linkHtml += `<a class="link-btn" href="https://gateway.pinata.cloud/ipfs/${cid}" target="_blank">IPFS Evidence</a>`;
+                    linkHtml += `<a class="link-btn" href="https://gateway.pinata.cloud/ipfs/${encodeURIComponent(cid)}" target="_blank">IPFS Evidence</a>`;
                 }
                 if (s.feedback_tx && s.feedback_tx.length > 10) {
-                    linkHtml += `<a class="link-btn" href="https://basescan.org/tx/0x${s.feedback_tx.replace(/^0x/,'')}" target="_blank">On-Chain Tx</a>`;
+                    linkHtml += `<a class="link-btn" href="https://basescan.org/tx/0x${encodeURIComponent(s.feedback_tx.replace(/^0x/,''))}" target="_blank">On-Chain Tx</a>`;
                 }
-                linkHtml += `<a class="link-btn" href="/badge/${agentId}.svg" target="_blank">Trust Badge SVG</a>`;
-                linkHtml += `<a class="link-btn" href="/trust/${agentId}" target="_blank">JSON API</a>`;
+                linkHtml += `<a class="link-btn" href="/badge/${encodeURIComponent(agentId)}.svg" target="_blank">Trust Badge SVG</a>`;
+                linkHtml += `<a class="link-btn" href="/trust/${encodeURIComponent(agentId)}" target="_blank">JSON API</a>`;
 
                 // Neighbors
                 let neighborsHtml = '<div style="color:var(--muted);font-size:13px">No counterparty data available.</div>';
                 if (graph && graph.neighbors && graph.neighbors.length > 0) {
                     neighborsHtml = '<div class="neighbors-list">' + graph.neighbors.slice(0, 20).map(n => `
                         <div class="neighbor">
-                            <span>${n.counterparty.slice(0,6)}...${n.counterparty.slice(-4)}</span>
-                            <span>${n.interaction_count} txs</span>
+                            <span>${escapeHtml(n.counterparty.slice(0,6))}...${escapeHtml(n.counterparty.slice(-4))}</span>
+                            <span>${escapeHtml(n.interaction_count)} txs</span>
                         </div>
                     `).join('') + '</div>';
                     if (graph.total_neighbors > 20) {
@@ -130,28 +322,45 @@
                     }
                 }
 
-                // History chart
+                // History chart — guarded for single data point
                 let historyHtml = '<div style="color:var(--muted);font-size:13px">Score history will appear after the next sweep cycle.</div>';
-                if (hist && hist.history && hist.history.length > 1) {
-                    const points = hist.history.reverse();
-                    const maxS = Math.max(...points.map(p => p.trust_score), 100);
-                    const w = 100 / (points.length - 1);
-                    let pathD = points.map((p, i) => {
-                        const x = i * w;
-                        const y = 100 - (p.trust_score / maxS * 90 + 5);
-                        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-                    }).join(' ');
-                    historyHtml = `
-                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:120px;">
-                            <rect x="0" y="${100 - 55/maxS*90 - 5}" width="100" height="0.5" fill="var(--trust)" opacity="0.2"/>
-                            <rect x="0" y="${100 - 40/maxS*90 - 5}" width="100" height="0.5" fill="var(--caution)" opacity="0.2"/>
-                            <path d="${pathD}" fill="none" stroke="var(--cyan)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
-                        </svg>
-                        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px">
-                            <span>${points[0].scored_at.split('T')[0]}</span>
-                            <span>${points[points.length-1].scored_at.split('T')[0]}</span>
-                        </div>
-                    `;
+                if (hist && hist.history && hist.history.length >= 1) {
+                    const points = [...hist.history].reverse();
+                    if (points.length === 1) {
+                        // Single data point: show as centered dot with label
+                        const p = points[0];
+                        const yPos = 100 - (p.trust_score / 100 * 90 + 5);
+                        historyHtml = `
+                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:120px;">
+                                <rect x="0" y="${100 - 55/100*90 - 5}" width="100" height="0.5" fill="var(--trust)" opacity="0.2"/>
+                                <rect x="0" y="${100 - 40/100*90 - 5}" width="100" height="0.5" fill="var(--caution)" opacity="0.2"/>
+                                <circle cx="50" cy="${yPos}" r="2.5" fill="var(--cyan)" vector-effect="non-scaling-stroke"/>
+                            </svg>
+                            <div style="display:flex;justify-content:center;font-size:11px;color:var(--sec);margin-top:6px">
+                                <span>${p.scored_at.split('T')[0]} &mdash; Score: ${p.trust_score}</span>
+                            </div>
+                        `;
+                    } else {
+                        // Multiple data points: draw path
+                        const maxS = Math.max(...points.map(p => p.trust_score), 100);
+                        const w = 100 / (points.length - 1);
+                        let pathD = points.map((p, i) => {
+                            const x = i * w;
+                            const y = 100 - (p.trust_score / maxS * 90 + 5);
+                            return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                        }).join(' ');
+                        historyHtml = `
+                            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:120px;">
+                                <rect x="0" y="${100 - 55/maxS*90 - 5}" width="100" height="0.5" fill="var(--trust)" opacity="0.2"/>
+                                <rect x="0" y="${100 - 40/maxS*90 - 5}" width="100" height="0.5" fill="var(--caution)" opacity="0.2"/>
+                                <path d="${pathD}" fill="none" stroke="var(--cyan)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+                            </svg>
+                            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px">
+                                <span>${points[0].scored_at.split('T')[0]}</span>
+                                <span>${points[points.length-1].scored_at.split('T')[0]}</span>
+                            </div>
+                        `;
+                    }
                 }
 
                 // Trust decay projector
@@ -178,7 +387,7 @@
                             <div style="font-size:11px;color:${proj30 < currentScore ? 'var(--reject)' : 'var(--muted)'}">${proj30 - currentScore}</div>
                         </div>
                     </div>
-                    <div style="font-size:11px;color:var(--muted);margin-top:10px">Projected using exponential decay (λ=${DECAY_LAMBDA}). Rescore resets decay.</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:10px">Projected using exponential decay (&lambda;=${DECAY_LAMBDA}). Rescore resets decay.</div>
                 `;
 
                 // Classification badge
@@ -199,13 +408,13 @@
                     };
                     const tags = cl.labels.map(l => {
                         const c = labelColors[l] || 'var(--sec)';
-                        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid ${c};color:${c};background:${c}11;margin-right:6px">${labelMap[l] || l}</span>`;
+                        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid ${c};color:${c};background:${c}11;margin-right:6px">${escapeHtml(labelMap[l] || l)}</span>`;
                     }).join('');
                     classHtml = `
                         <div class="section">
                             <h2>Agent Classification</h2>
                             <div style="margin-bottom:8px">${tags}</div>
-                            <div style="font-size:12px;color:var(--muted)">${cl.interactions_analyzed} interactions analyzed</div>
+                            <div style="font-size:12px;color:var(--muted)">${escapeHtml(cl.interactions_analyzed)} interactions analyzed</div>
                         </div>
                     `;
                 }
@@ -217,9 +426,9 @@
                     const recItems = recovery.map(r => {
                         const pColor = r.priority === 'critical' ? 'var(--reject)' : r.priority === 'high' ? 'var(--caution)' : 'var(--blue)';
                         return `<li style="padding:10px 0;border-bottom:1px solid var(--border)">
-                            <span style="display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;color:${pColor};border:1px solid ${pColor};margin-right:8px;text-transform:uppercase">${r.priority}</span>
-                            <span style="font-size:11px;color:var(--muted)">${r.dimension} (${r.score}/100)</span>
-                            <div style="font-size:13px;color:var(--sec);margin-top:4px">${r.action}</div>
+                            <span style="display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;color:${pColor};border:1px solid ${pColor};margin-right:8px;text-transform:uppercase">${escapeHtml(r.priority)}</span>
+                            <span style="font-size:11px;color:var(--muted)">${escapeHtml(r.dimension)} (${escapeHtml(r.score)}/100)</span>
+                            <div style="font-size:13px;color:var(--sec);margin-top:4px">${escapeHtml(r.action)}</div>
                         </li>`;
                     }).join('');
                     recoveryHtml = `
@@ -231,23 +440,40 @@
                     `;
                 }
 
-                container.innerHTML = `
+                // Hide skeleton, show content
+                skeleton.style.display = 'none';
+                content.style.display = 'block';
+
+                const safeAgentId = escapeHtml(agentId);
+
+                content.innerHTML = `
+                    <div class="top-bar">
+                        <a href="/dashboard" class="back-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                            Back to Dashboard
+                        </a>
+                        <button class="share-btn" id="share-btn" onclick="shareAgent()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                            Share Agent
+                        </button>
+                    </div>
+
                     <div class="hero">
                         <div class="hero-left">
-                            <h1>Agent #${agentId}${sybilTag}${staleTag}</h1>
-                            <div class="wallet">${s.wallet}</div>
+                            <h1>Agent #${safeAgentId}${sybilTag}${staleTag}</h1>
+                            <div class="wallet">${escapeHtml(s.wallet)}</div>
                             <div class="links">${linkHtml}</div>
                         </div>
                         <div class="hero-right">
-                            <div class="big-score" style="color:${col(s.trust_score)}">${s.trust_score}</div>
-                            <div class="big-verdict" style="color:${col(s.trust_score)}">${s.verdict}</div>
+                            <div class="big-score" style="color:${col(s.trust_score)}">${escapeHtml(s.trust_score)}</div>
+                            <div class="big-verdict" style="color:${col(s.trust_score)}">${escapeHtml(s.verdict)}</div>
                             ${decayInfo}
                             <div class="badge-embed">
                                 <div style="margin-bottom:4px">Embed this badge:</div>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap">
-                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('![Trust](https://sentinelnet.gudman.xyz/badge/${agentId}.svg)');this.textContent='Copied!';setTimeout(()=>this.textContent='Markdown',1500)" title="Click to copy Markdown">Markdown</code>
-                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('<img src=&quot;https://sentinelnet.gudman.xyz/badge/${agentId}.svg&quot; alt=&quot;SentinelNet Trust&quot;>');this.textContent='Copied!';setTimeout(()=>this.textContent='HTML',1500)" title="Click to copy HTML">HTML</code>
-                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('https://sentinelnet.gudman.xyz/badge/${agentId}.svg');this.textContent='Copied!';setTimeout(()=>this.textContent='URL',1500)" title="Click to copy URL">URL</code>
+                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('![Trust](https://sentinelnet.gudman.xyz/badge/${safeAgentId}.svg)');this.textContent='Copied!';setTimeout(()=>this.textContent='Markdown',1500)" title="Click to copy Markdown">Markdown</code>
+                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('<img src=&quot;https://sentinelnet.gudman.xyz/badge/${safeAgentId}.svg&quot; alt=&quot;SentinelNet Trust&quot;>');this.textContent='Copied!';setTimeout(()=>this.textContent='HTML',1500)" title="Click to copy HTML">HTML</code>
+                                    <code style="cursor:pointer" onclick="navigator.clipboard.writeText('https://sentinelnet.gudman.xyz/badge/${safeAgentId}.svg');this.textContent='Copied!';setTimeout(()=>this.textContent='URL',1500)" title="Click to copy URL">URL</code>
                                 </div>
                             </div>
                         </div>
@@ -259,7 +485,7 @@
 
                     <div class="section">
                         <h2>Trust Analysis</h2>
-                        <div style="font-size:14px;color:var(--text);margin-bottom:12px">${exp.summary || ''}</div>
+                        <div style="font-size:14px;color:var(--text);margin-bottom:12px">${escapeHtml(exp.summary || '')}</div>
                         <ul class="explanation">${factors}</ul>
                     </div>
 
@@ -276,15 +502,29 @@
                     </div>
 
                     <div class="section">
-                        <h2>Counterparty Network (${graph ? graph.total_neighbors : 0} addresses)</h2>
+                        <h2>Counterparty Network (${escapeHtml(graph ? graph.total_neighbors : 0)} addresses)</h2>
                         ${neighborsHtml}
                     </div>
                 `;
             } catch (e) {
-                container.innerHTML = `<div class="loading">Error loading profile: ${e.message}</div>`;
+                if (!silent) {
+                    showError('Error Loading Profile', 'Something went wrong while loading Agent #' + escapeHtml(agentId) + '. ' + escapeHtml(e.message));
+                }
+            } finally {
+                _loadInProgress = false;
             }
         }
-        load();
+
+        // Initial load
+        load(false);
+
+        // Auto-refresh every 30 seconds (silent — no skeleton flash)
+        refreshTimer = setInterval(() => load(true), 30000);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (refreshTimer) clearInterval(refreshTimer);
+        });
     </script>
 </body>
 </html>

@@ -3,24 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Integration Guide — SentinelNet</title>
+    <title>Integration Guide — SentinelNet v2.2</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
     <style>
-        :root { --bg: #080810; --card: #0f0f1a; --border: #1e1e3a; --text: #e8e8f0; --muted: #555570; --sec: #8888aa; --blue: #0088ff; --cyan: #00ccff; --trust: #00dd77; }
+        :root { --bg: #080810; --card: #0f0f1a; --border: #1e1e3a; --text: #e8e8f0; --muted: #555570; --sec: #8888aa; --blue: #0088ff; --cyan: #00ccff; --trust: #00dd77; --warn: #ff9900; --danger: #ff4466; }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
         a { color: var(--blue); }
-        .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 16px; font-size: 13px; }
+        .nav { background: #0c0c18; border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 16px; font-size: 13px; flex-wrap: wrap; }
         .nav .logo { color: var(--cyan); font-weight: 800; font-size: 18px; text-decoration: none; }
         .nav .sep { color: var(--muted); }
+        .nav-links { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
         .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; }
         .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
-        .container { max-width: 760px; margin: 0 auto; padding: 40px 28px; }
+        .nav-link.active { color: var(--cyan); border-color: var(--cyan); }
+        .container { max-width: 820px; margin: 0 auto; padding: 40px 28px 80px; }
         h1 { font-size: 32px; margin-bottom: 8px; }
-        h2 { font-size: 20px; margin: 36px 0 12px; color: var(--cyan); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
-        h3 { font-size: 15px; margin: 20px 0 8px; color: var(--text); }
+        h2 { font-size: 20px; margin: 48px 0 12px; color: var(--cyan); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        h3 { font-size: 15px; margin: 24px 0 8px; color: var(--text); }
+        h4 { font-size: 13px; margin: 16px 0 6px; color: var(--sec); text-transform: uppercase; letter-spacing: 0.5px; }
         p { font-size: 14px; color: var(--sec); line-height: 1.7; margin-bottom: 12px; }
-        .subtitle { font-size: 16px; color: var(--sec); margin-bottom: 32px; }
+        .subtitle { font-size: 16px; color: var(--sec); margin-bottom: 12px; }
+        .version { display: inline-block; font-size: 12px; color: var(--cyan); background: rgba(0,204,255,0.08); border: 1px solid rgba(0,204,255,0.2); border-radius: 6px; padding: 2px 10px; margin-left: 10px; vertical-align: middle; }
         pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; color: var(--sec); line-height: 1.6; margin-bottom: 16px; }
         code { font-family: 'SF Mono', monospace; font-size: 12px; background: var(--card); padding: 2px 6px; border-radius: 4px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
@@ -28,6 +32,26 @@
         td { padding: 8px 12px; font-size: 13px; border: 1px solid var(--border); color: var(--sec); }
         td code { font-size: 11px; }
         .note { background: rgba(0,136,255,0.06); border: 1px solid rgba(0,136,255,0.2); border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--sec); margin-bottom: 16px; }
+        .warn { background: rgba(255,153,0,0.06); border: 1px solid rgba(255,153,0,0.2); border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--sec); margin-bottom: 16px; }
+        .danger { background: rgba(255,68,102,0.06); border: 1px solid rgba(255,68,102,0.2); border-radius: 8px; padding: 12px 16px; font-size: 13px; color: var(--sec); margin-bottom: 16px; }
+        .method { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.3px; }
+        .method-get { background: rgba(0,221,119,0.12); color: var(--trust); }
+        .method-post { background: rgba(0,136,255,0.12); color: var(--blue); }
+        .method-delete { background: rgba(255,68,102,0.12); color: var(--danger); }
+        .method-ws { background: rgba(0,204,255,0.12); color: var(--cyan); }
+        .toc { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 32px; }
+        .toc h3 { margin: 0 0 12px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .toc ul { list-style: none; columns: 2; gap: 24px; }
+        .toc li { font-size: 13px; margin-bottom: 6px; }
+        .toc a { color: var(--sec); text-decoration: none; }
+        .toc a:hover { color: var(--cyan); }
+        ul.plain { list-style: none; padding-left: 0; }
+        ul.plain li { font-size: 13px; color: var(--sec); margin-bottom: 4px; padding-left: 16px; position: relative; }
+        ul.plain li::before { content: "-"; position: absolute; left: 0; color: var(--muted); }
+        @media (max-width: 640px) {
+            .toc ul { columns: 1; }
+            .container { padding: 24px 16px 60px; }
+        }
     </style>
 </head>
 <body>
@@ -35,30 +59,110 @@
         <a href="/" class="logo">SentinelNet</a>
         <span class="sep">/</span>
         <span style="color:var(--text)">Integration Guide</span>
-        <span style="margin-left:auto"><a href="/" class="nav-link">← Home</a></span>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/marketplace" class="nav-link">Marketplace</a>
+            <a href="/graph" class="nav-link">Graph</a>
+            <a href="/leaderboard" class="nav-link">Leaderboard</a>
+            <a href="/docs-guide" class="nav-link active">Docs</a>
+        </div>
     </div>
     <div class="container">
-        <h1>Integration Guide</h1>
+        <h1>Integration Guide <span class="version">v2.2</span></h1>
         <p class="subtitle">Add trust-gated agent interactions to your project in minutes.</p>
 
-        <h2>REST API</h2>
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#authentication">Authentication</a></li>
+                <li><a href="#rest-api">REST API</a></li>
+                <li><a href="#websocket">WebSocket</a></li>
+                <li><a href="#errors">Error Handling</a></li>
+                <li><a href="#python-sdk">Python SDK</a></li>
+                <li><a href="#javascript-sdk">JavaScript SDK</a></li>
+                <li><a href="#smart-contract">Smart Contracts</a></li>
+                <li><a href="#mcp">MCP Integration</a></li>
+                <li><a href="#webhooks">Webhooks</a></li>
+                <li><a href="#on-chain">On-Chain Verification</a></li>
+                <li><a href="#scoring">Scoring Model</a></li>
+                <li><a href="#threats">Threat Intelligence</a></li>
+            </ul>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- AUTHENTICATION                                                -->
+        <!-- ============================================================ -->
+        <h2 id="authentication">Authentication</h2>
+        <p>All API requests require an API key passed via the <code>X-API-Key</code> header. Generate a key through the API keys endpoint.</p>
+
+        <h3>Generate an API Key</h3>
+<pre>POST /api/keys
+Content-Type: application/json
+
+{
+  "name": "my-integration",
+  "scopes": ["read", "write"]
+}
+
+{
+  "api_key": "sn_live_abc123...",
+  "name": "my-integration",
+  "created_at": "2026-03-22T00:00:00Z",
+  "scopes": ["read", "write"]
+}</pre>
+
+        <h3>Using the Key</h3>
+<pre>curl -H "X-API-Key: sn_live_abc123..." \
+  https://sentinelnet.gudman.xyz/trust/31253</pre>
+
+        <h3>Rate Limits</h3>
+        <table>
+            <tr><th>Tier</th><th>Limit</th><th>Notes</th></tr>
+            <tr><td>Default</td><td>100 req/min</td><td>All authenticated requests</td></tr>
+            <tr><td>Batch endpoints</td><td>20 req/min</td><td><code>/trust/batch</code>, <code>/api/simulate</code></td></tr>
+            <tr><td>WebSocket</td><td>1 connection</td><td>Per API key</td></tr>
+            <tr><td>Webhooks</td><td>10 registrations</td><td>Per API key</td></tr>
+        </table>
+        <p>Rate limit headers are included on every response:</p>
+<pre>X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 97
+X-RateLimit-Reset: 1711036860</pre>
+
+        <!-- ============================================================ -->
+        <!-- REST API                                                      -->
+        <!-- ============================================================ -->
+        <h2 id="rest-api">REST API</h2>
         <p>Base URL: <code>https://sentinelnet.gudman.xyz</code></p>
 
+        <h3>Endpoints</h3>
         <table>
             <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
-            <tr><td><code>/trust/{agent_id}</code></td><td>GET</td><td>Trust score with decay + explanation</td></tr>
-            <tr><td><code>/trust/{agent_id}/history</code></td><td>GET</td><td>Score history for trend analysis</td></tr>
-            <tr><td><code>/trust/batch</code></td><td>POST</td><td>Batch query up to 100 agents</td></tr>
-            <tr><td><code>/trust/graph/{agent_id}</code></td><td>GET</td><td>Counterparty trust neighborhood</td></tr>
-            <tr><td><code>/badge/{agent_id}.svg</code></td><td>GET</td><td>Embeddable SVG trust badge</td></tr>
-            <tr><td><code>/api/scores</code></td><td>GET</td><td>All scored agents</td></tr>
-            <tr><td><code>/api/stats</code></td><td>GET</td><td>Ecosystem statistics</td></tr>
-            <tr><td><code>/api/threats</code></td><td>GET</td><td>Real-time threat intelligence feed</td></tr>
-            <tr><td><code>/api/graph-data</code></td><td>GET</td><td>Full agent graph for visualization</td></tr>
-            <tr><td><code>/api/trustgate/{agent_id}</code></td><td>GET</td><td>On-chain TrustGate record</td></tr>
-            <tr><td><code>/api/contracts</code></td><td>GET</td><td>Deployed contracts with explorer links</td></tr>
-            <tr><td><code>/api/eas/{agent_id}</code></td><td>GET</td><td>EAS attestation info</td></tr>
-            <tr><td><code>/api/health</code></td><td>GET</td><td>Health check</td></tr>
+            <tr><td><code>/api/health</code></td><td><span class="method method-get">GET</span></td><td>Health check</td></tr>
+            <tr><td><code>/api/scores</code></td><td><span class="method method-get">GET</span></td><td>All scored agents (query: <code>apply_decay</code>, <code>verdict</code>)</td></tr>
+            <tr><td><code>/api/stats</code></td><td><span class="method method-get">GET</span></td><td>Ecosystem statistics</td></tr>
+            <tr><td><code>/api/marketplace</code></td><td><span class="method method-get">GET</span></td><td>Paginated marketplace (query: <code>page</code>, <code>per_page</code>, <code>verdict</code>, <code>search</code>, <code>sort</code>)</td></tr>
+            <tr><td><code>/trust/{agent_id}</code></td><td><span class="method method-get">GET</span></td><td>Trust score with decay + explanation</td></tr>
+            <tr><td><code>/trust/{agent_id}/history</code></td><td><span class="method method-get">GET</span></td><td>Score history (query: <code>limit</code>)</td></tr>
+            <tr><td><code>/trust/compare</code></td><td><span class="method method-get">GET</span></td><td>Side-by-side comparison (query: <code>agents=1,2,3</code>)</td></tr>
+            <tr><td><code>/trust/batch</code></td><td><span class="method method-post">POST</span></td><td>Batch query up to 100 agents</td></tr>
+            <tr><td><code>/trust/graph/{agent_id}</code></td><td><span class="method method-get">GET</span></td><td>Counterparty trust neighborhood</td></tr>
+            <tr><td><code>/badge/{agent_id}.svg</code></td><td><span class="method method-get">GET</span></td><td>Embeddable SVG trust badge</td></tr>
+            <tr><td><code>/evidence/{agent_id}</code></td><td><span class="method method-get">GET</span></td><td>Evidence timeline</td></tr>
+            <tr><td><code>/api/threats</code></td><td><span class="method method-get">GET</span></td><td>Threat intelligence feed (query: <code>limit</code>)</td></tr>
+            <tr><td><code>/api/anomalies</code></td><td><span class="method method-get">GET</span></td><td>Statistical anomaly detection</td></tr>
+            <tr><td><code>/api/graph-data</code></td><td><span class="method method-get">GET</span></td><td>Full agent graph for visualization</td></tr>
+            <tr><td><code>/api/classify/{agent_id}</code></td><td><span class="method method-get">GET</span></td><td>Agent behavioral classification</td></tr>
+            <tr><td><code>/api/trustgate/{agent_id}</code></td><td><span class="method method-get">GET</span></td><td>On-chain TrustGate record</td></tr>
+            <tr><td><code>/api/contracts</code></td><td><span class="method method-get">GET</span></td><td>Deployed contract addresses</td></tr>
+            <tr><td><code>/api/eas/{agent_id}</code></td><td><span class="method method-get">GET</span></td><td>EAS attestation info</td></tr>
+            <tr><td><code>/api/simulate</code></td><td><span class="method method-post">POST</span></td><td>Score simulation</td></tr>
+            <tr><td><code>/api/webhooks</code></td><td><span class="method method-post">POST</span></td><td>Register webhook</td></tr>
+            <tr><td><code>/api/webhooks</code></td><td><span class="method method-get">GET</span></td><td>List webhooks</td></tr>
+            <tr><td><code>/api/webhooks/{id}</code></td><td><span class="method method-delete">DELETE</span></td><td>Delete webhook</td></tr>
+            <tr><td><code>/api/keys</code></td><td><span class="method method-post">POST</span></td><td>Generate API key</td></tr>
+            <tr><td><code>/metrics</code></td><td><span class="method method-get">GET</span></td><td>Prometheus metrics</td></tr>
+            <tr><td><code>/ws/scores</code></td><td><span class="method method-ws">WS</span></td><td>Live score updates</td></tr>
         </table>
 
         <h3>Single Agent Query</h3>
@@ -104,11 +208,262 @@ Content-Type: application/json
   "found": 3
 }</pre>
 
+        <h3>Agent Comparison</h3>
+<pre>GET /trust/compare?agents=31253,42,100
+
+{
+  "agents": [
+    {"agent_id": 31253, "trust_score": 70, "verdict": "TRUST", "longevity": 85, ...},
+    {"agent_id": 42, "trust_score": 48, "verdict": "CAUTION", "longevity": 30, ...},
+    {"agent_id": 100, "trust_score": 22, "verdict": "REJECT", "longevity": 5, ...}
+  ],
+  "compared": 3
+}</pre>
+
+        <h3>Marketplace</h3>
+<pre>GET /api/marketplace?page=1&amp;per_page=20&amp;verdict=TRUST&amp;sort=score_desc&amp;search=defi
+
+{
+  "agents": [...],
+  "total": 312,
+  "page": 1,
+  "per_page": 20,
+  "pages": 16
+}</pre>
+
+        <h3>Score Simulation</h3>
+        <p>Simulate what a score would look like with hypothetical inputs, without persisting anything.</p>
+<pre>POST /api/simulate
+Content-Type: application/json
+
+{
+  "longevity": 80,
+  "activity": 65,
+  "counterparty": 70,
+  "contract_risk": 55,
+  "agent_identity": 75
+}
+
+{
+  "simulated_score": 69,
+  "verdict": "TRUST",
+  "breakdown": {
+    "longevity_weighted": 12.0,
+    "activity_weighted": 13.0,
+    "counterparty_weighted": 14.0,
+    "contract_risk_weighted": 11.0,
+    "agent_identity_weighted": 18.75
+  }
+}</pre>
+
+        <h3>Agent Classification</h3>
+<pre>GET /api/classify/31253
+
+{
+  "agent_id": 31253,
+  "classification": "DeFi Operator",
+  "confidence": 0.87,
+  "behavioral_tags": ["high_frequency", "multi_protocol", "consistent_patterns"],
+  "risk_profile": "low"
+}</pre>
+
+        <h3>Anomaly Detection</h3>
+<pre>GET /api/anomalies
+
+{
+  "anomalies": [
+    {
+      "agent_id": 42,
+      "type": "score_spike",
+      "description": "Score jumped from 25 to 72 in 24h",
+      "detected_at": "2026-03-21T18:30:00Z",
+      "severity": "MEDIUM"
+    }
+  ],
+  "count": 1
+}</pre>
+
+        <h3>Evidence Timeline</h3>
+<pre>GET /evidence/31253
+
+{
+  "agent_id": 31253,
+  "timeline": [
+    {
+      "timestamp": "2026-03-20T12:00:00Z",
+      "event": "score_computed",
+      "score": 70,
+      "verdict": "TRUST",
+      "evidence_uri": "ipfs://Qm..."
+    },
+    {
+      "timestamp": "2026-03-18T08:00:00Z",
+      "event": "score_computed",
+      "score": 68,
+      "verdict": "TRUST",
+      "evidence_uri": "ipfs://Qm..."
+    }
+  ]
+}</pre>
+
         <h3>Trust Badge</h3>
         <p>Embed a live trust badge on any site:</p>
 <pre>&lt;img src="https://sentinelnet.gudman.xyz/badge/31253.svg" alt="Trust Score"&gt;</pre>
 
-        <h2>Python SDK</h2>
+        <h3>Prometheus Metrics</h3>
+        <p>Scrape <code>/metrics</code> for Prometheus-compatible telemetry:</p>
+<pre>GET /metrics
+
+# HELP sentinelnet_agents_scored_total Total agents scored
+# TYPE sentinelnet_agents_scored_total counter
+sentinelnet_agents_scored_total 487
+
+# HELP sentinelnet_scoring_duration_seconds Time to compute trust score
+# TYPE sentinelnet_scoring_duration_seconds histogram
+sentinelnet_scoring_duration_seconds_bucket{le="0.5"} 412
+...</pre>
+
+        <!-- ============================================================ -->
+        <!-- WEBSOCKET                                                     -->
+        <!-- ============================================================ -->
+        <h2 id="websocket">WebSocket</h2>
+        <p>Connect to <code>/ws/scores</code> for real-time trust score updates and threat alerts pushed as they happen.</p>
+
+        <h3>Connection</h3>
+<pre>ws://sentinelnet.gudman.xyz/ws/scores
+wss://sentinelnet.gudman.xyz/ws/scores  (TLS)</pre>
+
+        <div class="note">
+            Pass your API key as a query parameter: <code>wss://sentinelnet.gudman.xyz/ws/scores?api_key=sn_live_abc123...</code>
+        </div>
+
+        <h3>Event Types</h3>
+        <table>
+            <tr><th>Event</th><th>Description</th><th>Frequency</th></tr>
+            <tr><td><code>score_update</code></td><td>An agent's trust score was recomputed</td><td>As rescored</td></tr>
+            <tr><td><code>threat_alert</code></td><td>New threat detected (sybil, degradation, contagion)</td><td>Real-time</td></tr>
+        </table>
+
+        <h3>Message Format</h3>
+<pre>// score_update event
+{
+  "event": "score_update",
+  "data": {
+    "agent_id": 31253,
+    "trust_score": 72,
+    "previous_score": 70,
+    "verdict": "TRUST",
+    "timestamp": "2026-03-22T14:30:00Z"
+  }
+}
+
+// threat_alert event
+{
+  "event": "threat_alert",
+  "data": {
+    "threat_type": "SYBIL_CLUSTER",
+    "severity": "HIGH",
+    "agent_ids": [42, 43, 44, 45, 46],
+    "details": "Cluster of 5 agents sharing wallet 0xabc...",
+    "timestamp": "2026-03-22T14:31:00Z"
+  }
+}</pre>
+
+        <h3>JavaScript Example</h3>
+<pre>const ws = new WebSocket(
+  "wss://sentinelnet.gudman.xyz/ws/scores?api_key=sn_live_abc123..."
+);
+
+ws.onopen = () => {
+  console.log("Connected to SentinelNet live feed");
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+
+  if (msg.event === "score_update") {
+    console.log(`Agent ${msg.data.agent_id}: ${msg.data.trust_score}`);
+  }
+
+  if (msg.event === "threat_alert") {
+    console.warn(`THREAT: ${msg.data.threat_type} — ${msg.data.details}`);
+  }
+};
+
+ws.onclose = (event) => {
+  console.log(`Disconnected: ${event.code} ${event.reason}`);
+  // Reconnect logic here
+};
+
+ws.onerror = (error) => {
+  console.error("WebSocket error:", error);
+};</pre>
+
+        <!-- ============================================================ -->
+        <!-- ERROR HANDLING                                                -->
+        <!-- ============================================================ -->
+        <h2 id="errors">Error Handling</h2>
+        <p>All error responses follow a consistent JSON structure. The <code>status</code> field matches the HTTP status code.</p>
+
+        <h3>Error Response Format</h3>
+<pre>{
+  "error": "Human-readable error message",
+  "status": 400,
+  "detail": "Optional additional context"
+}</pre>
+
+        <h3>400 — Validation Error</h3>
+        <p>Invalid or missing request parameters.</p>
+<pre>POST /trust/batch
+Content-Type: application/json
+
+{"agent_ids": []}
+
+HTTP/1.1 400 Bad Request
+{
+  "error": "Validation error",
+  "status": 400,
+  "detail": "agent_ids must contain between 1 and 100 agent IDs"
+}</pre>
+
+        <h3>404 — Not Found</h3>
+        <p>Requested resource does not exist.</p>
+<pre>GET /trust/999999
+
+HTTP/1.1 404 Not Found
+{
+  "error": "Agent not found",
+  "status": 404,
+  "detail": "No scored agent with ID 999999"
+}</pre>
+
+        <h3>429 — Rate Limited</h3>
+        <p>Too many requests. Back off and retry after the <code>Retry-After</code> header value.</p>
+<pre>HTTP/1.1 429 Too Many Requests
+Retry-After: 32
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1711036892
+
+{
+  "error": "Rate limit exceeded",
+  "status": 429,
+  "detail": "100 requests per minute exceeded. Retry after 32 seconds."
+}</pre>
+
+        <h3>500 — Server Error</h3>
+        <p>Unexpected internal error. These are logged and investigated.</p>
+<pre>HTTP/1.1 500 Internal Server Error
+{
+  "error": "Internal server error",
+  "status": 500,
+  "detail": "An unexpected error occurred. Please try again later."
+}</pre>
+
+        <!-- ============================================================ -->
+        <!-- PYTHON SDK                                                    -->
+        <!-- ============================================================ -->
+        <h2 id="python-sdk">Python SDK</h2>
         <p>Install: <code>pip install sentinelnet</code></p>
 <pre>from sentinelnet import SentinelNet
 
@@ -130,7 +485,10 @@ from sentinelnet import AsyncSentinelNet
 async with AsyncSentinelNet() as sn:
     score = await sn.get_trust(31253)</pre>
 
-        <h2>JavaScript SDK</h2>
+        <!-- ============================================================ -->
+        <!-- JAVASCRIPT SDK                                                -->
+        <!-- ============================================================ -->
+        <h2 id="javascript-sdk">JavaScript SDK</h2>
         <p>Install: <code>npm install sentinelnet</code></p>
 <pre>import SentinelNet from "sentinelnet";
 
@@ -151,7 +509,10 @@ const results = await sn.batchTrust([1, 2, 3, 100]);
 // Threat intelligence
 const threats = await sn.getThreats(10);</pre>
 
-        <h2>Smart Contract Integration</h2>
+        <!-- ============================================================ -->
+        <!-- SMART CONTRACT                                                -->
+        <!-- ============================================================ -->
+        <h2 id="smart-contract">Smart Contract Integration</h2>
         <p>Use <code>TrustGate.sol</code> to gate on-chain interactions by trust score.</p>
 
         <h3>Import and Use</h3>
@@ -204,8 +565,11 @@ contract RiskChecker {
             <tr><td><code>onlyNotRejected(agentId)</code></td><td>Agent is REJECT verdict</td></tr>
         </table>
 
-        <h2>MCP Integration</h2>
-        <p>5 tools available via Model Context Protocol for agent-to-agent trust queries:</p>
+        <!-- ============================================================ -->
+        <!-- MCP INTEGRATION                                               -->
+        <!-- ============================================================ -->
+        <h2 id="mcp">MCP Integration</h2>
+        <p>8 tools available via Model Context Protocol for agent-to-agent trust queries:</p>
 
         <table>
             <tr><th>Tool</th><th>Input</th><th>Description</th></tr>
@@ -214,13 +578,160 @@ contract RiskChecker {
             <tr><td><code>get_ecosystem_stats</code></td><td>none</td><td>Aggregate trust statistics</td></tr>
             <tr><td><code>get_score_history</code></td><td><code>agent_id</code>, <code>limit?</code></td><td>Score trends over time</td></tr>
             <tr><td><code>get_threat_feed</code></td><td><code>limit?</code></td><td>Real-time threat intelligence feed</td></tr>
+            <tr><td><code>compare_agents</code></td><td><code>agent_ids</code></td><td>Side-by-side trust comparison of multiple agents</td></tr>
+            <tr><td><code>check_sybil_status</code></td><td><code>agent_id</code></td><td>Check if an agent is flagged as part of a sybil cluster</td></tr>
+            <tr><td><code>verify_on_chain</code></td><td><code>agent_id</code></td><td>Verify trust score against on-chain TrustGate record</td></tr>
         </table>
 
-        <div class="note">
-            Interactive API documentation is available at <a href="/docs">/docs</a> (Swagger UI).
-        </div>
+        <h3>MCP Configuration</h3>
+        <p>Add SentinelNet to your MCP client config:</p>
+<pre>{
+  "mcpServers": {
+    "sentinelnet": {
+      "command": "npx",
+      "args": ["-y", "sentinelnet-mcp"],
+      "env": {
+        "SENTINELNET_API_KEY": "sn_live_abc123...",
+        "SENTINELNET_BASE_URL": "https://sentinelnet.gudman.xyz"
+      }
+    }
+  }
+}</pre>
 
-        <h2>On-Chain Verification</h2>
+        <h3>MCP Tool Examples</h3>
+<pre>// compare_agents — returns side-by-side trust data
+{
+  "tool": "compare_agents",
+  "input": {"agent_ids": [31253, 42, 100]}
+}
+
+// check_sybil_status — returns cluster membership
+{
+  "tool": "check_sybil_status",
+  "input": {"agent_id": 42}
+}
+// Response:
+{
+  "agent_id": 42,
+  "is_sybil": true,
+  "cluster_id": "cluster_0x3f...",
+  "cluster_size": 5,
+  "shared_wallet": "0xabc..."
+}
+
+// verify_on_chain — cross-checks API score vs TrustGate contract
+{
+  "tool": "verify_on_chain",
+  "input": {"agent_id": 31253}
+}
+// Response:
+{
+  "agent_id": 31253,
+  "api_score": 70,
+  "on_chain_score": 70,
+  "match": true,
+  "contract": "0x...",
+  "last_updated": "2026-03-22T12:00:00Z"
+}</pre>
+
+        <!-- ============================================================ -->
+        <!-- WEBHOOKS                                                      -->
+        <!-- ============================================================ -->
+        <h2 id="webhooks">Webhooks</h2>
+        <p>Register HTTP endpoints to receive push notifications when trust events occur. SentinelNet will POST a JSON payload to your URL for each matching event.</p>
+
+        <h3>Register a Webhook</h3>
+<pre>POST /api/webhooks
+Content-Type: application/json
+X-API-Key: sn_live_abc123...
+
+{
+  "url": "https://your-app.com/hooks/sentinelnet",
+  "events": ["score_update", "threat_alert", "verdict_change"],
+  "secret": "your_webhook_secret_here"
+}
+
+{
+  "id": "wh_abc123",
+  "url": "https://your-app.com/hooks/sentinelnet",
+  "events": ["score_update", "threat_alert", "verdict_change"],
+  "created_at": "2026-03-22T00:00:00Z",
+  "active": true
+}</pre>
+
+        <h3>Event Types</h3>
+        <table>
+            <tr><th>Event</th><th>Fires When</th><th>Payload Includes</th></tr>
+            <tr><td><code>score_update</code></td><td>Any agent's score is recomputed</td><td><code>agent_id</code>, <code>trust_score</code>, <code>previous_score</code>, <code>verdict</code></td></tr>
+            <tr><td><code>threat_alert</code></td><td>New threat detected</td><td><code>threat_type</code>, <code>severity</code>, <code>agent_ids</code>, <code>details</code></td></tr>
+            <tr><td><code>verdict_change</code></td><td>Agent verdict transitions (e.g., TRUST to CAUTION)</td><td><code>agent_id</code>, <code>old_verdict</code>, <code>new_verdict</code>, <code>trust_score</code></td></tr>
+        </table>
+
+        <h3>Webhook Payload</h3>
+<pre>POST https://your-app.com/hooks/sentinelnet
+Content-Type: application/json
+X-SentinelNet-Signature: sha256=a1b2c3d4...
+X-SentinelNet-Event: verdict_change
+X-SentinelNet-Delivery: del_xyz789
+
+{
+  "event": "verdict_change",
+  "timestamp": "2026-03-22T14:30:00Z",
+  "data": {
+    "agent_id": 42,
+    "old_verdict": "TRUST",
+    "new_verdict": "CAUTION",
+    "trust_score": 51,
+    "previous_score": 58
+  }
+}</pre>
+
+        <h3>Signature Verification</h3>
+        <p>Each webhook delivery is signed with HMAC-SHA256 using your <code>secret</code>. Verify the <code>X-SentinelNet-Signature</code> header to ensure authenticity:</p>
+<pre>import hmac, hashlib
+
+def verify_webhook(payload_bytes, signature_header, secret):
+    expected = "sha256=" + hmac.new(
+        secret.encode(), payload_bytes, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature_header)</pre>
+
+        <h3>Retry Policy</h3>
+        <table>
+            <tr><th>Attempt</th><th>Delay</th><th>Notes</th></tr>
+            <tr><td>1st retry</td><td>30 seconds</td><td>After initial failure (non-2xx response or timeout)</td></tr>
+            <tr><td>2nd retry</td><td>2 minutes</td><td>Exponential backoff</td></tr>
+            <tr><td>3rd retry</td><td>10 minutes</td><td>Final attempt</td></tr>
+        </table>
+        <p>If all 3 retries fail, the delivery is marked as failed. Webhooks that fail 10 consecutive deliveries are automatically disabled. Re-enable by updating the webhook via the API.</p>
+
+        <h3>Manage Webhooks</h3>
+<pre>// List all webhooks
+GET /api/webhooks
+X-API-Key: sn_live_abc123...
+
+{
+  "webhooks": [
+    {
+      "id": "wh_abc123",
+      "url": "https://your-app.com/hooks/sentinelnet",
+      "events": ["score_update", "threat_alert", "verdict_change"],
+      "active": true,
+      "created_at": "2026-03-22T00:00:00Z"
+    }
+  ]
+}
+
+// Delete a webhook
+DELETE /api/webhooks/wh_abc123
+X-API-Key: sn_live_abc123...
+
+HTTP/1.1 204 No Content</pre>
+
+        <!-- ============================================================ -->
+        <!-- ON-CHAIN VERIFICATION                                         -->
+        <!-- ============================================================ -->
+        <h2 id="on-chain">On-Chain Verification</h2>
         <p>Every trust score is written on-chain via <strong>TrustGate</strong> (composable trust oracle) and attested via <strong>EAS</strong> (Ethereum Attestation Service).</p>
 
         <h3>TrustGate Query</h3>
@@ -259,7 +770,10 @@ contract RiskChecker {
   "explorer": "https://base.easscan.org/attestation/view/0x..."
 }</pre>
 
-        <h2>Scoring Model</h2>
+        <!-- ============================================================ -->
+        <!-- SCORING MODEL                                                 -->
+        <!-- ============================================================ -->
+        <h2 id="scoring">Scoring Model</h2>
         <table>
             <tr><th>Dimension</th><th>Weight</th><th>Signal</th></tr>
             <tr><td>Longevity</td><td>15%</td><td>Wallet age (logarithmic curve)</td></tr>
@@ -274,7 +788,10 @@ contract RiskChecker {
         <p><strong>Trust decay:</strong> <code>effective_score = base_score * e^(-0.01 * days)</code>. Applied at query time. Stale after 7 days.</p>
         <p><strong>Verdicts:</strong> TRUST (&ge;55) | CAUTION (40-54) | REJECT (&lt;40)</p>
 
-        <h2>Threat Intelligence</h2>
+        <!-- ============================================================ -->
+        <!-- THREAT INTELLIGENCE                                           -->
+        <!-- ============================================================ -->
+        <h2 id="threats">Threat Intelligence</h2>
         <p>Real-time feed of ecosystem threats detected by the autonomous agent:</p>
         <table>
             <tr><th>Threat Type</th><th>Description</th></tr>
@@ -296,6 +813,11 @@ contract RiskChecker {
   ],
   "count": 1
 }</pre>
+
+        <div class="note">
+            Interactive API documentation is available at <a href="/docs">/docs</a> (Swagger UI). All endpoints accept <code>application/json</code> and return <code>application/json</code> unless otherwise noted.
+        </div>
+
     </div>
 </body>
 </html>

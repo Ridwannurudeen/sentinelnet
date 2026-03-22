@@ -91,6 +91,37 @@ class SentinelNet:
         except httpx.HTTPStatusError:
             return False
 
+    def get_comparison(self, agent_ids: List[int]) -> dict:
+        """Compare trust scores side-by-side for multiple agents."""
+        ids_str = ",".join(str(i) for i in agent_ids)
+        return self._get("/trust/compare", agents=ids_str)
+
+    def get_anomalies(self) -> dict:
+        """Get statistical anomalies detected across the agent ecosystem."""
+        return self._get("/api/anomalies")
+
+    def get_classification(self, agent_id: int) -> dict:
+        """Get behavioral classification for an agent."""
+        return self._get(f"/api/classify/{agent_id}")
+
+    def register_webhook(self, url: str, events: List[str], secret: str = None) -> dict:
+        """Register a webhook for real-time notifications."""
+        payload = {"url": url, "events": events}
+        if secret:
+            payload["secret"] = secret
+        return self._post("/api/webhooks", json=payload)
+
+    def list_webhooks(self) -> dict:
+        """List all registered webhooks."""
+        return self._get("/api/webhooks")
+
+    def delete_webhook(self, webhook_id: str) -> dict:
+        """Delete a webhook by ID."""
+        webhook_id = str(webhook_id).replace("/", "").replace("..", "")
+        r = self._client.delete(f"/api/webhooks/{webhook_id}")
+        r.raise_for_status()
+        return r.json()
+
     def close(self):
         self._client.close()
 
@@ -169,6 +200,37 @@ class AsyncSentinelNet:
             return score.get("trust_score", 0) >= min_score and not score.get("sybil_flagged")
         except httpx.HTTPStatusError:
             return False
+
+    async def get_comparison(self, agent_ids: List[int]) -> dict:
+        """Compare trust scores side-by-side for multiple agents."""
+        ids_str = ",".join(str(i) for i in agent_ids)
+        return await self._get("/trust/compare", agents=ids_str)
+
+    async def get_anomalies(self) -> dict:
+        """Get statistical anomalies detected across the agent ecosystem."""
+        return await self._get("/api/anomalies")
+
+    async def get_classification(self, agent_id: int) -> dict:
+        """Get behavioral classification for an agent."""
+        return await self._get(f"/api/classify/{agent_id}")
+
+    async def register_webhook(self, url: str, events: List[str], secret: str = None) -> dict:
+        """Register a webhook for real-time notifications."""
+        payload = {"url": url, "events": events}
+        if secret:
+            payload["secret"] = secret
+        return await self._post("/api/webhooks", json=payload)
+
+    async def list_webhooks(self) -> dict:
+        """List all registered webhooks."""
+        return await self._get("/api/webhooks")
+
+    async def delete_webhook(self, webhook_id: str) -> dict:
+        """Delete a webhook by ID."""
+        webhook_id = str(webhook_id).replace("/", "").replace("..", "")
+        r = await self._client.delete(f"/api/webhooks/{webhook_id}")
+        r.raise_for_status()
+        return r.json()
 
     async def close(self):
         await self._client.aclose()

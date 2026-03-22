@@ -1,11 +1,14 @@
 import asyncio
+import ipaddress
 import math
 import os
+import secrets
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
@@ -343,12 +346,13 @@ async def stats():
 @app.get("/trust/compare", tags=["Trust"])
 async def compare_agents(agents: str = Query(..., description="Comma-separated agent IDs (max 10)")):
     """Compare trust scores across multiple agents side-by-side."""
+    parts = agents.split(",")
+    if len(parts) > 10:
+        raise HTTPException(400, "Maximum 10 agents for comparison")
     try:
-        agent_ids = [int(x.strip()) for x in agents.split(",")]
+        agent_ids = [int(x.strip()) for x in parts]
     except ValueError:
         raise HTTPException(400, "Provide comma-separated integer agent IDs")
-    if len(agent_ids) > 10:
-        raise HTTPException(400, "Maximum 10 agents for comparison")
 
     results = []
     for aid in agent_ids:
@@ -414,6 +418,8 @@ async def batch_trust(request: Request):
     agent_ids = body.get("agent_ids", [])
     if not agent_ids or len(agent_ids) > 100:
         raise HTTPException(400, "Provide 1-100 agent_ids")
+    if not all(isinstance(x, int) for x in agent_ids):
+        raise HTTPException(400, "All agent_ids must be integers")
     results = {}
     for aid in agent_ids:
         score = await db.get_score(aid)
@@ -576,8 +582,8 @@ async def get_trustgate_record(agent_id: int):
             "contract": _settings.TRUSTGATE_CONTRACT,
             "explorer": f"https://basescan.org/address/{_settings.TRUSTGATE_CONTRACT}",
         }
-    except Exception as e:
-        raise HTTPException(500, f"On-chain read failed: {str(e)}")
+    except Exception:
+        raise HTTPException(500, "On-chain read failed")
 
 
 @app.get("/api/contracts", tags=["On-Chain"])
@@ -658,6 +664,8 @@ async def simulate_interaction(request: Request):
     agent_b = body.get("interact_with")
     if not agent_a or not agent_b:
         raise HTTPException(400, "Provide agent_id and interact_with")
+    if not isinstance(agent_a, int) or not isinstance(agent_b, int):
+        raise HTTPException(400, "agent_id and interact_with must be integers")
 
     score_a = await db.get_score(agent_a)
     score_b = await db.get_score(agent_b)
@@ -812,9 +820,28 @@ async def classify_agent(agent_id: int):
 
 # ─── Webhooks ───
 
+
+def _is_private_url(url: str) -> bool:
+    """Block webhooks to private/internal IPs."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+        if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0", ""):
+            return True
+        if hostname.endswith(".local") or hostname.endswith(".internal"):
+            return True
+        try:
+            ip = ipaddress.ip_address(hostname)
+            return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+        except ValueError:
+            pass  # hostname, not IP — allow DNS names
+    except Exception:
+        return True
+    return False
+
+
 # In-memory webhook store (persists until restart — lightweight for hackathon)
 _webhooks = {}  # id -> {url, events, created_at}
-_webhook_counter = 0
 
 
 @app.post("/api/webhooks", tags=["Webhooks"])
@@ -822,14 +849,16 @@ async def register_webhook(request: Request):
     """Register a webhook URL to receive trust alerts.
     Body: {"url": "https://...", "events": ["trust_degraded", "sybil_detected", "verdict_changed"]}
     If events is omitted, all events are subscribed."""
-    global _webhook_counter
     body = await request.json()
     url = body.get("url", "")
     if not url or not url.startswith("http"):
         raise HTTPException(400, "Provide a valid webhook URL")
+    if _is_private_url(url):
+        raise HTTPException(400, "Webhook URL must not point to private/internal addresses")
+    if len(_webhooks) >= 50:
+        raise HTTPException(429, "Maximum 50 webhooks allowed")
     events = body.get("events", ["trust_degraded", "sybil_detected", "verdict_changed"])
-    _webhook_counter += 1
-    wh_id = f"wh_{_webhook_counter}"
+    wh_id = f"wh_{secrets.token_hex(8)}"
     _webhooks[wh_id] = {
         "url": url,
         "events": events,
@@ -892,20 +921,25 @@ async def trigger_score(agent_id: int):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(500, f"Scoring failed: {str(e)}")
+    except Exception:
+        raise HTTPException(500, "Scoring failed")
 
 
 # ─── WebSocket Live Feed ───
 
 class ConnectionManager:
     """Manages WebSocket connections for live score updates."""
-    def __init__(self):
+    def __init__(self, max_connections: int = 100):
         self.active: List[WebSocket] = []
+        self.max_connections = max_connections
 
     async def connect(self, ws: WebSocket):
+        if len(self.active) >= self.max_connections:
+            await ws.close(code=1013, reason="Too many connections")
+            return False
         await ws.accept()
         self.active.append(ws)
+        return True
 
     def disconnect(self, ws: WebSocket):
         if ws in self.active:
@@ -928,7 +962,8 @@ ws_manager = ConnectionManager()
 @app.websocket("/ws/scores")
 async def ws_scores(websocket: WebSocket):
     """WebSocket endpoint streaming real-time score updates."""
-    await ws_manager.connect(websocket)
+    if not await ws_manager.connect(websocket):
+        return
     try:
         while True:
             await websocket.receive_text()  # Keep alive
@@ -955,7 +990,6 @@ _rate_limits: dict = defaultdict(list)  # ip -> [timestamps]
 RATE_LIMIT_FREE = 100       # requests per hour (unauthenticated)
 RATE_LIMIT_AUTH = 1000       # requests per hour (with API key)
 _api_keys: dict = {}         # key -> {email, created_at}
-_api_key_counter = 0
 
 
 def _check_rate_limit(ip: str, api_key: str = None) -> tuple:
@@ -977,7 +1011,7 @@ def _check_rate_limit(ip: str, api_key: str = None) -> tuple:
 async def rate_limit_middleware(request: Request, call_next):
     # Skip rate limiting for pages, static assets, and WebSocket
     path = request.url.path
-    if path.startswith("/_next") or path.startswith("/ws") or not path.startswith("/api"):
+    if path.startswith("/_next") or path.startswith("/ws") or path in ("/", "/dashboard", "/graph", "/leaderboard", "/marketplace", "/docs-guide"):
         return await call_next(request)
 
     ip = request.client.host if request.client else "unknown"
@@ -1007,15 +1041,11 @@ async def rate_limit_middleware(request: Request, call_next):
 async def register_api_key(request: Request):
     """Register for an API key to get higher rate limits (1000 req/hr).
     Body: {"email": "dev@example.com"}"""
-    global _api_key_counter
     body = await request.json()
     email = body.get("email", "")
     if not email or "@" not in email:
         raise HTTPException(400, "Provide a valid email")
-    import hashlib
-    _api_key_counter += 1
-    raw = f"sentinelnet-{email}-{_api_key_counter}-{time.time()}"
-    key = "sk-sn-" + hashlib.sha256(raw.encode()).hexdigest()[:32]
+    key = "sk-sn-" + secrets.token_hex(24)
     _api_keys[key] = {"email": email, "created_at": datetime.now(timezone.utc).isoformat()}
     return {"api_key": key, "rate_limit": RATE_LIMIT_AUTH, "note": "Include as X-API-Key header"}
 

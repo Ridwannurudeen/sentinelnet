@@ -96,6 +96,52 @@ async def list_tools():
                 "required": [],
             },
         ),
+        Tool(
+            name="compare_agents",
+            description="Compare trust scores side-by-side for multiple ERC-8004 agents. "
+                        "Useful for evaluating which agent to interact with.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "agent_ids": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "description": "List of ERC-8004 agent IDs to compare",
+                    },
+                },
+                "required": ["agent_ids"],
+            },
+        ),
+        Tool(
+            name="check_sybil_status",
+            description="Check whether an agent has been flagged as part of a sybil cluster. "
+                        "Returns sybil flag status and cluster information if available.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "agent_id": {
+                        "type": "integer",
+                        "description": "ERC-8004 agent ID",
+                    },
+                },
+                "required": ["agent_id"],
+            },
+        ),
+        Tool(
+            name="verify_on_chain",
+            description="Check the on-chain TrustGate verification status for an agent. "
+                        "Returns whether the agent's trust score has been published to the Base TrustGate contract.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "agent_id": {
+                        "type": "integer",
+                        "description": "ERC-8004 agent ID",
+                    },
+                },
+                "required": ["agent_id"],
+            },
+        ),
     ]
 
 
@@ -114,11 +160,19 @@ async def call_tool(name: str, arguments: dict):
         return await _handle_history(arguments)
     elif name == "get_threat_feed":
         return await _handle_threats(arguments)
+    elif name == "compare_agents":
+        return await _handle_compare(arguments)
+    elif name == "check_sybil_status":
+        return await _handle_sybil(arguments)
+    elif name == "verify_on_chain":
+        return await _handle_verify(arguments)
     return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
 
 
 async def _handle_check_trust(args):
-    agent_id = args["agent_id"]
+    agent_id = args.get("agent_id")
+    if not isinstance(agent_id, int) or agent_id < 0:
+        return [TextContent(type="text", text=json.dumps({"error": "agent_id must be a non-negative integer"}))]
     fresh = args.get("fresh", False)
 
     if fresh and _agent_ref:
@@ -128,9 +182,9 @@ async def _handle_check_trust(args):
                 score = await db.get_score(agent_id)
                 if score:
                     return [TextContent(type="text", text=json.dumps(score, default=str))]
-        except Exception as e:
+        except Exception:
             return [TextContent(type="text", text=json.dumps({
-                "error": f"Fresh analysis failed: {str(e)}",
+                "error": "Fresh analysis failed",
                 "agent_id": agent_id,
             }))]
 
@@ -178,7 +232,9 @@ async def _handle_stats(args):
 
 
 async def _handle_history(args):
-    agent_id = args["agent_id"]
+    agent_id = args.get("agent_id")
+    if not isinstance(agent_id, int) or agent_id < 0:
+        return [TextContent(type="text", text=json.dumps({"error": "agent_id must be a non-negative integer"}))]
     limit = args.get("limit", 20)
     history = await db.get_score_history(agent_id, limit=limit)
     if not history:
@@ -199,6 +255,73 @@ async def _handle_threats(args):
     return [TextContent(type="text", text=json.dumps({
         "threats": threats,
         "count": len(threats),
+    }, default=str))]
+
+
+async def _handle_compare(args):
+    agent_ids = args.get("agent_ids", [])
+    if not isinstance(agent_ids, list) or len(agent_ids) > 10:
+        return [TextContent(type="text", text=json.dumps({"error": "Provide 1-10 agent_ids"}))]
+    if not all(isinstance(x, int) and x >= 0 for x in agent_ids):
+        return [TextContent(type="text", text=json.dumps({"error": "All agent_ids must be non-negative integers"}))]
+    results = []
+    for aid in agent_ids:
+        score = await db.get_score(aid)
+        if score:
+            results.append({
+                "agent_id": aid,
+                "trust_score": score["trust_score"],
+                "verdict": score["verdict"],
+                "sybil_flagged": score.get("sybil_flagged", False),
+                "wallet": score.get("wallet"),
+            })
+        else:
+            results.append({
+                "agent_id": aid,
+                "error": "Not scored yet",
+            })
+    return [TextContent(type="text", text=json.dumps({
+        "comparison": results,
+        "count": len(results),
+    }, default=str))]
+
+
+async def _handle_sybil(args):
+    agent_id = args.get("agent_id")
+    if not isinstance(agent_id, int) or agent_id < 0:
+        return [TextContent(type="text", text=json.dumps({"error": "agent_id must be a non-negative integer"}))]
+    score = await db.get_score(agent_id)
+    if not score:
+        return [TextContent(type="text", text=json.dumps({
+            "error": f"Agent {agent_id} not scored yet",
+            "agent_id": agent_id,
+        }))]
+    return [TextContent(type="text", text=json.dumps({
+        "agent_id": agent_id,
+        "sybil_flagged": score.get("sybil_flagged", False),
+        "trust_score": score["trust_score"],
+        "verdict": score["verdict"],
+        "wallet": score.get("wallet"),
+    }, default=str))]
+
+
+async def _handle_verify(args):
+    agent_id = args.get("agent_id")
+    if not isinstance(agent_id, int) or agent_id < 0:
+        return [TextContent(type="text", text=json.dumps({"error": "agent_id must be a non-negative integer"}))]
+    score = await db.get_score(agent_id)
+    if not score:
+        return [TextContent(type="text", text=json.dumps({
+            "error": f"Agent {agent_id} not scored yet",
+            "agent_id": agent_id,
+        }))]
+    return [TextContent(type="text", text=json.dumps({
+        "agent_id": agent_id,
+        "trust_score": score["trust_score"],
+        "verdict": score["verdict"],
+        "on_chain_verified": score.get("on_chain_verified", False),
+        "trustgate_contract": score.get("trustgate_contract"),
+        "last_updated": score.get("updated_at"),
     }, default=str))]
 
 
