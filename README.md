@@ -10,9 +10,10 @@ Other agents query SentinelNet before transacting with unknown counterparties. O
 
 SentinelNet is not a demo. It's running in production on Base Mainnet.
 
-- **2,700+ agents scored** across all 3 verdict classes, scanning all 35K+ registered agents
-- **1,642 sybil agents flagged** across 67 wallets and 859 coordinated clusters
-- **3,387 threat events** detected — sybil clusters, trust degradations, contagion events
+- **3,237 agents scored** across all 3 verdict classes, scanning all 35K+ registered agents
+- **1,920 sybil agents flagged** across 78 wallets and 859 coordinated clusters
+- **5,224 threat events** detected — sybil clusters, trust degradations, contagion events
+- **Gasless on-chain writes** via Coinbase CDP Paymaster — 355+ UserOperations sent through ERC-4337 Smart Account
 - **Agent marketplace** at [sentinelnet.gudman.xyz/marketplace](https://sentinelnet.gudman.xyz/marketplace) — browse, filter, TrustGate check
 - **WebSocket live feed** — real-time score updates streamed to connected clients
 - **Prometheus metrics** at [/metrics](https://sentinelnet.gudman.xyz/metrics) — production-grade observability
@@ -53,9 +54,9 @@ SentinelNet is that infrastructure.
 │  └────────────┘  └──────────────┘  └───────────────┘               │
 │                                                                     │
 │  ┌────────────┐  ┌──────────────┐  ┌───────────────┐               │
-│  │ Trust      │  │ EAS          │  │ MCP + REST +  │               │
-│  │ Decay      │  │ Attestation  │  │ Python/JS SDK │               │
-│  │ (exp)      │  │ (Base)       │  │ (5 tools)     │               │
+│  │ Trust      │  │ CDP          │  │ MCP + REST +  │               │
+│  │ Decay      │  │ Paymaster    │  │ Python/JS SDK │               │
+│  │ (exp)      │  │ (gasless)    │  │ (8 tools)     │               │
 │  └────────────┘  └──────────────┘  └───────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
          │                │                │
@@ -118,7 +119,7 @@ Dual-method detection catches coordinated agent rings:
 
 Flagged agents get -20 point penalty and are immediately re-scored. Clusters are logged to the threat intelligence feed.
 
-**Real results**: Found 859 sybil clusters totaling 1,642 flagged agents across 67 wallets — including clusters of 10+ agents registered on a single wallet address (`0x0049dCe82B...`, `0x039e96bB...`), all crushed to score 0 with maximum contagion penalty.
+**Real results**: Found 859 sybil clusters totaling 1,920 flagged agents across 78 wallets — including clusters of 10+ agents registered on a single wallet address (`0x0049dCe82B...`, `0x039e96bB...`), all crushed to score 0 with maximum contagion penalty.
 
 ### Trust Decay
 
@@ -201,7 +202,7 @@ Modifiers: `onlyTrusted()`, `onlyNotRejected()`
 
 ### MCP Integration
 
-5 tools via Model Context Protocol for agent-to-agent trust queries:
+8 tools via Model Context Protocol for agent-to-agent trust queries:
 
 | Tool | Description |
 |------|-------------|
@@ -210,6 +211,9 @@ Modifiers: `onlyTrusted()`, `onlyNotRejected()`
 | `get_ecosystem_stats` | Aggregate trust statistics |
 | `get_score_history` | Trust trends over time |
 | `get_threat_feed` | Real-time threat intelligence feed |
+| `compare_agents` | Side-by-side comparison of multiple agents |
+| `check_sybil_status` | Sybil cluster info for an agent |
+| `verify_on_chain` | TrustGate contract verification |
 
 ### REST API
 
@@ -252,9 +256,9 @@ Real-time feed of ecosystem threats detected autonomously:
 |----------|-------|------|
 | Agent identity | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #31253 registered via ERC-8004 |
 | Trust scores | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` per agent with IPFS URI |
-| Evidence | IPFS via Pinata | Full analysis JSON pinned per agent |
+| Evidence | IPFS / API | Full analysis JSON pinned per agent |
 | Score stakes | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) | ETH staked per score, 72h challenge window |
-| Trust oracle | TrustGate contract | `isTrusted()`, `getTrustScore()` — composable queries |
+| Trust oracle | [TrustGate](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) | `isTrusted()`, `getTrustScore()` — composable queries |
 
 ## Setup
 
@@ -272,7 +276,7 @@ python main.py
 
 ```bash
 pytest tests/ -v
-# 100 tests across 16 test files
+# 100 tests across 18 test files
 ```
 
 ## Project Structure
@@ -285,7 +289,7 @@ sentinelnet/
 │   ├── trust_engine.py       # Weighted scoring + exponential decay
 │   ├── contagion.py          # PageRank-style trust propagation engine
 │   ├── sybil.py              # Dual-method sybil detection (wallet-sharing + cliques)
-│   ├── eas.py                # EAS attestation integration for Base
+│   ├── paymaster.py          # Coinbase CDP Paymaster (gasless ERC-4337 UserOps)
 │   ├── publisher.py          # IPFS + Reputation Registry + evidence builder
 │   ├── validator.py          # Validation responder
 │   ├── alerts.py             # Trust degradation detection
@@ -305,7 +309,7 @@ sentinelnet/
 │   ├── python/               # pip install sentinelnet (sync + async)
 │   └── js/                   # npm install sentinelnet (TypeScript types)
 ├── mcp/
-│   └── server.py             # 5 MCP tools
+│   └── server.py             # 8 MCP tools
 ├── dashboard/
 │   ├── landing.html          # Landing page
 │   ├── index.html            # Live monitoring dashboard with threat ticker
@@ -313,11 +317,11 @@ sentinelnet/
 │   ├── graph.html            # D3.js interactive trust network visualization
 │   └── docs.html             # Integration guide
 ├── landing/                  # Next.js static landing page (Framer Motion, Tailwind)
-├── api.py                    # FastAPI REST + WebSocket server (20+ endpoints)
+├── api.py                    # FastAPI REST + WebSocket server (28 endpoints)
 ├── main.py                   # Entry point + WebSocket broadcast wiring
 ├── db.py                     # SQLite WAL cache + score history + threats
 ├── config.py                 # Pydantic Settings
-└── tests/                    # 100 tests, 16 files
+└── tests/                    # 100 tests, 18 files
 ```
 
 ## Tech Stack
@@ -329,7 +333,7 @@ sentinelnet/
 | Smart Contracts | Solidity 0.8.24, Base Mainnet |
 | Agent Protocol | MCP (Model Context Protocol) |
 | Identity | ERC-8004 Identity + Reputation Registries |
-| Attestations | EAS (Ethereum Attestation Service) on Base |
+| Gasless Txs | Coinbase CDP SDK, ERC-4337 Smart Account, Paymaster |
 | Storage | SQLite WAL (aiosqlite), IPFS (Pinata) |
 | Chain Data | web3.py, Blockscout API |
 | Visualization | D3.js force-directed graph |

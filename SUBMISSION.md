@@ -2,7 +2,7 @@
 
 ## One-liner
 
-Autonomous reputation watchdog that scored 3,226 agents, flagged 1,893 sybils, and logged 4,834 threats — zero human involvement.
+Autonomous reputation watchdog that scored 3,237 agents, flagged 1,920 sybils, and logged 5,224 threats — zero human involvement.
 
 ## What it does
 
@@ -18,17 +18,17 @@ Any agent or contract can query SentinelNet before transacting with an unknown c
 
 This is not theoretical. SentinelNet found real threats in the wild:
 
-- **1,893 sybil agents** across 67+ wallets — one wallet registered 10+ agents, all sharing the same address (`0x0049dCe82B...`). SentinelNet flagged them autonomously, applied -20 sybil penalty, and crushed all to score 0.
+- **1,920 sybil agents** across 78+ wallets — one wallet registered 10+ agents, all sharing the same address (`0x0049dCe82B...`). SentinelNet flagged them autonomously, applied -20 sybil penalty, and crushed all to score 0.
 - **859+ sybil clusters** detected through dual-method analysis (wallet-sharing + interaction graph cliques)
-- **4,834 threat events** logged — sybil clusters, trust degradations, and trust contagion spreading through the interaction graph
-- **2,177 agents REJECTED** (67% of scored agents) — the ERC-8004 ecosystem has a trust problem, and SentinelNet quantifies it
+- **5,224 threat events** logged — sybil clusters, trust degradations, and trust contagion spreading through the interaction graph
+- **2,295 agents REJECTED** (71% of scored agents) — the ERC-8004 ecosystem has a trust problem, and SentinelNet quantifies it
 
 ## How it works
 
 1. **Discover** — Progressive full-registry sweep of all 35K+ agents (cursor-based batches, every 30 min)
 2. **Analyze** — 5-dimensional scoring: Longevity (15%), Activity (20%), Counterparty Quality (20%), Contract Risk (20%), Agent Identity (25%)
 3. **Detect** — Dual-method sybil detection (wallet-sharing + graph cliques) + PageRank-style trust contagion
-4. **Publish** — Pin evidence to IPFS, write reputation feedback on-chain, stake ETH behind every score
+4. **Publish** — Pin evidence to IPFS, write reputation feedback on-chain via gasless Coinbase CDP Paymaster, stake ETH behind every score
 5. **Alert** — Emit on-chain TrustDegraded events, fire webhooks, stream via WebSocket
 
 ## What makes this different
@@ -37,6 +37,7 @@ This is not theoretical. SentinelNet found real threats in the wild:
 - **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 1,893 actual sybils in the wild, operating across 67+ wallets, and flagged every one of them.
 - **8 integration paths** — Any protocol can plug in however they want: smart contract, Python SDK, JavaScript SDK, REST API, MCP, WebSocket, webhooks, or Prometheus. No vendor lock-in.
 - **On-chain verifiability** — Every trust score is backed by a TrustGate contract call, IPFS-pinned evidence, and staked ETH. Nothing is hand-waved.
+- **Gasless via Coinbase CDP Paymaster** — All on-chain writes (feedback, staking, trust degradation) routed through an ERC-4337 Smart Account with sponsored gas. Zero ETH needed. 355+ UserOperations sent.
 - **Trust contagion** — PageRank-style propagation through the agent interaction graph. If an agent transacts with flagged counterparties, its score degrades automatically. Trust is earned through the network, not declared.
 
 ## Integration paths
@@ -72,21 +73,21 @@ Everything is running in production right now:
 | Reputation feedback | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) |
 | Score staking | [SentinelNetStaking](https://basescan.org/address/0xE171554f0c5d71872663eE9f8a773db3Fe65d0B9) |
 | Trust gate | [TrustGate](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) |
-| Evidence | IPFS via Pinata (CID per agent) |
+| Evidence | IPFS / API (full analysis JSON per agent) |
 
 ## Tech stack
 
-Python 3.11+ / FastAPI / SQLite WAL / web3.py / Next.js / Tailwind / Framer Motion / D3.js / Solidity 0.8.24 / MCP / IPFS
+Python 3.11+ / FastAPI / SQLite WAL / web3.py / Coinbase CDP SDK / ERC-4337 Smart Account / Next.js / Tailwind / Framer Motion / D3.js / Solidity 0.8.24 / MCP / IPFS
 
 ## By the numbers
 
 | | |
 |---|---|
-| **3,226** agents scored | **3,226** scores written on-chain |
-| **1,893** sybils flagged | **859+** sybil clusters detected |
-| **4,834** threats logged | **2,177** agents rejected (67%) |
-| **64** on-chain txs via paymaster | **100** tests passing |
-| **26+** API endpoints | **8** MCP tools |
+| **3,237** agents scored | **3,237** scores written on-chain |
+| **1,920** sybils flagged | **859+** sybil clusters detected |
+| **5,224** threats logged | **2,295** agents rejected (71%) |
+| **355+** on-chain UserOps via CDP Paymaster | **100** tests passing |
+| **28** API endpoints | **8** MCP tools |
 | **8** integration paths | **0** humans in the loop |
 
 ## Roadmap
