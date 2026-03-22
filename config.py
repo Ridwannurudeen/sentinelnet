@@ -38,5 +38,8 @@ class Settings(BaseSettings):
     # EAS (Ethereum Attestation Service)
     EAS_SCHEMA_UID: str = ""
 
+    # API Key Authentication
+    API_KEYS: str = ""  # Comma-separated valid API keys
+
     class Config:
         env_file = ".env"

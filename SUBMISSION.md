@@ -31,13 +31,21 @@ This is not theoretical. SentinelNet found real threats in the wild:
 4. **Publish** — Pin evidence to IPFS, write reputation feedback on-chain, stake ETH behind every score
 5. **Alert** — Emit on-chain TrustDegraded events, fire webhooks, stream via WebSocket
 
+## What makes this different
+
+- **Fully autonomous** — Agent #31253 runs 24/7 with zero human involvement. No curation, no moderation queue, no manual reviews. It discovers, scores, and publishes on its own.
+- **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 1,642 actual sybils in the wild, operating across 67 wallets, and flagged every one of them.
+- **8 integration paths** — Any protocol can plug in however they want: smart contract, Python SDK, JavaScript SDK, REST API, MCP, WebSocket, webhooks, or Prometheus. No vendor lock-in.
+- **On-chain verifiability** — Every trust score is backed by a TrustGate contract call, IPFS-pinned evidence, and staked ETH. Nothing is hand-waved.
+- **Trust contagion** — PageRank-style propagation through the agent interaction graph. If an agent transacts with flagged counterparties, its score degrades automatically. Trust is earned through the network, not declared.
+
 ## Integration paths
 
 - **Smart Contract**: [`TrustGate.sol`](https://basescan.org/address/0x985f68c98b0d1BB9B378D969C360783B64cfA4EB) — `require(gate.isTrusted(agentId))` in any contract
-- **Python SDK**: `pip install sentinelnet` — `SentinelNet().is_trusted(42)`
-- **JavaScript SDK**: `npm install sentinelnet`
-- **REST API**: `GET /trust/{agent_id}` — 20+ endpoints with rate limiting
-- **MCP**: 5 tools for agent-to-agent trust queries
+- **Python SDK**: `pip install ./sdk/python` or import from `sdk/python/sentinelnet/` — `SentinelNet().is_trusted(42)`
+- **JavaScript SDK**: `npm install ./sdk/js` or import from `sdk/js/src/`
+- **REST API**: `GET /trust/{agent_id}` — 26+ endpoints with rate limiting
+- **MCP**: 8 tools for agent-to-agent trust queries
 - **WebSocket**: `ws://host/ws/scores` — real-time score stream
 - **Webhooks**: Subscribe to trust change notifications
 - **Prometheus**: `/metrics` for production monitoring
@@ -51,7 +59,7 @@ Everything is running in production right now:
 - **Marketplace**: https://sentinelnet.gudman.xyz/marketplace
 - **Trust Network**: https://sentinelnet.gudman.xyz/graph
 - **Leaderboard**: https://sentinelnet.gudman.xyz/leaderboard
-- **API Docs**: https://sentinelnet.gudman.xyz/docs
+- **API Docs**: https://sentinelnet.gudman.xyz/docs-guide
 - **Metrics**: https://sentinelnet.gudman.xyz/metrics
 - **Anomalies**: https://sentinelnet.gudman.xyz/api/anomalies
 - **Threat Feed**: https://sentinelnet.gudman.xyz/api/threats
@@ -72,19 +80,14 @@ Python 3.11+ / FastAPI / SQLite WAL / web3.py / Next.js / Tailwind / Framer Moti
 
 ## By the numbers
 
-| Metric | Value |
-|--------|-------|
-| Agents scored | 3,098 |
-| Scores on-chain | 3,098 (via TrustGate) |
-| Sybil agents flagged | 1,642 |
-| Sybil clusters detected | 859 |
-| Threats logged | 3,387 |
-| Agents rejected | 1,804 (66%) |
-| On-chain txs (paymaster) | 64 |
-| Tests passing | 100 |
-| API endpoints | 20+ |
-| MCP tools | 5 |
-| Integration paths | 8 (Contract, Python, JS, REST, MCP, WebSocket, Webhook, Prometheus) |
+| | |
+|---|---|
+| **3,098** agents scored | **3,098** scores written on-chain |
+| **1,642** sybils flagged | **859** sybil clusters detected |
+| **3,387** threats logged | **1,804** agents rejected (66%) |
+| **64** on-chain txs via paymaster | **100** tests passing |
+| **26+** API endpoints | **8** MCP tools |
+| **8** integration paths | **0** humans in the loop |
 
 ## Roadmap
 

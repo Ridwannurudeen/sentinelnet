@@ -1,7 +1,9 @@
 import asyncio
 import ipaddress
+import logging
 import math
 import os
+import random
 import secrets
 import time
 from collections import defaultdict
@@ -13,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from web3 import Web3
 from db import Database
 from config import Settings
@@ -20,6 +23,19 @@ from agent.trust_engine import TrustEngine, DECAY_LAMBDA
 
 db = Database()
 engine = TrustEngine()
+logger = logging.getLogger("sentinelnet.api")
+_settings = Settings()
+_api_keys: dict = {}  # key -> {email, created_at} — dynamically registered keys
+
+
+def _is_valid_api_key(key: str) -> bool:
+    """Check if an API key is valid (either from config or dynamically registered)."""
+    if key in _api_keys:
+        return True
+    configured = _settings.API_KEYS.strip()
+    if configured:
+        return key in [k.strip() for k in configured.split(",") if k.strip()]
+    return False
 
 
 def _apply_decay(score_dict: dict) -> dict:
@@ -205,10 +221,56 @@ def _badge_svg(agent_id: int, score: int, verdict: str) -> str:
 </svg>'''
 
 
+RESCORE_INTERVAL_SECONDS = 60
+RESCORE_BATCH_SIZE = 5
+
+
+async def _periodic_rescore_loop():
+    """Background task: every 60s, pick 5 random scored agents and re-score them.
+
+    This keeps the WebSocket /ws/scores feed populated with fresh data.
+    Uses _agent_ref set by main.py — skips silently if agent not ready.
+    """
+    await asyncio.sleep(10)  # Let startup settle
+    while True:
+        try:
+            if _agent_ref is None:
+                logger.info("Periodic rescore: agent not ready yet, waiting...")
+                await asyncio.sleep(RESCORE_INTERVAL_SECONDS)
+                continue
+
+            all_scores = await db.get_all_scores()
+            if not all_scores:
+                logger.info("Periodic rescore: no scored agents in DB, skipping cycle")
+                await asyncio.sleep(RESCORE_INTERVAL_SECONDS)
+                continue
+
+            agent_ids = [s["agent_id"] for s in all_scores]
+            batch = random.sample(agent_ids, min(RESCORE_BATCH_SIZE, len(agent_ids)))
+            logger.info(f"Periodic rescore: re-scoring {len(batch)} agents: {batch}")
+
+            for agent_id in batch:
+                try:
+                    await _agent_ref.analyze_agent(agent_id)
+                except Exception as e:
+                    logger.warning(f"Periodic rescore: failed to score agent {agent_id}: {e}")
+
+        except Exception as e:
+            logger.error(f"Periodic rescore loop error: {e}", exc_info=True)
+
+        await asyncio.sleep(RESCORE_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app):
     await db.init()
+    rescore_task = asyncio.create_task(_periodic_rescore_loop())
     yield
+    rescore_task.cancel()
+    try:
+        await rescore_task
+    except asyncio.CancelledError:
+        pass
     await db.close()
 
 
@@ -227,6 +289,72 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+
+# ─── API Key Authentication Middleware ───
+
+# Paths that bypass API key authentication
+_AUTH_SKIP_EXACT = frozenset({
+    "/", "/dashboard", "/marketplace", "/graph", "/leaderboard",
+    "/docs-guide", "/api/health", "/api/keys", "/docs", "/openapi.json", "/redoc",
+})
+_AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/")
+
+
+class APIKeyAuthMiddleware(BaseHTTPMiddleware):
+    """Enforces API key authentication on API routes.
+
+    Checks X-API-Key header or api_key query parameter. Skips auth for
+    page routes, docs, health, badges, static assets, and WebSocket
+    connections. If API_KEYS config is empty (not configured), all
+    requests are allowed through for graceful demo degradation.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        # Always allow CORS preflight
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        # If no API keys are configured at all (neither in config nor
+        # dynamically registered), allow everything — demo / open mode
+        configured_keys = _settings.API_KEYS.strip()
+        if not configured_keys and not _api_keys:
+            return await call_next(request)
+
+        path = request.url.path
+
+        # Skip auth for page routes, docs, health, and static assets
+        if path in _AUTH_SKIP_EXACT:
+            return await call_next(request)
+        for prefix in _AUTH_SKIP_PREFIXES:
+            if path.startswith(prefix):
+                return await call_next(request)
+        # /agent/{id} page route
+        if path.startswith("/agent/") and not path.startswith("/api/"):
+            return await call_next(request)
+        # Badge SVGs
+        if path.endswith(".svg") and "/badge/" in path:
+            return await call_next(request)
+
+        # Extract API key from header or query param
+        api_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+
+        if not api_key:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Missing API key", "docs": "/docs-guide#authentication"},
+            )
+
+        if not _is_valid_api_key(api_key):
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Invalid API key"},
+            )
+
+        return await call_next(request)
+
+
+app.add_middleware(APIKeyAuthMiddleware)
 
 
 # ─── Pages ───
@@ -536,7 +664,6 @@ async def graph_data():
 
 # ─── On-Chain Verification ───
 
-_settings = Settings()
 _w3 = None
 _trustgate = None
 
@@ -957,6 +1084,8 @@ class ConnectionManager:
 
 
 ws_manager = ConnectionManager()
+_last_broadcast_time: str | None = None
+_broadcast_count: int = 0
 
 
 @app.websocket("/ws/scores")
@@ -972,31 +1101,47 @@ async def ws_scores(websocket: WebSocket):
 
 
 async def broadcast_score_update(agent_id: int, score: int, verdict: str, wallet: str):
-    """Called by the agent after scoring — broadcasts to all connected WebSocket clients."""
+    """Called by the agent after scoring -- broadcasts to all connected WebSocket clients."""
+    global _last_broadcast_time, _broadcast_count
+    _last_broadcast_time = datetime.now(timezone.utc).isoformat()
+    _broadcast_count += 1
     await ws_manager.broadcast({
         "event": "score_update",
         "agent_id": agent_id,
         "trust_score": score,
         "verdict": verdict,
         "wallet": wallet[:10] + "..." if wallet else "",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": _last_broadcast_time,
         "connections": len(ws_manager.active),
     })
+
+
+@app.get("/api/ws-stats", tags=["WebSocket"])
+async def ws_stats():
+    """Return WebSocket connection count, last broadcast time, and broadcast count."""
+    return {
+        "active_connections": len(ws_manager.active),
+        "max_connections": ws_manager.max_connections,
+        "last_broadcast_time": _last_broadcast_time,
+        "total_broadcasts": _broadcast_count,
+        "rescore_interval_seconds": RESCORE_INTERVAL_SECONDS,
+        "rescore_batch_size": RESCORE_BATCH_SIZE,
+    }
 
 
 # ─── Rate Limiting ───
 
 _rate_limits: dict = defaultdict(list)  # ip -> [timestamps]
+_request_counter: int = 0  # total API requests served
 RATE_LIMIT_FREE = 100       # requests per hour (unauthenticated)
 RATE_LIMIT_AUTH = 1000       # requests per hour (with API key)
-_api_keys: dict = {}         # key -> {email, created_at}
 
 
 def _check_rate_limit(ip: str, api_key: str = None) -> tuple:
     """Returns (allowed: bool, limit: int, remaining: int, reset: int)."""
     now = time.time()
     cutoff = now - 3600
-    limit = RATE_LIMIT_AUTH if (api_key and api_key in _api_keys) else RATE_LIMIT_FREE
+    limit = RATE_LIMIT_AUTH if (api_key and _is_valid_api_key(api_key)) else RATE_LIMIT_FREE
     # Clean old entries
     _rate_limits[ip] = [t for t in _rate_limits[ip] if t > cutoff]
     remaining = max(0, limit - len(_rate_limits[ip]))
@@ -1009,9 +1154,12 @@ def _check_rate_limit(ip: str, api_key: str = None) -> tuple:
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    # Skip rate limiting for pages, static assets, and WebSocket
+    global _request_counter
+    _request_counter += 1
+
+    # Skip rate limiting for pages, static assets, metrics, and WebSocket
     path = request.url.path
-    if path.startswith("/_next") or path.startswith("/ws") or path in ("/", "/dashboard", "/graph", "/leaderboard", "/marketplace", "/docs-guide"):
+    if path.startswith("/_next") or path.startswith("/ws") or path in ("/", "/dashboard", "/graph", "/leaderboard", "/marketplace", "/docs-guide", "/metrics"):
         return await call_next(request)
 
     ip = request.client.host if request.client else "unknown"
@@ -1039,8 +1187,13 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.post("/api/keys", tags=["Auth"])
 async def register_api_key(request: Request):
-    """Register for an API key to get higher rate limits (1000 req/hr).
-    Body: {"email": "dev@example.com"}"""
+    """Register for an API key. Grants authenticated API access and higher
+    rate limits (1000 req/hr). The key is stored in memory and valid for the
+    lifetime of the server process.
+
+    Body: {"email": "dev@example.com"}
+    Returns: {"api_key": "sk-sn-...", "rate_limit": 1000, "note": "..."}
+    """
     body = await request.json()
     email = body.get("email", "")
     if not email or "@" not in email:
@@ -1048,6 +1201,85 @@ async def register_api_key(request: Request):
     key = "sk-sn-" + secrets.token_hex(24)
     _api_keys[key] = {"email": email, "created_at": datetime.now(timezone.utc).isoformat()}
     return {"api_key": key, "rate_limit": RATE_LIMIT_AUTH, "note": "Include as X-API-Key header"}
+
+
+# ─── Prometheus Metrics ───
+
+@app.get("/metrics", tags=["Monitoring"], include_in_schema=False)
+async def metrics():
+    """Prometheus-format metrics endpoint."""
+    scores = await db.get_all_scores()
+    scores = [_apply_decay(s) for s in scores]
+
+    total = len(scores)
+    verdicts = {"TRUST": 0, "CAUTION": 0, "REJECT": 0}
+    for s in scores:
+        v = s.get("verdict", "").upper()
+        if v in verdicts:
+            verdicts[v] += 1
+
+    trust_scores = [s["trust_score"] for s in scores]
+    avg_score = round(sum(trust_scores) / total, 2) if total else 0
+    sybil_count = sum(1 for s in scores if s.get("sybil_flagged"))
+
+    # Ecosystem health: same formula as /api/stats
+    trust_pct = (verdicts["TRUST"] / total) if total else 0
+    sybil_pct = (sybil_count / total) if total else 0
+    ecosystem_health = round(avg_score * 0.4 + trust_pct * 100 * 0.3 + (1 - sybil_pct) * 100 * 0.3) if total else 0
+
+    # Total threats from DB
+    cursor = await db.conn.execute("SELECT COUNT(*) FROM threats")
+    row = await cursor.fetchone()
+    threats_total = row[0] if row else 0
+
+    ws_connections = len(ws_manager.active)
+
+    lines = [
+        "# HELP sentinelnet_agents_scored_total Total number of agents scored",
+        "# TYPE sentinelnet_agents_scored_total gauge",
+        f"sentinelnet_agents_scored_total {total}",
+        "",
+        "# HELP sentinelnet_agents_trusted Number of agents with TRUST verdict",
+        "# TYPE sentinelnet_agents_trusted gauge",
+        f"sentinelnet_agents_trusted {verdicts['TRUST']}",
+        "",
+        "# HELP sentinelnet_agents_caution Number of agents with CAUTION verdict",
+        "# TYPE sentinelnet_agents_caution gauge",
+        f"sentinelnet_agents_caution {verdicts['CAUTION']}",
+        "",
+        "# HELP sentinelnet_agents_rejected Number of agents with REJECT verdict",
+        "# TYPE sentinelnet_agents_rejected gauge",
+        f"sentinelnet_agents_rejected {verdicts['REJECT']}",
+        "",
+        "# HELP sentinelnet_sybil_flagged Number of sybil-flagged agents",
+        "# TYPE sentinelnet_sybil_flagged gauge",
+        f"sentinelnet_sybil_flagged {sybil_count}",
+        "",
+        "# HELP sentinelnet_threats_total Total threats logged",
+        "# TYPE sentinelnet_threats_total gauge",
+        f"sentinelnet_threats_total {threats_total}",
+        "",
+        "# HELP sentinelnet_avg_trust_score Average trust score across all agents",
+        "# TYPE sentinelnet_avg_trust_score gauge",
+        f"sentinelnet_avg_trust_score {avg_score}",
+        "",
+        "# HELP sentinelnet_ecosystem_health Ecosystem health score (0-100)",
+        "# TYPE sentinelnet_ecosystem_health gauge",
+        f"sentinelnet_ecosystem_health {ecosystem_health}",
+        "",
+        "# HELP sentinelnet_websocket_connections Current WebSocket connections",
+        "# TYPE sentinelnet_websocket_connections gauge",
+        f"sentinelnet_websocket_connections {ws_connections}",
+        "",
+        "# HELP sentinelnet_api_requests_total Total API requests served",
+        "# TYPE sentinelnet_api_requests_total counter",
+        f"sentinelnet_api_requests_total {_request_counter}",
+    ]
+
+    return Response(
+        content="\n".join(lines) + "\n",
+        media_type="text/plain; version=0.0.4",
+    )
 
 
 # ─── Anomaly Detection ───
@@ -1156,12 +1388,13 @@ async def marketplace_page():
 async def marketplace_list(
     verdict: str = Query(None, description="Filter by verdict: TRUST, CAUTION, REJECT"),
     min_score: int = Query(0, ge=0, le=100, description="Minimum trust score"),
-    sort: str = Query("score", description="Sort by: score, recent"),
-    search: str = Query(None, description="Search by agent ID or wallet"),
+    sort: str = Query("score", description="Sort by: score, newest"),
+    order: str = Query("desc", description="Sort order: asc or desc"),
+    search: str = Query(None, description="Search by agent ID or wallet prefix"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
-    """Browse scored agents for the marketplace with filtering and pagination."""
+    """Browse scored agents for the marketplace with filtering, sorting, and pagination."""
     scores = await db.get_all_scores()
     scores = [_apply_decay(s) for s in scores]
 
@@ -1175,10 +1408,11 @@ async def marketplace_list(
         scores = [s for s in scores if search_lower in str(s["agent_id"]) or search_lower in s.get("wallet", "").lower()]
 
     # Sort
+    descending = order.lower() != "asc"
     if sort == "score":
-        scores.sort(key=lambda s: s.get("trust_score", 0), reverse=True)
-    elif sort == "recent":
-        scores.sort(key=lambda s: s.get("scored_at", ""), reverse=True)
+        scores.sort(key=lambda s: s.get("trust_score", 0), reverse=descending)
+    elif sort in ("newest", "recent"):
+        scores.sort(key=lambda s: s.get("scored_at", ""), reverse=descending)
 
     total = len(scores)
     start = (page - 1) * per_page
