@@ -14,6 +14,7 @@ contract SentinelNetStaking {
     }
 
     address public sentinel;
+    mapping(address => bool) public authorized;
     uint256 public challengeWindow = 72 hours;
     mapping(bytes32 => Stake) public stakes;
     bool private _locked;
@@ -23,6 +24,11 @@ contract SentinelNetStaking {
     event ChallengeResolved(bytes32 indexed stakeId, bool succeeded, address challenger);
     event TrustDegraded(uint256 indexed agentId, uint8 previousScore, uint8 newScore, uint256 timestamp);
 
+    modifier onlySentinel() {
+        require(msg.sender == sentinel || authorized[msg.sender], "Only sentinel");
+        _;
+    }
+
     modifier nonReentrant() {
         require(!_locked, "Reentrant call");
         _locked = true;
@@ -30,12 +36,19 @@ contract SentinelNetStaking {
         _locked = false;
     }
 
-    constructor(address _sentinel) {
+    constructor(address _sentinel, address _smartAccount) {
         sentinel = _sentinel;
+        if (_smartAccount != address(0)) {
+            authorized[_smartAccount] = true;
+        }
     }
 
-    function stakeScore(uint256 agentId, uint8 score) external payable {
+    function setAuthorized(address addr, bool status) external {
         require(msg.sender == sentinel, "Only sentinel");
+        authorized[addr] = status;
+    }
+
+    function stakeScore(uint256 agentId, uint8 score) external payable onlySentinel {
         require(msg.value > 0, "Must stake ETH");
         bytes32 stakeId = keccak256(abi.encodePacked(agentId, score, block.timestamp));
         stakes[stakeId] = Stake(agentId, score, msg.value, block.timestamp, false, false, false, address(0));
@@ -52,8 +65,7 @@ contract SentinelNetStaking {
         emit StakeChallenged(stakeId, msg.sender);
     }
 
-    function resolveChallenge(bytes32 stakeId, bool _challengeSucceeded) external nonReentrant {
-        require(msg.sender == sentinel, "Only sentinel");
+    function resolveChallenge(bytes32 stakeId, bool _challengeSucceeded) external nonReentrant onlySentinel {
         Stake storage s = stakes[stakeId];
         require(s.challenged, "Not challenged");
         require(!s.resolved, "Already resolved");
@@ -70,8 +82,7 @@ contract SentinelNetStaking {
         emit ChallengeResolved(stakeId, _challengeSucceeded, s.challenger);
     }
 
-    function withdraw(bytes32 stakeId) external nonReentrant {
-        require(msg.sender == sentinel, "Only sentinel");
+    function withdraw(bytes32 stakeId) external nonReentrant onlySentinel {
         Stake storage s = stakes[stakeId];
         require(s.amount > 0, "No stake");
         require(block.timestamp > s.stakedAt + challengeWindow, "Window open");
@@ -83,8 +94,7 @@ contract SentinelNetStaking {
         require(success, "Transfer failed");
     }
 
-    function emitTrustDegraded(uint256 agentId, uint8 prev, uint8 next) external {
-        require(msg.sender == sentinel, "Only sentinel");
+    function emitTrustDegraded(uint256 agentId, uint8 prev, uint8 next) external onlySentinel {
         emit TrustDegraded(agentId, prev, next, block.timestamp);
     }
 }
