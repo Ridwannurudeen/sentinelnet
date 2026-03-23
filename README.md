@@ -247,18 +247,25 @@ Full TypeScript types included.
 | `/trust/{agent_id}/history` | GET | Score history for trend analysis |
 | `/trust/batch` | POST | Batch query up to 100 agents |
 | `/trust/graph/{agent_id}` | GET | Counterparty trust neighborhood |
-| `/badge/{agent_id}.svg` | GET | Embeddable SVG trust badge |
 | `/trust/compare?agents=1,2,3` | GET | Side-by-side agent comparison (max 10) |
+| `/badge/{agent_id}.svg` | GET | Embeddable SVG trust badge |
+| `/evidence/{agent_id}` | GET | IPFS evidence JSON for a scored agent |
 | `/api/scores` | GET | All scored agents with verdicts |
 | `/api/stats` | GET | Ecosystem statistics |
 | `/api/threats` | GET | Real-time threat intelligence feed |
 | `/api/anomalies` | GET | Anomaly detection (rapid drops, suspicious scores) |
 | `/api/marketplace` | GET | Paginated agent browse with filters |
 | `/api/graph-data` | GET | Full interaction graph for visualization |
+| `/api/trustgate/{agent_id}` | GET | On-chain TrustGate score lookup |
+| `/api/contracts` | GET | Deployed contract addresses and info |
+| `/api/eas/{agent_id}` | GET | EAS attestation data |
+| `/api/simulate` | POST | Transaction simulation |
+| `/api/classify/{agent_id}` | GET | Agent risk classification |
 | `/api/webhooks` | POST/GET/DELETE | Register/list/remove webhook subscriptions |
 | `/api/keys` | POST | Register for API key (1000 req/hr) |
 | `/api/score/{agent_id}` | POST | Trigger on-demand scoring |
 | `/api/health` | GET | Health check |
+| `/api/ws-stats` | GET | WebSocket connection statistics |
 | `/metrics` | GET | Prometheus-compatible metrics |
 | `ws://host/ws/scores` | WebSocket | Real-time score update stream |
 
@@ -288,10 +295,10 @@ Real-time feed of ecosystem threats detected autonomously:
 
 | Artifact | Address | Purpose |
 |----------|---------|---------|
-| Agent identity | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #31253 registered via ERC-8004 |
-| Trust scores | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` per agent with IPFS URI |
-| Score stakes | [SentinelNetStaking](https://basescan.org/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7) | ETH staked per score, 72h challenge window |
-| Trust oracle | [TrustGate](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) | `isTrusted()`, `getTrustScore()` — composable queries |
+| Agent identity | [Identity Registry](https://base.blockscout.com/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #31253 registered via ERC-8004 |
+| Trust scores | [Reputation Registry](https://base.blockscout.com/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` per agent with IPFS URI |
+| Score stakes | [SentinelNetStaking](https://base.blockscout.com/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7) | ETH staked per score, 72h challenge window |
+| Trust oracle | [TrustGate](https://base.blockscout.com/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) | `isTrusted()`, `getTrustScore()` — composable queries |
 | Evidence | IPFS / API | Full analysis JSON pinned per agent |
 
 ## Tests
@@ -325,15 +332,16 @@ sentinelnet/
 │       ├── contract_risk.py  # Malicious interaction scorer
 │       └── agent_identity.py # Metadata + reputation + exclusivity
 ├── contracts/
-│   ├── SentinelNetStaking.sol  # Deployed on Base Mainnet
-│   └── TrustGate.sol           # Composable trust oracle
+│   ├── SentinelNetStaking.sol    # Deployed on Base Mainnet
+│   ├── TrustGate.sol             # Composable trust oracle
+│   └── TrustGatedMarketplace.sol # Integration proof — trust-gated marketplace
 ├── sdk/
 │   ├── python/               # pip install sentinelnet (sync + async)
 │   └── js/                   # npm install sentinelnet (TypeScript types)
 ├── mcp/
 │   └── server.py             # 8 MCP tools
 ├── landing/                  # Next.js static landing page (Framer Motion, Tailwind)
-├── api.py                    # FastAPI REST + WebSocket server (27 endpoints)
+├── api.py                    # FastAPI REST + WebSocket server (30+ endpoints)
 ├── main.py                   # Entry point + WebSocket broadcast wiring
 ├── db.py                     # SQLite WAL cache + score history + threats
 ├── config.py                 # Pydantic Settings
@@ -358,4 +366,4 @@ sentinelnet/
 
 ## License
 
-MIT
+[MIT](LICENSE)
