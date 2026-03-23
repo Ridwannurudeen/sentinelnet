@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelNet — How It Works</title>
+    <meta name="description" content="SentinelNet scoring methodology: trust dimensions, sybil detection, contagion propagation, and decay models.">
+    <meta property="og:title" content="SentinelNet — How It Works">
+    <meta property="og:description" content="Transparent methodology behind SentinelNet's autonomous agent reputation system.">
+    <meta property="og:image" content="https://sentinelnet.gudman.xyz/og-image.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sentinelnet.gudman.xyz/methodology">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
+    <style>
+        :root {
+            --bg: #080810;
+            --card: #0f0f1a;
+            --card-hover: #14142a;
+            --bg-header: #0c0c18;
+            --border: #1e1e3a;
+            --border-bright: #2a2a50;
+            --text: #e8e8f0;
+            --sec: #8888aa;
+            --muted: #555570;
+            --cyan: #00ccff;
+            --blue: #0088ff;
+            --trust: #00dd77;
+            --caution: #ffaa22;
+            --reject: #ff3344;
+            --sybil: #cc44ff;
+            --gold: #ffd700;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        /* Nav */
+        .nav { display: flex; align-items: center; gap: 12px; padding: 14px 28px; background: var(--bg-header); border-bottom: 1px solid var(--border); }
+        .logo { font-size: 20px; font-weight: 800; color: var(--cyan); text-decoration: none; }
+        .sep { color: var(--muted); font-size: 18px; }
+        .nav-links { margin-left: auto; display: flex; gap: 8px; }
+        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.15s; }
+        .nav-link:hover { color: var(--cyan); border-color: var(--cyan); }
+        .nav-link.active { color: var(--cyan); border-color: var(--cyan); background: rgba(0,204,255,0.06); }
+
+        /* Layout */
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 28px 80px; }
+        h1 { font-size: 32px; font-weight: 800; color: var(--cyan); margin-bottom: 8px; }
+        .subtitle { color: var(--sec); font-size: 15px; margin-bottom: 40px; line-height: 1.5; }
+
+        /* Sections */
+        .section { margin-bottom: 48px; }
+        .section h2 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+        .section h2 .icon { font-size: 20px; }
+        .section .desc { color: var(--sec); font-size: 14px; margin-bottom: 20px; line-height: 1.6; }
+
+        /* Cards */
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 12px; transition: border-color 0.2s; }
+        .card:hover { border-color: var(--border-bright); }
+        .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+        .card p { color: var(--sec); font-size: 13px; line-height: 1.6; }
+
+        /* Weight bars */
+        .weight-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+        .weight-label { width: 160px; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+        .weight-bar-bg { flex: 1; height: 10px; background: rgba(255,255,255,0.04); border-radius: 5px; overflow: hidden; }
+        .weight-bar { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
+        .weight-pct { width: 40px; text-align: right; font-size: 12px; color: var(--sec); font-variant-numeric: tabular-nums; }
+
+        /* Verdict cards */
+        .verdict-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .verdict-card { background: var(--card); border-radius: 12px; padding: 20px; text-align: center; }
+        .verdict-card .score-range { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+        .verdict-card .verdict-label { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+        .verdict-card .verdict-desc { font-size: 12px; color: var(--sec); line-height: 1.5; }
+        .verdict-trust { border: 1px solid rgba(0,221,119,0.3); }
+        .verdict-trust .score-range, .verdict-trust .verdict-label { color: var(--trust); }
+        .verdict-caution { border: 1px solid rgba(255,170,34,0.3); }
+        .verdict-caution .score-range, .verdict-caution .verdict-label { color: var(--caution); }
+        .verdict-reject { border: 1px solid rgba(255,51,68,0.3); }
+        .verdict-reject .score-range, .verdict-reject .verdict-label { color: var(--reject); }
+
+        /* Formula */
+        .formula { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px; color: var(--cyan); margin: 16px 0; overflow-x: auto; }
+
+        /* Stats grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+        .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+        .stat-card .val { font-size: 28px; font-weight: 800; color: var(--cyan); }
+        .stat-card .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }
+        .stat-card.warn .val { color: var(--reject); }
+        .stat-card.sybil .val { color: var(--sybil); }
+        .stat-card.low .val { color: var(--caution); }
+
+        /* Example box */
+        .example { background: rgba(0,204,255,0.04); border: 1px solid rgba(0,204,255,0.15); border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+        .example .label { font-size: 11px; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-bottom: 8px; }
+        .example p { font-size: 13px; color: var(--sec); line-height: 1.6; }
+        .example code { color: var(--cyan); background: rgba(0,204,255,0.08); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        /* Decay visual */
+        .decay-visual { display: flex; align-items: flex-end; gap: 4px; height: 100px; margin: 20px 0; }
+        .decay-bar { flex: 1; background: var(--cyan); border-radius: 3px 3px 0 0; transition: height 0.3s; position: relative; min-width: 20px; }
+        .decay-bar .bar-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--muted); white-space: nowrap; }
+        .decay-bar .bar-value { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--sec); font-weight: 600; }
+
+        /* Penalty tag */
+        .penalty { display: inline-block; background: rgba(255,51,68,0.1); color: var(--reject); border: 1px solid rgba(255,51,68,0.25); border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+        .bonus { display: inline-block; background: rgba(0,221,119,0.1); color: var(--trust); border: 1px solid rgba(0,221,119,0.25); border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+
+        /* Sybil methods */
+        .method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            .verdict-grid, .stats-grid, .method-grid { grid-template-columns: 1fr; }
+            .weight-label { width: 120px; }
+            h1 { font-size: 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/" class="logo">SentinelNet</a>
+        <span class="sep">/</span>
+        <span style="color:var(--text)">How It Works</span>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/marketplace" class="nav-link">Marketplace</a>
+            <a href="/graph" class="nav-link">Graph</a>
+            <a href="/leaderboard" class="nav-link">Leaderboard</a>
+            <a href="/methodology" class="nav-link active">How It Works</a>
+            <a href="/docs-guide" class="nav-link">Docs</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>How SentinelNet Works</h1>
+        <p class="subtitle">A transparent look at the scoring model, sybil detection, trust contagion, and decay mechanisms that power autonomous agent reputation on Base.</p>
+
+        <!-- SCORING MODEL -->
+        <div class="section">
+            <h2><span class="icon">&#9878;</span> Scoring Model</h2>
+            <p class="desc">Every ERC-8004 agent is scored across 5 independent dimensions. Each dimension is weighted by its importance to overall trustworthiness, producing a composite score from 0 to 100.</p>
+
+            <div class="card">
+                <div class="weight-row">
+                    <span class="weight-label">Transaction History</span>
+                    <div class="weight-bar-bg"><div class="weight-bar" style="width:30%;background:var(--cyan)"></div></div>
+                    <span class="weight-pct">30%</span>
+                </div>
+                <p>Volume, consistency, and recency of on-chain transactions. Agents with steady, legitimate transaction patterns score higher.</p>
+            </div>
+
+            <div class="card">
+                <div class="weight-row">
+                    <span class="weight-label">Contract Interactions</span>
+                    <div class="weight-bar-bg"><div class="weight-bar" style="width:25%;background:var(--blue)"></div></div>
+                    <span class="weight-pct">25%</span>
+                </div>
+                <p>Diversity and quality of smart contracts interacted with. Interacting with verified, high-trust contracts boosts this score.</p>
+            </div>
+
+            <div class="card">
+                <div class="weight-row">
+                    <span class="weight-label">Network Relationships</span>
+                    <div class="weight-bar-bg"><div class="weight-bar" style="width:20%;background:var(--trust)"></div></div>
+                    <span class="weight-pct">20%</span>
+                </div>
+                <p>Quality of peers an agent transacts with. Agents connected to other trusted agents earn higher network scores; connections to flagged agents lower it.</p>
+            </div>
+
+            <div class="card">
+                <div class="weight-row">
+                    <span class="weight-label">Compliance Signals</span>
+                    <div class="weight-bar-bg"><div class="weight-bar" style="width:15%;background:var(--caution)"></div></div>
+                    <span class="weight-pct">15%</span>
+                </div>
+                <p>Adherence to ERC-8004 registration standards, metadata completeness, and operational transparency.</p>
+            </div>
+
+            <div class="card">
+                <div class="weight-row">
+                    <span class="weight-label">Anomaly Score</span>
+                    <div class="weight-bar-bg"><div class="weight-bar" style="width:10%;background:var(--reject)"></div></div>
+                    <span class="weight-pct">10%</span>
+                </div>
+                <p>Inverse anomaly detection. Statistical outliers in timing, value, or behavior patterns reduce this dimension. Lower anomaly = higher score.</p>
+            </div>
+
+            <div class="formula">
+                trust_score = (tx_history * 0.30) + (contract_quality * 0.25) + (network_score * 0.20) + (compliance * 0.15) + (anomaly_inv * 0.10)
+            </div>
+        </div>
+
+        <!-- VERDICTS -->
+        <div class="section">
+            <h2><span class="icon">&#9889;</span> Verdicts</h2>
+            <p class="desc">The composite score maps to one of three verdicts that determine how the ecosystem treats an agent.</p>
+
+            <div class="verdict-grid">
+                <div class="verdict-card verdict-trust">
+                    <div class="score-range">70 &ndash; 100</div>
+                    <div class="verdict-label">TRUST</div>
+                    <div class="verdict-desc">Agent passes the TrustGate. Eligible for on-chain attestation, marketplace listing, and full ecosystem participation.</div>
+                </div>
+                <div class="verdict-card verdict-caution">
+                    <div class="score-range">40 &ndash; 69</div>
+                    <div class="verdict-label">CAUTION</div>
+                    <div class="verdict-desc">Agent is operational but flagged. May have limited history, borderline patterns, or indirect risk signals. Manual review recommended.</div>
+                </div>
+                <div class="verdict-card verdict-reject">
+                    <div class="score-range">0 &ndash; 39</div>
+                    <div class="verdict-label">REJECT</div>
+                    <div class="verdict-desc">Agent fails trust requirements. Blocked by TrustGate. Often associated with sybil networks, anomalous behavior, or compromised wallets.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SYBIL DETECTION -->
+        <div class="section">
+            <h2><span class="icon">&#128373;</span> Sybil Detection</h2>
+            <p class="desc">SentinelNet uses two complementary methods to detect coordinated fake-agent networks. Confirmed sybils receive a <span class="penalty">&minus;20</span> penalty applied directly to their trust score.</p>
+
+            <div class="method-grid">
+                <div class="card">
+                    <h3 style="color:var(--sybil)">Wallet-Sharing Analysis</h3>
+                    <p>Agents that share a deployer or funding wallet are clustered. When 3 or more agents originate from the same wallet, the entire cluster is flagged as a sybil network.</p>
+                    <div class="example" style="margin-top:14px">
+                        <div class="label">Detection Rule</div>
+                        <p><code>shared_wallet_agents &ge; 3</code> &rarr; flag all agents in cluster</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 style="color:var(--sybil)">Interaction Graph Cliques</h3>
+                    <p>Graph analysis identifies isolated cliques &mdash; groups of agents that interact almost exclusively with each other. If more than 80% of an agent's interactions are within its own cluster, it's flagged as a sybil ring.</p>
+                    <div class="example" style="margin-top:14px">
+                        <div class="label">Detection Rule</div>
+                        <p><code>internal_interactions / total_interactions &gt; 0.80</code> &rarr; isolated ring</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="example" style="margin-top:16px">
+                <div class="label">Real Example</div>
+                <p>Wallet <code>0x67722c...</code> deployed 260 agents that only transacted with each other. All 260 were flagged, penalized &minus;20, and marked as part of the largest sybil network detected.</p>
+            </div>
+        </div>
+
+        <!-- TRUST CONTAGION -->
+        <div class="section">
+            <h2><span class="icon">&#127760;</span> Trust Contagion</h2>
+            <p class="desc">Trust and risk propagate through the agent interaction graph using a PageRank-inspired algorithm. If you interact with bad actors, your score drops. If you interact with trusted agents, you get a small boost.</p>
+
+            <div class="card">
+                <h3>Propagation Weights</h3>
+                <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap">
+                    <div>
+                        <span class="penalty">Negative: 0.6x</span>
+                        <p style="font-size:12px;color:var(--sec);margin-top:4px">Bad reputation spreads aggressively</p>
+                    </div>
+                    <div>
+                        <span class="bonus">Positive: 0.2x</span>
+                        <p style="font-size:12px;color:var(--sec);margin-top:4px">Good reputation spreads conservatively</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Algorithm Parameters</h3>
+                <p style="margin-top:8px">
+                    <strong>Damping factor:</strong> 0.3 &mdash; each hop reduces the propagated effect by 70%, preventing infinite cascades.<br>
+                    <strong>Penalty cap:</strong> <span class="penalty">&minus;15 max</span> &mdash; no agent loses more than 15 points from contagion alone.<br>
+                    <strong>Bonus cap:</strong> <span class="bonus">+10 max</span> &mdash; positive contagion is capped to prevent trust inflation.
+                </p>
+            </div>
+
+            <div class="formula">
+contagion_effect = sum(neighbor_delta * weight * damping^hops)
+clamped to [-15, +10]
+            </div>
+
+            <div class="example">
+                <div class="label">How It Works</div>
+                <p>Agent A (score 85, TRUST) frequently transacts with Agent B (score 15, REJECT). Agent A receives a contagion penalty proportional to the interaction frequency and B's low score. After 3 hops, the effect is negligible (0.3^3 = 0.027x).</p>
+            </div>
+        </div>
+
+        <!-- TRUST DECAY -->
+        <div class="section">
+            <h2><span class="icon">&#9202;</span> Trust Decay</h2>
+            <p class="desc">Trust scores decay exponentially over time if an agent stops transacting. This prevents stale high scores from persisting indefinitely.</p>
+
+            <div class="formula">
+decayed_score = base_score * e^(-lambda * days_inactive)
+lambda = 0.012
+            </div>
+
+            <div class="card">
+                <h3>Decay Example</h3>
+                <p style="margin-bottom:16px">An agent with a base score of 90 that goes inactive:</p>
+                <div class="decay-visual">
+                    <div class="decay-bar" style="height:90%"><span class="bar-value">90</span><span class="bar-label">Day 0</span></div>
+                    <div class="decay-bar" style="height:80%"><span class="bar-value">80</span><span class="bar-label">Day 10</span></div>
+                    <div class="decay-bar" style="height:67%;background:var(--caution)"><span class="bar-value">67</span><span class="bar-label">Day 30</span></div>
+                    <div class="decay-bar" style="height:55%;background:var(--caution)"><span class="bar-value">55</span><span class="bar-label">Day 50</span></div>
+                    <div class="decay-bar" style="height:41%;background:var(--reject)"><span class="bar-value">41</span><span class="bar-label">Day 75</span></div>
+                    <div class="decay-bar" style="height:30%;background:var(--reject)"><span class="bar-value">30</span><span class="bar-label">Day 100</span></div>
+                </div>
+                <p style="margin-top:28px;font-size:12px;color:var(--muted)">Score crosses CAUTION threshold (~67) at day 30 and REJECT threshold (~41) at day 75. Active agents reset their decay timer on each transaction.</p>
+            </div>
+        </div>
+
+        <!-- WHAT WE FOUND -->
+        <div class="section">
+            <h2><span class="icon">&#128202;</span> What We Found</h2>
+            <p class="desc">Real results from scanning the ERC-8004 agent ecosystem on Base.</p>
+
+            <div class="stats-grid">
+                <div class="stat-card sybil">
+                    <div class="val">84</div>
+                    <div class="lbl">Sybil Networks</div>
+                </div>
+                <div class="stat-card warn">
+                    <div class="val">2,119+</div>
+                    <div class="lbl">Sybil Agents</div>
+                </div>
+                <div class="stat-card">
+                    <div class="val">754</div>
+                    <div class="lbl">Contagion-Hit</div>
+                </div>
+            </div>
+            <div class="stats-grid" style="margin-top:12px">
+                <div class="stat-card low">
+                    <div class="val">26/100</div>
+                    <div class="lbl">Ecosystem Health</div>
+                </div>
+                <div class="stat-card">
+                    <div class="val">400+</div>
+                    <div class="lbl">Agents Scored</div>
+                </div>
+                <div class="stat-card">
+                    <div class="val">5</div>
+                    <div class="lbl">Trust Dimensions</div>
+                </div>
+            </div>
+
+            <div class="example" style="margin-top:20px">
+                <div class="label">Key Insight</div>
+                <p>The ecosystem health score of 26/100 reveals that the majority of registered ERC-8004 agents are either sybils or connected to sybil networks. SentinelNet makes this visible, enabling protocols to filter trusted agents from the noise.</p>
+            </div>
+        </div>
+
+        <div style="text-align:center;color:var(--muted);font-size:12px;margin-top:40px;padding-top:24px;border-top:1px solid var(--border)">
+            SentinelNet &mdash; Autonomous Agent Reputation Watchdog
+        </div>
+    </div>
+</body>
+</html>

@@ -410,6 +410,11 @@ async def leaderboard_page():
     return FileResponse("dashboard/leaderboard.html")
 
 
+@app.get("/methodology", response_class=HTMLResponse, include_in_schema=False)
+async def methodology_page():
+    return FileResponse("dashboard/methodology.html")
+
+
 # ─── API ───
 
 @app.get("/api/health", tags=["System"])
