@@ -262,6 +262,7 @@
                 <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Ecosystem Health</div>
                 <div id="health-score" style="font-size:48px;font-weight:800;margin:8px 0;color:var(--text-muted)">--</div>
                 <div id="health-label" style="font-size:11px;color:var(--text-muted)">Loading...</div>
+                <div id="health-subtitle" style="font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center;line-height:1.4;max-width:180px;display:none">Low score = more threats detected. SentinelNet is working.</div>
             </div>
         </div>
     </div>
@@ -684,9 +685,15 @@
                     var hCol = health >= 55 ? 'var(--trust)' : health >= 40 ? 'var(--caution)' : 'var(--reject)';
                     document.getElementById('health-score').textContent = health;
                     document.getElementById('health-score').style.color = hCol;
-                    var label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'At Risk';
+                    var label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'Critical — SentinelNet Found This';
                     document.getElementById('health-label').textContent = label;
                     document.getElementById('health-label').style.color = hCol;
+                    var subtitle = document.getElementById('health-subtitle');
+                    if (health < 45) {
+                        subtitle.style.display = 'block';
+                    } else {
+                        subtitle.style.display = 'none';
+                    }
                 }
 
                 applyFilters();

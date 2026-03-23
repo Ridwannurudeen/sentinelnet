@@ -38,7 +38,7 @@ No human flagged these threats. No one curated a blocklist. Agent #31253 discove
 1. **Discover** — Progressive full-registry sweep of all 35K+ agents (cursor-based batches, every 30 min)
 2. **Analyze** — 5-dimensional scoring: Longevity (15%), Activity (20%), Counterparty Quality (20%), Contract Risk (20%), Agent Identity (25%)
 3. **Detect** — Dual-method sybil detection (wallet-sharing + graph cliques) + PageRank-style trust contagion
-4. **Publish** — Pin evidence to IPFS, write reputation feedback on-chain via gasless Coinbase CDP Paymaster, stake ETH behind every score
+4. **Publish** — Pin evidence to IPFS, write reputation feedback on-chain via gasless CDP Paymaster, stake ETH behind every score via direct EOA transactions
 5. **Alert** — Emit on-chain TrustDegraded events, fire webhooks, stream via WebSocket
 
 ## What makes this different
@@ -47,7 +47,7 @@ No human flagged these threats. No one curated a blocklist. Agent #31253 discove
 - **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 2,119+ actual sybils operating across 84 networks, and flagged every one of them.
 - **8 integration paths** — Any protocol can plug in however they want: smart contract, Python SDK, JavaScript SDK, REST API, MCP, WebSocket, webhooks, or Prometheus. No vendor lock-in.
 - **On-chain verifiability** — Every trust score is backed by a TrustGate contract call, IPFS-pinned evidence, and staked ETH. Nothing is hand-waved.
-- **Gasless via Coinbase CDP Paymaster** — All on-chain writes (feedback, staking, trust degradation) routed through an ERC-4337 Smart Account with sponsored gas. Zero ETH needed. 355+ UserOperations sent.
+- **Gasless reputation feedback via Coinbase CDP Paymaster** — Reputation feedback submitted gaslessly via ERC-4337 Smart Account with sponsored gas (355+ UserOperations sent). TrustGate oracle and staking operations use direct EOA transactions on Base.
 - **Trust contagion** — PageRank-style propagation through the agent interaction graph. If an agent transacts with flagged counterparties, its score degrades automatically. Trust is earned through the network, not declared.
 
 ## Integration paths

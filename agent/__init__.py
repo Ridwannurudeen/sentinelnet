@@ -171,12 +171,25 @@ class SentinelNetAgent:
 
         Uses direct EOA transactions since the TrustGate sentinel is the EOA
         wallet, not the CDP smart account.
+
+        Gas optimization notes (Base L2):
+        - estimateGas is used with a 1.15x safety buffer for accurate limits
+        - Fallback formula (80000 + 55000 * batch_size) based on measured data:
+          1 agent ~90k gas, marginal ~50k/agent
+        - Gas price multiplier 1.1x (Base L2 gas is stable and cheap)
+        - Batch size 25 to amortize base gas cost across more agents
         """
         if not self.trustgate or not self._sweep_scores or not self.erc8004.account:
             self._sweep_scores = []
             return
         try:
-            BATCH_SIZE = 10  # Keep batches small to avoid gas issues
+            BATCH_SIZE = 25
+            GAS_PRICE_MULTIPLIER = 1.1
+            GAS_ESTIMATE_BUFFER = 1.15
+            MIN_BALANCE_WEI = self.w3.to_wei(0.0001, "ether")
+            sender = self.erc8004.account.address
+            written = 0
+
             for i in range(0, len(self._sweep_scores), BATCH_SIZE):
                 batch = self._sweep_scores[i:i + BATCH_SIZE]
                 agent_ids = [s[0] for s in batch]
@@ -184,33 +197,75 @@ class SentinelNetAgent:
                 evidence_uris = [s[2] for s in batch]
 
                 try:
+                    # Check balance before each batch to avoid wasting gas
+                    balance = await asyncio.to_thread(
+                        self.w3.eth.get_balance, sender
+                    )
+                    if balance < MIN_BALANCE_WEI:
+                        logger.warning(
+                            f"TrustGate: insufficient balance "
+                            f"({self.w3.from_wei(balance, 'ether')} ETH), "
+                            f"stopping after {written} agents"
+                        )
+                        break
+
                     nonce = await asyncio.to_thread(
-                        self.w3.eth.get_transaction_count,
-                        self.erc8004.account.address, "pending",
+                        self.w3.eth.get_transaction_count, sender, "pending",
                     )
                     gas_price = await asyncio.to_thread(
                         lambda: self.w3.eth.gas_price
                     )
+
+                    # Use estimateGas for accurate gas limits
+                    tx_params = {
+                        "from": sender,
+                        "nonce": nonce,
+                        "gasPrice": int(gas_price * GAS_PRICE_MULTIPLIER),
+                        "chainId": 8453,
+                    }
+                    try:
+                        estimated = await asyncio.to_thread(
+                            self.w3.eth.estimate_gas,
+                            {
+                                "from": sender,
+                                "to": self.trustgate.address,
+                                "data": self.trustgate.functions.batchUpdateTrust(
+                                    agent_ids, scores, evidence_uris
+                                )._encode_transaction_data(),
+                            }
+                        )
+                        tx_params["gas"] = int(estimated * GAS_ESTIMATE_BUFFER)
+                    except Exception:
+                        # Fallback: calibrated formula based on measured gas data
+                        tx_params["gas"] = 80000 + 55000 * len(batch)
+
                     tx = self.trustgate.functions.batchUpdateTrust(
                         agent_ids, scores, evidence_uris
-                    ).build_transaction({
-                        "from": self.erc8004.account.address,
-                        "nonce": nonce,
-                        "gas": 200000 + 130000 * len(batch),
-                        "gasPrice": int(gas_price * 1.2),
-                        "chainId": 8453,
-                    })
+                    ).build_transaction(tx_params)
+
                     signed = self.w3.eth.account.sign_transaction(
                         tx, self.settings.PRIVATE_KEY
                     )
                     tx_hash = await asyncio.to_thread(
                         self.w3.eth.send_raw_transaction, signed.raw_transaction
                     )
+                    written += len(batch)
                     logger.info(
-                        f"TrustGate batch update ({len(batch)} agents): {tx_hash.hex()}"
+                        f"TrustGate batch {i // BATCH_SIZE + 1} "
+                        f"({len(batch)} agents, gas={tx_params['gas']}): "
+                        f"{tx_hash.hex()}"
                     )
+
+                    # Brief delay between batches to avoid RPC rate limits
+                    if i + BATCH_SIZE < len(self._sweep_scores):
+                        await asyncio.sleep(2)
+
                 except Exception as e:
-                    logger.warning(f"TrustGate batch {i // BATCH_SIZE} failed: {e}")
+                    logger.warning(f"TrustGate batch {i // BATCH_SIZE + 1} failed: {e}")
+
+            if written:
+                logger.info(f"TrustGate: {written}/{len(self._sweep_scores)} agents written on-chain")
+
         except Exception as e:
             logger.warning(f"TrustGate batch update failed: {e}")
         finally:

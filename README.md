@@ -357,7 +357,7 @@ sentinelnet/
 | Smart Contracts | Solidity 0.8.24, Base Mainnet |
 | Agent Protocol | MCP (Model Context Protocol) |
 | Identity | ERC-8004 Identity + Reputation Registries |
-| Gasless Txs | Coinbase CDP SDK, ERC-4337 Smart Account, Paymaster |
+| Gasless Feedback | Coinbase CDP SDK, ERC-4337 Smart Account, Paymaster (reputation feedback) |
 | Storage | SQLite WAL (aiosqlite), IPFS (Pinata) |
 | Chain Data | web3.py, Blockscout API |
 | Visualization | D3.js force-directed graph |

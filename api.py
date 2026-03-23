@@ -335,7 +335,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # Paths that bypass API key authentication
 _AUTH_SKIP_EXACT = frozenset({
-    "/", "/dashboard", "/marketplace", "/graph", "/leaderboard", "/methodology",
+    "/", "/dashboard", "/marketplace", "/graph", "/leaderboard", "/methodology", "/demo",
     "/docs-guide", "/api/health", "/docs", "/swagger", "/openapi.json", "/redoc", "/metrics",
 })
 _AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/")
@@ -447,6 +447,11 @@ async def leaderboard_page():
 @app.get("/methodology", response_class=HTMLResponse, include_in_schema=False)
 async def methodology_page():
     return FileResponse("dashboard/methodology.html")
+
+
+@app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
+async def demo_page():
+    return FileResponse("dashboard/demo.html")
 
 
 # ─── API ───

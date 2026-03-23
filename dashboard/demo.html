@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelNet — Interactive Demo</title>
+    <meta name="description" content="Interactive walkthrough of SentinelNet, the autonomous reputation watchdog for ERC-8004 agents on Base.">
+    <meta property="og:title" content="SentinelNet — Interactive Demo">
+    <meta property="og:description" content="See SentinelNet in action. Explore live trust scores, sybil detection, and the full agent reputation pipeline.">
+    <meta property="og:image" content="https://sentinelnet.gudman.xyz/og-image.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://sentinelnet.gudman.xyz/demo">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡</text></svg>">
+    <style>
+        :root {
+            --bg: #080810;
+            --card: #0f0f1a;
+            --card-hover: #14142a;
+            --bg-header: #0c0c18;
+            --border: #1e1e3a;
+            --border-bright: #2a2a50;
+            --text: #e8e8f0;
+            --sec: #8888aa;
+            --muted: #555570;
+            --cyan: #00ccff;
+            --blue: #0088ff;
+            --trust: #00dd77;
+            --caution: #ffaa22;
+            --reject: #ff3344;
+            --sybil: #cc44ff;
+            --gold: #ffd700;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        a { color: var(--blue); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* Nav */
+        .nav { display: flex; align-items: center; gap: 12px; padding: 14px 28px; background: var(--bg-header); border-bottom: 1px solid var(--border); }
+        .logo { font-size: 20px; font-weight: 800; color: var(--cyan); text-decoration: none; }
+        .sep { color: var(--muted); font-size: 18px; }
+        .nav-links { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+        .nav-link { color: var(--sec); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.15s; }
+        .nav-link:hover { color: var(--cyan); border-color: var(--cyan); text-decoration: none; }
+        .nav-link.active { color: var(--cyan); border-color: var(--cyan); background: rgba(0,204,255,0.06); }
+
+        /* Hero */
+        .hero { text-align: center; padding: 80px 28px 60px; position: relative; overflow: hidden; }
+        .hero::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 600px; height: 600px; background: radial-gradient(circle, rgba(0,204,255,0.06) 0%, transparent 70%); pointer-events: none; }
+        .hero h1 { font-size: 44px; font-weight: 800; color: var(--text); line-height: 1.15; max-width: 700px; margin: 0 auto; position: relative; }
+        .hero h1 span { color: var(--cyan); }
+        .hero p { font-size: 17px; color: var(--sec); max-width: 560px; margin: 18px auto 0; line-height: 1.6; position: relative; }
+        .hero-badge { display: inline-block; margin-bottom: 20px; padding: 6px 16px; background: rgba(0,204,255,0.08); border: 1px solid rgba(0,204,255,0.2); border-radius: 20px; font-size: 12px; color: var(--cyan); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; position: relative; }
+
+        /* Container */
+        .container { max-width: 960px; margin: 0 auto; padding: 0 28px 80px; }
+
+        /* Section headers */
+        .section { margin-bottom: 64px; }
+        .section-label { font-size: 11px; color: var(--cyan); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 8px; }
+        .section h2 { font-size: 28px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+        .section .desc { color: var(--sec); font-size: 14px; margin-bottom: 28px; line-height: 1.6; }
+
+        /* Live stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px 20px; text-align: center; transition: border-color 0.2s; }
+        .stat-card:hover { border-color: var(--border-bright); }
+        .stat-card .val { font-size: 40px; font-weight: 800; color: var(--cyan); font-variant-numeric: tabular-nums; }
+        .stat-card .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 6px; }
+        .stat-card.trust .val { color: var(--trust); }
+        .stat-card.reject .val { color: var(--reject); }
+        .stat-card.sybil .val { color: var(--sybil); }
+        .stat-card.caution .val { color: var(--caution); }
+
+        /* API Explorer */
+        .explorer { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+        .explorer-row { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+        .explorer-input { flex: 1; min-width: 120px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 15px; font-family: 'SF Mono', 'Fira Code', monospace; outline: none; transition: border-color 0.2s; }
+        .explorer-input:focus { border-color: var(--cyan); }
+        .explorer-prefix { color: var(--sec); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px; white-space: nowrap; }
+        .btn { padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+        .btn-primary { background: var(--cyan); color: #080810; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .suggestions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+        .suggestion { padding: 6px 14px; background: rgba(0,204,255,0.06); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--sec); cursor: pointer; transition: all 0.15s; }
+        .suggestion:hover { border-color: var(--cyan); color: var(--cyan); }
+        .suggestion .verdict-tag { font-weight: 700; margin-left: 4px; }
+        .suggestion .verdict-tag.trust { color: var(--trust); }
+        .suggestion .verdict-tag.reject { color: var(--reject); }
+        .suggestion .verdict-tag.sybil { color: var(--sybil); }
+        .response-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; overflow-x: auto; min-height: 60px; position: relative; }
+        .response-block pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; color: var(--sec); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+        .response-block .placeholder { color: var(--muted); font-style: italic; font-size: 13px; }
+        .response-block .loading { color: var(--cyan); font-size: 13px; }
+        .json-key { color: var(--cyan); }
+        .json-string { color: var(--trust); }
+        .json-number { color: var(--caution); }
+        .json-bool { color: var(--sybil); }
+        .json-null { color: var(--muted); }
+
+        /* Dashboard cards grid */
+        .dash-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .dash-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; transition: all 0.2s; text-decoration: none; display: block; }
+        .dash-card:hover { border-color: var(--cyan); transform: translateY(-2px); text-decoration: none; }
+        .dash-card .card-icon { font-size: 28px; margin-bottom: 12px; }
+        .dash-card h3 { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+        .dash-card p { font-size: 13px; color: var(--sec); line-height: 1.5; }
+        .dash-card .card-arrow { color: var(--cyan); font-size: 13px; margin-top: 12px; font-weight: 600; }
+
+        /* Code integration */
+        .code-tabs { display: flex; gap: 2px; margin-bottom: 0; }
+        .code-tab { padding: 10px 20px; background: var(--card); border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; font-size: 13px; color: var(--muted); cursor: pointer; font-family: inherit; font-weight: 600; transition: all 0.15s; }
+        .code-tab.active { color: var(--cyan); border-color: var(--cyan); border-bottom: 1px solid var(--card); position: relative; z-index: 1; }
+        .code-tab:hover { color: var(--sec); }
+        .code-panel { display: none; }
+        .code-panel.active { display: block; }
+        .code-block { background: var(--card); border: 1px solid var(--border); border-radius: 0 12px 12px 12px; padding: 24px; margin-top: -1px; overflow-x: auto; }
+        .code-block pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.7; color: var(--sec); }
+        .code-block .kw { color: var(--cyan); }
+        .code-block .str { color: var(--trust); }
+        .code-block .fn { color: var(--caution); }
+        .code-block .comment { color: var(--muted); }
+        .code-block .line-count { display: block; text-align: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+        .code-block .line-count span { color: var(--cyan); font-weight: 800; font-size: 22px; }
+
+        /* Architecture flow */
+        .flow { display: flex; align-items: flex-start; gap: 0; justify-content: center; flex-wrap: wrap; }
+        .flow-step { text-align: center; flex: 1; min-width: 140px; max-width: 180px; padding: 0 8px; }
+        .flow-node { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 12px; border: 2px solid var(--border); background: var(--card); transition: all 0.3s; }
+        .flow-step:hover .flow-node { border-color: var(--cyan); transform: scale(1.08); }
+        .flow-step h4 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+        .flow-step p { font-size: 12px; color: var(--sec); line-height: 1.5; }
+        .flow-arrow { display: flex; align-items: center; padding-top: 18px; color: var(--muted); font-size: 20px; flex-shrink: 0; }
+
+        /* Footer */
+        .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 30px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .dash-grid { grid-template-columns: 1fr; }
+            .flow { flex-direction: column; align-items: center; }
+            .flow-arrow { transform: rotate(90deg); padding: 8px 0; }
+            .nav-links { display: none; }
+            .code-tabs { flex-wrap: wrap; }
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-in { opacity: 0; transform: translateY(20px); transition: all 0.5s ease; }
+        .animate-in.visible { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/" class="logo">SentinelNet</a>
+        <span class="sep">/</span>
+        <span style="color:var(--text)">Demo</span>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/dashboard" class="nav-link">Dashboard</a>
+            <a href="/marketplace" class="nav-link">Marketplace</a>
+            <a href="/graph" class="nav-link">Graph</a>
+            <a href="/leaderboard" class="nav-link">Leaderboard</a>
+            <a href="/methodology" class="nav-link">How It Works</a>
+            <a href="/demo" class="nav-link active">Demo</a>
+            <a href="/docs-guide" class="nav-link">Docs</a>
+        </div>
+    </div>
+
+    <!-- HERO -->
+    <div class="hero">
+        <div class="hero-badge">Interactive Walkthrough</div>
+        <h1>See <span>SentinelNet</span> in Action</h1>
+        <p>An interactive walkthrough of the autonomous reputation watchdog for ERC-8004 agents on Base. No video needed &mdash; try it live.</p>
+    </div>
+
+    <div class="container">
+
+        <!-- SECTION 1: LIVE STATS -->
+        <div class="section animate-in">
+            <div class="section-label">Section 1</div>
+            <h2>What We Found</h2>
+            <p class="desc">Real numbers from scanning the ERC-8004 agent registry on Base. These stats update live from the SentinelNet API.</p>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="val" id="stat-scored">0</div>
+                    <div class="lbl">Agents Scored</div>
+                </div>
+                <div class="stat-card reject">
+                    <div class="val" id="stat-sybils">0</div>
+                    <div class="lbl">Sybils Flagged</div>
+                </div>
+                <div class="stat-card sybil">
+                    <div class="val" id="stat-networks">0</div>
+                    <div class="lbl">Networks Detected</div>
+                </div>
+                <div class="stat-card caution">
+                    <div class="val" id="stat-health">0<span style="font-size:20px;color:var(--muted)">/100</span></div>
+                    <div class="lbl">Ecosystem Health</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 2: TRY IT YOURSELF -->
+        <div class="section animate-in">
+            <div class="section-label">Section 2</div>
+            <h2>Try It Yourself</h2>
+            <p class="desc">Query any agent's trust score in real time. Enter an agent ID and hit the button to see what SentinelNet returns.</p>
+
+            <div class="explorer">
+                <div class="explorer-row">
+                    <span class="explorer-prefix">GET /trust/</span>
+                    <input type="number" class="explorer-input" id="agent-input" value="1" min="0" placeholder="agent ID">
+                    <button class="btn btn-primary" id="fetch-btn" onclick="fetchTrust()">Fetch Trust Score</button>
+                </div>
+
+                <div class="suggestions">
+                    <span style="font-size:12px;color:var(--muted);margin-right:4px;padding-top:6px">Try these:</span>
+                    <div class="suggestion" onclick="tryAgent(1)">Agent #1 <span class="verdict-tag trust">TRUST</span></div>
+                    <div class="suggestion" onclick="tryAgent(5)">Agent #5 <span class="verdict-tag reject">REJECT</span></div>
+                    <div class="suggestion" onclick="tryAgent(10)">Agent #10 <span class="verdict-tag sybil">SYBIL</span></div>
+                    <div class="suggestion" onclick="tryAgent(31253)">Agent #31253 <span class="verdict-tag trust">US</span></div>
+                </div>
+
+                <div class="response-block" id="response-block">
+                    <div class="placeholder">Response will appear here. Click "Fetch Trust Score" to try it.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 3: EXPLORE THE DASHBOARD -->
+        <div class="section animate-in">
+            <div class="section-label">Section 3</div>
+            <h2>Explore the Dashboard</h2>
+            <p class="desc">SentinelNet ships with a full suite of tools. Each page is live and interactive.</p>
+
+            <div class="dash-grid">
+                <a href="/dashboard" class="dash-card">
+                    <div class="card-icon">&#9776;</div>
+                    <h3>Dashboard</h3>
+                    <p>Real-time overview of all scored agents with filtering, search, and verdict breakdowns.</p>
+                    <div class="card-arrow">Open &rarr;</div>
+                </a>
+                <a href="/graph" class="dash-card">
+                    <div class="card-icon">&#127760;</div>
+                    <h3>Trust Network</h3>
+                    <p>Interactive force-directed graph of agent relationships and sybil cluster visualization.</p>
+                    <div class="card-arrow">Open &rarr;</div>
+                </a>
+                <a href="/marketplace" class="dash-card">
+                    <div class="card-icon">&#128722;</div>
+                    <h3>Marketplace</h3>
+                    <p>Browse, compare, and filter agents by trust score, verdict, and risk profile.</p>
+                    <div class="card-arrow">Open &rarr;</div>
+                </a>
+                <a href="/leaderboard" class="dash-card">
+                    <div class="card-icon">&#127942;</div>
+                    <h3>Leaderboard</h3>
+                    <p>Top trusted agents ranked by composite score. See who leads the ecosystem.</p>
+                    <div class="card-arrow">Open &rarr;</div>
+                </a>
+                <a href="/methodology" class="dash-card">
+                    <div class="card-icon">&#9878;</div>
+                    <h3>Methodology</h3>
+                    <p>How scoring, sybil detection, trust contagion, and decay models work under the hood.</p>
+                    <div class="card-arrow">Open &rarr;</div>
+                </a>
+                <a href="/docs" class="dash-card">
+                    <div class="card-icon">&#128214;</div>
+                    <h3>API Docs</h3>
+                    <p>Full interactive API reference with 27 endpoints. Try requests directly from the docs.</p>
+                    <div class="card-arrow">Open &rarr;</div>
+                </a>
+            </div>
+        </div>
+
+        <!-- SECTION 4: INTEGRATION -->
+        <div class="section animate-in">
+            <div class="section-label">Section 4</div>
+            <h2>Integration in 3 Lines</h2>
+            <p class="desc">Query trust from any environment. Gate smart contracts, automate checks in Python, or curl from the terminal.</p>
+
+            <div class="code-tabs">
+                <button class="code-tab active" onclick="showCodeTab('python')">Python</button>
+                <button class="code-tab" onclick="showCodeTab('solidity')">Solidity</button>
+                <button class="code-tab" onclick="showCodeTab('curl')">cURL</button>
+            </div>
+            <div class="code-block">
+                <div class="code-panel active" id="code-python"><pre><span class="kw">from</span> sentinelnet <span class="kw">import</span> SentinelNet
+sn = <span class="fn">SentinelNet</span>()
+sn.<span class="fn">is_trusted</span>(<span class="json-number">42</span>)  <span class="comment"># Returns True/False</span></pre>
+                    <div class="line-count"><span>3</span> lines to trust-gate any agent</div>
+                </div>
+                <div class="code-panel" id="code-solidity"><pre><span class="kw">import</span> {TrustGate} <span class="kw">from</span> <span class="str">"sentinelnet/TrustGate.sol"</span>;
+
+<span class="kw">function</span> <span class="fn">execute</span>(uint256 agentId) <span class="kw">external</span> {
+    <span class="kw">require</span>(gate.<span class="fn">isTrusted</span>(agentId));
+    <span class="comment">// Only trusted agents pass</span>
+}</pre>
+                    <div class="line-count"><span>1</span> line to gate any smart contract function</div>
+                </div>
+                <div class="code-panel" id="code-curl"><pre><span class="comment"># Check if an agent is trustworthy</span>
+curl <span class="str">https://sentinelnet.gudman.xyz/trust/42</span>
+
+<span class="comment"># Response:</span>
+<span class="comment"># {"trust_score": 82, "verdict": "TRUST", ...}</span></pre>
+                    <div class="line-count"><span>1</span> command from any terminal</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5: ARCHITECTURE -->
+        <div class="section animate-in">
+            <div class="section-label">Section 5</div>
+            <h2>The Architecture</h2>
+            <p class="desc">Five-stage pipeline that runs autonomously. From agent discovery to stakeholder alerts, zero human involvement.</p>
+
+            <div class="flow">
+                <div class="flow-step">
+                    <div class="flow-node" style="border-color:var(--cyan);">&#128269;</div>
+                    <h4>Discover</h4>
+                    <p>Scan ERC-8004 registry for new agent registrations on Base</p>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step">
+                    <div class="flow-node" style="border-color:var(--blue);">&#9878;</div>
+                    <h4>Analyze</h4>
+                    <p>Score across 5 trust dimensions with weighted composite model</p>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step">
+                    <div class="flow-node" style="border-color:var(--reject);">&#128373;</div>
+                    <h4>Detect</h4>
+                    <p>Sybil clustering via wallet sharing and interaction graph cliques</p>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step">
+                    <div class="flow-node" style="border-color:var(--trust);">&#128196;</div>
+                    <h4>Publish</h4>
+                    <p>Pin evidence to IPFS, write scores on-chain, issue EAS attestations</p>
+                </div>
+                <div class="flow-arrow">&rarr;</div>
+                <div class="flow-step">
+                    <div class="flow-node" style="border-color:var(--caution);">&#128276;</div>
+                    <h4>Alert</h4>
+                    <p>Real-time threat feed via API, WebSocket, and webhook notifications</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            SentinelNet &mdash; Autonomous Agent Reputation Watchdog &mdash; Built for the Synthesis 2026 Hackathon
+        </div>
+    </div>
+
+    <script>
+        // ─── Animated counters ───
+        function animateCounter(el, target, duration) {
+            if (isNaN(target) || target === 0) { el.textContent = '0'; return; }
+            const start = 0;
+            const startTime = performance.now();
+            function tick(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // Ease out cubic
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = Math.round(start + (target - start) * eased);
+                el.textContent = current.toLocaleString();
+                if (progress < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        }
+
+        // ─── Fetch live stats ───
+        fetch('/api/stats').then(r => r.json()).then(data => {
+            const scored = data.agents_scored || 0;
+            const sybils = data.sybil_agents || 0;
+            const networks = data.sybil_networks || 0;
+            const health = data.ecosystem_health_score || 0;
+
+            animateCounter(document.getElementById('stat-scored'), scored, 1200);
+            animateCounter(document.getElementById('stat-sybils'), sybils, 1400);
+            animateCounter(document.getElementById('stat-networks'), networks, 1000);
+
+            // Health has /100 suffix
+            const healthEl = document.getElementById('stat-health');
+            const targetHealth = typeof health === 'number' ? health : parseInt(health) || 0;
+            const startTime = performance.now();
+            function tickHealth(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / 1600, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = Math.round(targetHealth * eased);
+                healthEl.innerHTML = current + '<span style="font-size:20px;color:var(--muted)">/100</span>';
+                if (progress < 1) requestAnimationFrame(tickHealth);
+            }
+            requestAnimationFrame(tickHealth);
+        }).catch(() => {
+            document.getElementById('stat-scored').textContent = '--';
+            document.getElementById('stat-sybils').textContent = '--';
+            document.getElementById('stat-networks').textContent = '--';
+            document.getElementById('stat-health').innerHTML = '--<span style="font-size:20px;color:var(--muted)">/100</span>';
+        });
+
+        // ─── API Explorer ───
+        function tryAgent(id) {
+            document.getElementById('agent-input').value = id;
+            fetchTrust();
+        }
+
+        async function fetchTrust() {
+            const input = document.getElementById('agent-input');
+            const btn = document.getElementById('fetch-btn');
+            const block = document.getElementById('response-block');
+            const agentId = input.value.trim();
+
+            if (!agentId || isNaN(agentId)) {
+                block.innerHTML = '<div class="placeholder" style="color:var(--reject)">Please enter a valid agent ID.</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Fetching...';
+            block.innerHTML = '<div class="loading">Querying /trust/' + agentId + ' ...</div>';
+
+            try {
+                const resp = await fetch('/trust/' + agentId);
+                const data = await resp.json();
+                block.innerHTML = '<pre>' + syntaxHighlight(JSON.stringify(data, null, 2)) + '</pre>';
+            } catch (err) {
+                block.innerHTML = '<div class="placeholder" style="color:var(--reject)">Error: ' + err.message + '</div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Fetch Trust Score';
+            }
+        }
+
+        function syntaxHighlight(json) {
+            return json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:')
+                .replace(/: "([^"]*)"/g, ': <span class="json-string">"$1"</span>')
+                .replace(/: (-?\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+                .replace(/: (true|false)/g, ': <span class="json-bool">$1</span>')
+                .replace(/: (null)/g, ': <span class="json-null">$1</span>');
+        }
+
+        // ─── Code tabs ───
+        function showCodeTab(id) {
+            document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.code-panel').forEach(p => p.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('code-' + id).classList.add('active');
+        }
+
+        // ─── Scroll animations ───
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.animate-in').forEach(el => observer.observe(el));
+
+        // ─── Enter key on input ───
+        document.getElementById('agent-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') fetchTrust();
+        });
+    </script>
+</body>
+</html>
