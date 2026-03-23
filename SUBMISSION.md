@@ -2,7 +2,7 @@
 
 ## One-liner
 
-Autonomous reputation watchdog that scored 3,535+ agents, unmasked 84 sybil networks controlling 1,980+ fake agents, and rejected 70% of the ecosystem — zero human involvement.
+Autonomous reputation watchdog that scored 3,769+ agents, unmasked 84 sybil networks controlling 2,119+ fake agents, and rejected 73% of the ecosystem — zero human involvement.
 
 ## What it does
 
@@ -25,11 +25,11 @@ One wallet (`0x67722c...`) registered **260 agents** — 88% with sequential IDs
 ### The Full Picture
 
 - **84 sybil networks** detected — the top 3 operators alone control 502 fake agents
-- **1,980+ sybil agents** flagged (56% of all agents are sybils)
-- **717 agents** hit by trust contagion — penalized an average of -11 points for associating with flagged counterparties
+- **2,119+ sybil agents** flagged (56% of all agents are sybils)
+- **754 agents** hit by trust contagion — penalized an average of -11 points for associating with flagged counterparties
 - **259 ghost agents** with zero activity and zero longevity — registered but never transacted
-- **2,478 agents REJECTED** (70% of scored agents)
-- **Ecosystem health score: 27/100** — the ERC-8004 registry has a trust crisis, and SentinelNet is the only system quantifying it
+- **2,743 agents REJECTED** (73% of scored agents)
+- **Ecosystem health score: 26/100** — the ERC-8004 registry has a trust crisis, and SentinelNet is the only system quantifying it
 
 No human flagged these threats. No one curated a blocklist. Agent #31253 discovered, analyzed, and published every finding autonomously.
 
@@ -44,7 +44,7 @@ No human flagged these threats. No one curated a blocklist. Agent #31253 discove
 ## What makes this different
 
 - **Fully autonomous** — Agent #31253 runs 24/7 with zero human involvement. No curation, no moderation queue, no manual reviews. It discovers, scores, and publishes on its own.
-- **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 1,980+ actual sybils operating across 84 networks, and flagged every one of them.
+- **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 2,119+ actual sybils operating across 84 networks, and flagged every one of them.
 - **8 integration paths** — Any protocol can plug in however they want: smart contract, Python SDK, JavaScript SDK, REST API, MCP, WebSocket, webhooks, or Prometheus. No vendor lock-in.
 - **On-chain verifiability** — Every trust score is backed by a TrustGate contract call, IPFS-pinned evidence, and staked ETH. Nothing is hand-waved.
 - **Gasless via Coinbase CDP Paymaster** — All on-chain writes (feedback, staking, trust degradation) routed through an ERC-4337 Smart Account with sponsored gas. Zero ETH needed. 355+ UserOperations sent.
@@ -93,10 +93,10 @@ Python 3.11+ / FastAPI / SQLite WAL / web3.py / Coinbase CDP SDK / ERC-4337 Smar
 
 | | |
 |---|---|
-| **3,535+** agents scored | **84** sybil networks unmasked |
-| **1,980+** sybils flagged (56%) | **717** contagion-penalized agents |
-| **2,478** agents rejected (70%) | **259** ghost agents identified |
-| **355+** on-chain UserOps via CDP Paymaster | **144** tests passing |
+| **3,769+** agents scored | **84** sybil networks unmasked |
+| **2,119+** sybils flagged (56%) | **754** contagion-penalized agents |
+| **2,743** agents rejected (73%) | **259** ghost agents identified |
+| **355+** on-chain UserOps via CDP Paymaster | **147** tests passing |
 | **27** API endpoints | **8** MCP tools |
 | **8** integration paths | **0** humans in the loop |
 
