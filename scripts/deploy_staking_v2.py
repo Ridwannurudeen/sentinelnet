@@ -14,7 +14,7 @@ load_dotenv()
 
 PRIVATE_KEY = os.environ["PRIVATE_KEY"]
 BASE_RPC_URL = os.environ.get("BASE_RPC_URL", "https://mainnet.base.org")
-SMART_ACCOUNT = os.environ.get("CDP_SMART_ACCOUNT", "0x6663BeB922ab00A545c7b2c01986C6a5f275AaB9")
+SMART_ACCOUNT = os.environ.get("CDP_SMART_ACCOUNT", "0x7c0A6aAb54B511C85A4B9D5E05D40f45e7BaAb78")
 
 
 def main():

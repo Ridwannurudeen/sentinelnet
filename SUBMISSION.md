@@ -52,7 +52,7 @@ No human flagged these threats. No one curated a blocklist. Agent #31253 discove
 
 ## Integration paths
 
-- **Smart Contract**: [`TrustGate.sol`](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) — `require(gate.isTrusted(agentId))` in any contract
+- **Smart Contract**: [`TrustGate.sol`](https://basescan.org/address/0xE3b6069f632ab439ef5B084C769F21b4beeE3506) — `require(gate.isTrusted(agentId))` in any contract
 - **Python SDK**: `pip install ./sdk/python` or import from `sdk/python/sentinelnet/` — `SentinelNet().is_trusted(42)`
 - **JavaScript SDK**: `npm install ./sdk/js` or import from `sdk/js/src/`
 - **REST API**: `GET /trust/{agent_id}` — 27 endpoints with rate limiting
@@ -82,7 +82,7 @@ Everything is running in production right now:
 | Agent #31253 | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) |
 | Reputation feedback | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) |
 | Score staking | [SentinelNetStaking](https://basescan.org/address/0xEe1A8f34F1320D534b9a547f882762EABCB4f96d) |
-| Trust gate | [TrustGate](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) |
+| Trust gate | [TrustGate](https://basescan.org/address/0xE3b6069f632ab439ef5B084C769F21b4beeE3506) |
 | Evidence | IPFS / API (full analysis JSON per agent) |
 
 ## Tech stack

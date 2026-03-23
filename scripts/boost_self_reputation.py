@@ -43,7 +43,7 @@ FEEDBACKS = [
     {"tag1": "threat-intel", "tag2": "sentinelnet-v2", "value": 89,
      "uri": "https://sentinelnet.gudman.xyz/api/threats"},
     {"tag1": "composability", "tag2": "sentinelnet-v2", "value": 91,
-     "uri": "https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8"},
+     "uri": "https://basescan.org/address/0xE3b6069f632ab439ef5B084C769F21b4beeE3506"},
 ]
 
 
