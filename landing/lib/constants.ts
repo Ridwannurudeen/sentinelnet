@@ -59,22 +59,22 @@ export const CONTRACTS = [
   {
     name: "TrustGate Oracle",
     address: "0x10D8caC126849123Cc1fb5806054be6c90343CC8",
-    explorer: "https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8",
+    explorer: "https://base.blockscout.com/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8",
   },
   {
     name: "SentinelNetStaking",
     address: "0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7",
-    explorer: "https://basescan.org/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7",
+    explorer: "https://base.blockscout.com/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7",
   },
   {
     name: "ERC-8004 Reputation Registry",
     address: "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
-    explorer: "https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
+    explorer: "https://base.blockscout.com/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63",
   },
   {
     name: "ERC-8004 Identity Registry",
     address: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
-    explorer: "https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    explorer: "https://base.blockscout.com/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
   },
 ] as const;
 
@@ -136,6 +136,7 @@ export const NAV_LINKS = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Marketplace", href: "/marketplace" },
   { label: "Trust Network", href: "/graph" },
+  { label: "How It Works", href: "/methodology" },
   { label: "API Docs", href: "/docs" },
   { label: "Leaderboard", href: "/leaderboard" },
   { label: "GitHub", href: "https://github.com/Ridwannurudeen/sentinelnet", external: true },

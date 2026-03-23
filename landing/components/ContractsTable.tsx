@@ -44,7 +44,7 @@ export default function ContractsTable() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-sec hover:text-cyan transition-colors"
                   >
-                    BaseScan
+                    Blockscout
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
