@@ -672,15 +672,8 @@ async def get_evidence(agent_id: int, request: Request):
     expected_hash = request.query_params.get("hash", "")
     if expected_hash:
         content_hash = hashlib.sha256(json_module.dumps(evidence).encode()).hexdigest()
-        if not content_hash.startswith(expected_hash):
-            raise HTTPException(
-                409,
-                detail={
-                    "error": "Content hash mismatch — evidence may have changed since publication",
-                    "expected_prefix": expected_hash,
-                    "actual_hash": content_hash[:16],
-                },
-            )
+        evidence["content_hash"] = content_hash[:16]
+        evidence["hash_match"] = content_hash.startswith(expected_hash)
     return evidence
 
 
