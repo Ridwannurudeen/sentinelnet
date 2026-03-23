@@ -1,5 +1,5 @@
 import pytest
-from api import _api_keys
+from api import _api_keys, invalidate_score_caches
 
 TEST_API_KEY = "sk-sn-test-key-for-tests"
 
@@ -8,5 +8,6 @@ TEST_API_KEY = "sk-sn-test-key-for-tests"
 def inject_test_api_key():
     """Ensure all tests have a valid API key available."""
     _api_keys[TEST_API_KEY] = {"email": "test@test.com", "created_at": "2026-01-01T00:00:00Z"}
+    invalidate_score_caches()
     yield
     _api_keys.pop(TEST_API_KEY, None)

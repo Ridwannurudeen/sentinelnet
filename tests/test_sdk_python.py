@@ -3,7 +3,7 @@
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from api import app, db
+from api import app, db, invalidate_score_caches
 from tests.conftest import TEST_API_KEY
 
 # Import SDK
@@ -18,6 +18,7 @@ AUTH = {"x-api-key": TEST_API_KEY}
 async def init_db():
     db.path = ":memory:"
     await db.init()
+    invalidate_score_caches()
     await db.save_score(1, "0xa", 80, 80, 80, 80, 80, "TRUST", "", "", agent_identity=75)
     await db.save_score(2, "0xb", 30, 30, 30, 30, 30, "REJECT", "", "", agent_identity=20)
     yield

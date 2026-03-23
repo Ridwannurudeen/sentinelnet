@@ -76,6 +76,11 @@ class Database:
                 created_at TEXT NOT NULL
             )
         """)
+        # Indexes for query performance
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_score_history_agent ON score_history(agent_id)")
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_agent ON graph_edges(agent_id)")
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_threats_created ON threats(created_at DESC)")
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_trust_scores_scored ON trust_scores(scored_at DESC)")
         # Migrations for existing DBs
         for col, typedef in [
             ("agent_identity", "INTEGER NOT NULL DEFAULT 0"),
@@ -160,6 +165,21 @@ class Database:
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+    async def get_edges_batch(self, agent_ids):
+        """Get edges for multiple agents in a single query."""
+        if not agent_ids:
+            return {}
+        placeholders = ",".join("?" for _ in agent_ids)
+        cursor = await self.conn.execute(
+            f"SELECT * FROM graph_edges WHERE agent_id IN ({placeholders})",
+            agent_ids,
+        )
+        rows = await cursor.fetchall()
+        result = {aid: [] for aid in agent_ids}
+        for r in rows:
+            result[r["agent_id"]].append(dict(r))
+        return result
 
     async def get_all_edges(self):
         cursor = await self.conn.execute(

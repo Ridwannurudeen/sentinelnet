@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 import httpx
 from web3 import Web3
 from db import Database
@@ -44,6 +45,23 @@ def _validate_agent_id(agent_id: int) -> None:
 # Anomaly detection cache (TTL-based to avoid recomputing 2000+ anomalies per request)
 _anomaly_cache: dict = {"anomalies": None, "checked": 0, "ts": 0}
 _ANOMALY_CACHE_TTL = 30  # seconds
+
+# Response caches for expensive endpoints
+_scores_cache: dict = {"data": None, "ts": 0}
+_stats_cache: dict = {"data": None, "ts": 0}
+_graph_cache: dict = {"data": None, "ts": 0}
+_RESP_CACHE_TTL = 10  # seconds (scores, stats)
+_GRAPH_CACHE_TTL = 30  # seconds (graph changes rarely)
+
+
+def invalidate_score_caches():
+    """Clear all score-related caches. Called after score writes."""
+    _scores_cache["data"] = None
+    _scores_cache["ts"] = 0
+    _stats_cache["data"] = None
+    _stats_cache["ts"] = 0
+    _graph_cache["data"] = None
+    _graph_cache["ts"] = 0
 
 
 def _is_valid_api_key(key: str) -> bool:
@@ -325,6 +343,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        # Cache headers for GET API responses (browser/proxy caching)
+        path = request.url.path
+        if request.method == "GET" and path.startswith("/api/"):
+            if path in ("/api/graph-data",):
+                response.headers["Cache-Control"] = "public, max-age=30"
+            elif path.startswith("/api/"):
+                response.headers["Cache-Control"] = "public, max-age=5"
+        elif request.method == "GET" and path.startswith("/dashboard"):
+            response.headers["Cache-Control"] = "public, max-age=60"
         return response
 
 
@@ -396,6 +423,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(APIKeyAuthMiddleware)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 # ─── Pages ───
@@ -462,6 +490,18 @@ async def health():
     return {"status": "ok", "service": "sentinelnet", "version": "2.2.0"}
 
 
+async def _get_decayed_scores():
+    """Get all scores with decay applied, using TTL cache."""
+    now = time.time()
+    if _scores_cache["data"] is not None and (now - _scores_cache["ts"]) < _RESP_CACHE_TTL:
+        return _scores_cache["data"]
+    scores = await db.get_all_scores()
+    scores = [_apply_decay(s) for s in scores]
+    _scores_cache["data"] = scores
+    _scores_cache["ts"] = now
+    return scores
+
+
 @app.get("/api/scores", tags=["Scores"])
 async def list_scores(
     apply_decay: bool = Query(True, description="Apply time-based trust decay"),
@@ -469,9 +509,10 @@ async def list_scores(
     offset: int = Query(0, ge=0, description="Number of agents to skip"),
 ):
     """Get scored agents with verdict breakdown and sybil count (paginated)."""
-    scores = await db.get_all_scores()
     if apply_decay:
-        scores = [_apply_decay(s) for s in scores]
+        scores = await _get_decayed_scores()
+    else:
+        scores = await db.get_all_scores()
     verdicts = {"TRUST": 0, "CAUTION": 0, "REJECT": 0}
     for s in scores:
         v = s.get("verdict", "").upper()
@@ -494,8 +535,10 @@ async def list_scores(
 @app.get("/api/stats", tags=["Scores"])
 async def stats():
     """Aggregate trust statistics across all scored agents."""
-    scores = await db.get_all_scores()
-    scores = [_apply_decay(s) for s in scores]
+    now = time.time()
+    if _stats_cache["data"] is not None and (now - _stats_cache["ts"]) < _RESP_CACHE_TTL:
+        return _stats_cache["data"]
+    scores = await _get_decayed_scores()
     verdicts = {"TRUST": 0, "CAUTION": 0, "REJECT": 0}
     for s in scores:
         v = s.get("verdict", "").upper()
@@ -521,7 +564,7 @@ async def stats():
     sybil_pct = (sybil_count / total) if total else 0
     ecosystem_health = round(avg_s * 0.4 + trust_pct * 100 * 0.3 + (1 - sybil_pct) * 100 * 0.3) if total else 0
 
-    return {
+    result = {
         "agents_scored": total,
         "avg_trust_score": round(avg_s, 1),
         "min_trust_score": min(trust_scores) if trust_scores else 0,
@@ -533,6 +576,9 @@ async def stats():
         "stale_scores": stale_count,
         "contagion_affected": contagion_count,
     }
+    _stats_cache["data"] = result
+    _stats_cache["ts"] = time.time()
+    return result
 
 
 # ─── Agent Comparison (must be before /trust/{agent_id} to avoid route conflict) ───
@@ -698,8 +744,10 @@ async def get_threats(limit: int = Query(50, ge=1, le=200)):
 async def graph_data():
     """Get full agent interaction graph for D3.js visualization.
     Returns nodes (agents) and links (interactions)."""
-    scores = await db.get_all_scores()
-    scores = [_apply_decay(s) for s in scores]
+    now = time.time()
+    if _graph_cache["data"] is not None and (now - _graph_cache["ts"]) < _GRAPH_CACHE_TTL:
+        return _graph_cache["data"]
+    scores = await _get_decayed_scores()
     edges = await db.get_all_edges()
 
     # Build wallet→agent lookup
@@ -737,7 +785,10 @@ async def graph_data():
                     "weight": e.get("interaction_count", 1),
                 })
 
-    return {"nodes": nodes, "links": links}
+    result = {"nodes": nodes, "links": links}
+    _graph_cache["data"] = result
+    _graph_cache["ts"] = time.time()
+    return result
 
 
 # ─── On-Chain Verification ───
@@ -1709,8 +1760,7 @@ async def marketplace_list(
     per_page: int = Query(20, ge=1, le=100),
 ):
     """Browse scored agents for the marketplace with filtering, sorting, and pagination."""
-    scores = await db.get_all_scores()
-    scores = [_apply_decay(s) for s in scores]
+    scores = list(await _get_decayed_scores())
 
     # Filters
     if verdict:
@@ -1732,9 +1782,11 @@ async def marketplace_list(
     start = (page - 1) * per_page
     agents = scores[start:start + per_page]
 
-    # Enrich with classification labels
+    # Enrich with classification labels (batch query instead of N+1)
+    agent_ids = [a["agent_id"] for a in agents]
+    edges_map = await db.get_edges_batch(agent_ids)
     for a in agents:
-        edges = await db.get_edges(a["agent_id"])
+        edges = edges_map.get(a["agent_id"], [])
         a["classification"] = _classify_agent(a, edges)
         a["explanation"] = _explain_score(a)
 
