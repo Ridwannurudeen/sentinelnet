@@ -47,7 +47,7 @@ No human flagged these threats. No one curated a blocklist. Agent #31253 discove
 - **Real data, real threats** — This is not a mockup or a demo with seeded data. SentinelNet found 2,119+ actual sybils operating across 84 networks, and flagged every one of them.
 - **8 integration paths** — Any protocol can plug in however they want: smart contract, Python SDK, JavaScript SDK, REST API, MCP, WebSocket, webhooks, or Prometheus. No vendor lock-in.
 - **On-chain verifiability** — Every trust score is backed by a TrustGate contract call, IPFS-pinned evidence, and staked ETH. Nothing is hand-waved.
-- **Gasless reputation feedback via Coinbase CDP Paymaster** — Reputation feedback submitted gaslessly via ERC-4337 Smart Account with sponsored gas (355+ UserOperations sent). TrustGate oracle and staking operations use direct EOA transactions on Base.
+- **Gasless via Coinbase CDP Paymaster** — Reputation feedback and staking operations submitted gaslessly via ERC-4337 Smart Account with sponsored gas (355+ UserOperations sent). TrustGate oracle uses direct EOA transactions on Base.
 - **Trust contagion** — PageRank-style propagation through the agent interaction graph. If an agent transacts with flagged counterparties, its score degrades automatically. Trust is earned through the network, not declared.
 
 ## Integration paths
@@ -81,7 +81,7 @@ Everything is running in production right now:
 |----------|---------|
 | Agent #31253 | [Identity Registry](https://basescan.org/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) |
 | Reputation feedback | [Reputation Registry](https://basescan.org/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) |
-| Score staking | [SentinelNetStaking](https://basescan.org/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7) |
+| Score staking | [SentinelNetStaking](https://basescan.org/address/0xEe1A8f34F1320D534b9a547f882762EABCB4f96d) |
 | Trust gate | [TrustGate](https://basescan.org/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) |
 | Evidence | IPFS / API (full analysis JSON per agent) |
 

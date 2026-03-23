@@ -297,7 +297,7 @@ Real-time feed of ecosystem threats detected autonomously:
 |----------|---------|---------|
 | Agent identity | [Identity Registry](https://base.blockscout.com/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #31253 registered via ERC-8004 |
 | Trust scores | [Reputation Registry](https://base.blockscout.com/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` per agent with IPFS URI |
-| Score stakes | [SentinelNetStaking](https://base.blockscout.com/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7) | ETH staked per score, 72h challenge window |
+| Score stakes | [SentinelNetStaking](https://basescan.org/address/0xEe1A8f34F1320D534b9a547f882762EABCB4f96d) | ETH staked per score, 72h challenge window |
 | Trust oracle | [TrustGate](https://base.blockscout.com/address/0x10D8caC126849123Cc1fb5806054be6c90343CC8) | `isTrusted()`, `getTrustScore()` — composable queries |
 | Evidence | IPFS / API | Full analysis JSON pinned per agent |
 

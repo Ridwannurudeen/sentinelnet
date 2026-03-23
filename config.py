@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Staking
     STAKE_AMOUNT_ETH: float = 0.001
-    STAKING_CONTRACT: str = "0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7"
+    STAKING_CONTRACT: str = "0xEe1A8f34F1320D534b9a547f882762EABCB4f96d"
 
     # TrustGate on-chain oracle
     TRUSTGATE_CONTRACT: str = ""

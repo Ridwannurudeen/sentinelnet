@@ -63,8 +63,8 @@ export const CONTRACTS = [
   },
   {
     name: "SentinelNetStaking",
-    address: "0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7",
-    explorer: "https://base.blockscout.com/address/0xABEB1fa61b0b3B271D1E1E102289579251ABd6F7",
+    address: "0xEe1A8f34F1320D534b9a547f882762EABCB4f96d",
+    explorer: "https://base.blockscout.com/address/0xEe1A8f34F1320D534b9a547f882762EABCB4f96d",
   },
   {
     name: "ERC-8004 Reputation Registry",
