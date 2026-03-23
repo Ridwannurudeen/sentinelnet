@@ -4,11 +4,14 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from api import app, db
+from tests.conftest import TEST_API_KEY
 
 # Import SDK
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "sdk", "python"))
 from sentinelnet import SentinelNet, AsyncSentinelNet
+
+AUTH = {"x-api-key": TEST_API_KEY}
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -30,7 +33,7 @@ def test_sdk_badge_url():
 async def test_async_sdk_get_trust():
     transport = ASGITransport(app=app)
     async with AsyncSentinelNet(base_url="http://test") as sn:
-        sn._client = AsyncClient(transport=transport, base_url="http://test")
+        sn._client = AsyncClient(transport=transport, base_url="http://test", headers=AUTH)
         score = await sn.get_trust(1)
         assert score["verdict"] in ("TRUST", "CAUTION", "REJECT")
         assert score["agent_id"] == 1
@@ -40,7 +43,7 @@ async def test_async_sdk_get_trust():
 async def test_async_sdk_is_trusted():
     transport = ASGITransport(app=app)
     async with AsyncSentinelNet(base_url="http://test") as sn:
-        sn._client = AsyncClient(transport=transport, base_url="http://test")
+        sn._client = AsyncClient(transport=transport, base_url="http://test", headers=AUTH)
         assert await sn.is_trusted(1) is True
         assert await sn.is_trusted(2) is False
 
@@ -49,7 +52,7 @@ async def test_async_sdk_is_trusted():
 async def test_async_sdk_trust_gate():
     transport = ASGITransport(app=app)
     async with AsyncSentinelNet(base_url="http://test") as sn:
-        sn._client = AsyncClient(transport=transport, base_url="http://test")
+        sn._client = AsyncClient(transport=transport, base_url="http://test", headers=AUTH)
         assert await sn.trust_gate(1, min_score=55) is True
         assert await sn.trust_gate(2, min_score=55) is False
 
@@ -58,7 +61,7 @@ async def test_async_sdk_trust_gate():
 async def test_async_sdk_batch():
     transport = ASGITransport(app=app)
     async with AsyncSentinelNet(base_url="http://test") as sn:
-        sn._client = AsyncClient(transport=transport, base_url="http://test")
+        sn._client = AsyncClient(transport=transport, base_url="http://test", headers=AUTH)
         result = await sn.batch_trust([1, 2, 999])
         assert result["queried"] == 3
         assert result["found"] == 2
@@ -68,7 +71,7 @@ async def test_async_sdk_batch():
 async def test_async_sdk_stats():
     transport = ASGITransport(app=app)
     async with AsyncSentinelNet(base_url="http://test") as sn:
-        sn._client = AsyncClient(transport=transport, base_url="http://test")
+        sn._client = AsyncClient(transport=transport, base_url="http://test", headers=AUTH)
         stats = await sn.get_stats()
         assert stats["agents_scored"] == 2
 
@@ -77,6 +80,6 @@ async def test_async_sdk_stats():
 async def test_async_sdk_threats():
     transport = ASGITransport(app=app)
     async with AsyncSentinelNet(base_url="http://test") as sn:
-        sn._client = AsyncClient(transport=transport, base_url="http://test")
+        sn._client = AsyncClient(transport=transport, base_url="http://test", headers=AUTH)
         threats = await sn.get_threats(limit=5)
         assert "threats" in threats

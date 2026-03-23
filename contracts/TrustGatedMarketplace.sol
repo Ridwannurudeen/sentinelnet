@@ -14,6 +14,7 @@ interface ITrustGate {
 contract TrustGatedMarketplace {
     ITrustGate public trustGate;
     address public owner;
+    bool private _locked;
 
     struct ServiceListing {
         uint256 agentId;
@@ -42,6 +43,13 @@ contract TrustGatedMarketplace {
         _;
     }
 
+    modifier nonReentrant() {
+        require(!_locked, "Reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
+    }
+
     constructor(address _trustGate) {
         trustGate = ITrustGate(_trustGate);
         owner = msg.sender;
@@ -65,7 +73,7 @@ contract TrustGatedMarketplace {
     }
 
     /// @notice Execute a service. The providing agent must still be trusted at execution time.
-    function executeService(uint256 listingId) external payable {
+    function executeService(uint256 listingId) external payable nonReentrant {
         ServiceListing storage listing = listings[listingId];
         if (!listing.active) revert ListingNotActive(listingId);
         if (msg.value < listing.price) revert InsufficientPayment();
@@ -77,11 +85,13 @@ contract TrustGatedMarketplace {
         }
 
         // Pay the provider
-        payable(listing.provider).transfer(listing.price);
+        (bool sent, ) = payable(listing.provider).call{value: listing.price}("");
+        require(sent, "Payment failed");
 
         // Refund excess
         if (msg.value > listing.price) {
-            payable(msg.sender).transfer(msg.value - listing.price);
+            (bool refunded, ) = payable(msg.sender).call{value: msg.value - listing.price}("");
+            require(refunded, "Refund failed");
         }
 
         emit ServiceExecuted(listingId, listing.agentId, msg.sender);

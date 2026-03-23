@@ -4,6 +4,9 @@ import pytest_asyncio
 from datetime import datetime, timezone, timedelta
 from httpx import AsyncClient, ASGITransport
 from api import app, db, _detect_anomalies, _anomaly_cache
+from tests.conftest import TEST_API_KEY
+
+AUTH = {"x-api-key": TEST_API_KEY}
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -30,7 +33,7 @@ async def test_rapid_drop_detected():
     await db.save_score(1, "0xa", 80, 80, 80, 80, 80, "TRUST", "", "", agent_identity=75)
     await db.save_score(1, "0xa", 55, 55, 55, 55, 55, "CAUTION", "", "", agent_identity=50)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     data = r.json()
     assert r.status_code == 200
     drops = [a for a in data["anomalies"] if a["type"] == "rapid_drop"]
@@ -47,7 +50,7 @@ async def test_rapid_drop_medium_severity():
     await db.save_score(1, "0xa", 60, 60, 60, 60, 60, "TRUST", "", "", agent_identity=50)
     await db.save_score(1, "0xa", 44, 44, 44, 44, 44, "CAUTION", "", "", agent_identity=40)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     drops = [a for a in r.json()["anomalies"] if a["type"] == "rapid_drop"]
     assert len(drops) == 1
     assert drops[0]["severity"] == "MEDIUM"
@@ -59,7 +62,7 @@ async def test_no_rapid_drop_for_small_change():
     await db.save_score(1, "0xa", 80, 80, 80, 80, 80, "TRUST", "", "", agent_identity=75)
     await db.save_score(1, "0xa", 70, 70, 70, 70, 70, "TRUST", "", "", agent_identity=65)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     drops = [a for a in r.json()["anomalies"] if a["type"] == "rapid_drop"]
     assert len(drops) == 0
 
@@ -71,7 +74,7 @@ async def test_suspicious_perfect_score_low_activity():
     """Score=100 with low activity triggers suspicious_perfect_score."""
     await db.save_score(1, "0xa", 100, 80, 20, 80, 80, "TRUST", "", "", agent_identity=90)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     perfects = [a for a in r.json()["anomalies"] if a["type"] == "suspicious_perfect_score"]
     assert len(perfects) == 1
     assert perfects[0]["severity"] == "HIGH"
@@ -82,7 +85,7 @@ async def test_suspicious_perfect_score_low_longevity():
     """Score=100 with low longevity triggers suspicious_perfect_score."""
     await db.save_score(1, "0xa", 100, 10, 80, 80, 80, "TRUST", "", "", agent_identity=90)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     perfects = [a for a in r.json()["anomalies"] if a["type"] == "suspicious_perfect_score"]
     assert len(perfects) == 1
 
@@ -92,7 +95,7 @@ async def test_no_perfect_score_anomaly_when_legitimate():
     """Score=100 with high activity AND high longevity should not trigger."""
     await db.save_score(1, "0xa", 100, 80, 80, 80, 80, "TRUST", "", "", agent_identity=90)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     perfects = [a for a in r.json()["anomalies"] if a["type"] == "suspicious_perfect_score"]
     assert len(perfects) == 0
 
@@ -106,7 +109,7 @@ async def test_sybil_cluster_detected():
     await db.save_score(2, "0xSAME", 55, 55, 55, 55, 55, "CAUTION", "", "")
     await db.save_score(3, "0xSAME", 50, 50, 50, 50, 50, "CAUTION", "", "")
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     sybils = [a for a in r.json()["anomalies"] if a["type"] == "sybil_cluster"]
     assert len(sybils) == 1
     assert sybils[0]["severity"] == "HIGH"
@@ -119,7 +122,7 @@ async def test_no_sybil_cluster_for_two_agents():
     await db.save_score(1, "0xSAME", 60, 60, 60, 60, 60, "TRUST", "", "")
     await db.save_score(2, "0xSAME", 55, 55, 55, 55, 55, "CAUTION", "", "")
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     sybils = [a for a in r.json()["anomalies"] if a["type"] == "sybil_cluster"]
     assert len(sybils) == 0
 
@@ -135,7 +138,7 @@ async def test_score_outlier_detected():
     # Agent 6 is an extreme outlier
     await db.save_score(6, "0x600", 100, 100, 100, 100, 100, "TRUST", "", "", agent_identity=95)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     outliers = [a for a in r.json()["anomalies"] if a["type"] == "score_outlier"]
     assert len(outliers) >= 1
     outlier_ids = [o["agent_id"] for o in outliers]
@@ -148,7 +151,7 @@ async def test_no_outlier_with_few_agents():
     await db.save_score(1, "0xa", 50, 50, 50, 50, 50, "CAUTION", "", "")
     await db.save_score(2, "0xb", 100, 100, 100, 100, 100, "TRUST", "", "", agent_identity=95)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     outliers = [a for a in r.json()["anomalies"] if a["type"] == "score_outlier"]
     assert len(outliers) == 0
 
@@ -161,7 +164,7 @@ async def test_toxic_neighborhood_detected():
     await db.save_score(1, "0xa", 40, 50, 50, 50, 50, "CAUTION", "", "",
                         agent_identity=30, contagion_adjustment=-15)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     toxic = [a for a in r.json()["anomalies"] if a["type"] == "toxic_neighborhood"]
     assert len(toxic) == 1
     assert toxic[0]["severity"] == "HIGH"
@@ -177,7 +180,7 @@ async def test_limit_param():
     await db.save_score(2, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
     await db.save_score(3, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies?limit=2")
+        r = await client.get("/api/anomalies?limit=2", headers=AUTH)
     data = r.json()
     assert len(data["anomalies"]) <= 2
     assert data["returned"] <= 2
@@ -191,7 +194,7 @@ async def test_severity_filter():
     await db.save_score(1, "0xa", 75, 10, 80, 80, 80, "TRUST", "", "",
                         contagion_adjustment=-15)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies?severity=HIGH")
+        r = await client.get("/api/anomalies?severity=HIGH", headers=AUTH)
     data = r.json()
     for a in data["anomalies"]:
         assert a["severity"] == "HIGH"
@@ -203,7 +206,7 @@ async def test_severity_filter_case_insensitive():
     await db.save_score(1, "0xa", 40, 50, 50, 50, 50, "CAUTION", "", "",
                         contagion_adjustment=-15)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies?severity=high")
+        r = await client.get("/api/anomalies?severity=high", headers=AUTH)
     data = r.json()
     for a in data["anomalies"]:
         assert a["severity"] == "HIGH"
@@ -215,7 +218,7 @@ async def test_severity_filter_case_insensitive():
 async def test_response_structure():
     """Verify response shape includes total, returned, checked, limit, offset."""
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     data = r.json()
     assert "anomalies" in data
     assert "total" in data
@@ -232,7 +235,7 @@ async def test_response_structure():
 async def test_empty_db_returns_empty_anomalies():
     """No agents scored = no anomalies."""
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     data = r.json()
     assert data["total"] == 0
     assert data["checked"] == 0
@@ -246,7 +249,7 @@ async def test_anomalies_sorted_by_severity():
     await db.save_score(1, "0xa", 75, 10, 80, 80, 80, "TRUST", "", "",
                         contagion_adjustment=-15)
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     anomalies = r.json()["anomalies"]
     if len(anomalies) >= 2:
         severities = [a["severity"] for a in anomalies]
@@ -306,10 +309,10 @@ async def test_offset_param():
     await db.save_score(2, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
     await db.save_score(3, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r_all = await client.get("/api/anomalies?limit=500")
+        r_all = await client.get("/api/anomalies?limit=500", headers=AUTH)
         total = r_all.json()["total"]
         # Now fetch with offset=2
-        r_page = await client.get(f"/api/anomalies?offset=2&limit=500")
+        r_page = await client.get("/api/anomalies?offset=2&limit=500", headers=AUTH)
     data = r_page.json()
     assert data["offset"] == 2
     assert data["total"] == total
@@ -323,7 +326,7 @@ async def test_offset_and_limit_combined():
     await db.save_score(2, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
     await db.save_score(3, "0xSAME", 100, 10, 10, 80, 80, "TRUST", "", "")
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies?offset=1&limit=1")
+        r = await client.get("/api/anomalies?offset=1&limit=1", headers=AUTH)
     data = r.json()
     assert data["returned"] == 1
     assert data["offset"] == 1
@@ -334,7 +337,7 @@ async def test_offset_and_limit_combined():
 async def test_default_limit_is_50():
     """Default limit should be 50 when not specified."""
     async with AsyncClient(transport=_transport(), base_url="http://test") as client:
-        r = await client.get("/api/anomalies")
+        r = await client.get("/api/anomalies", headers=AUTH)
     data = r.json()
     assert data["limit"] == 50
     assert data["offset"] == 0

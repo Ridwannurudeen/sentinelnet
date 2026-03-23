@@ -648,14 +648,14 @@ X-API-Key: sn_live_abc123...
 
 {
   "url": "https://your-app.com/hooks/sentinelnet",
-  "events": ["score_update", "threat_alert", "verdict_change"],
+  "events": ["score_update", "verdict_changed", "sybil_detected", "trust_degraded"],
   "secret": "your_webhook_secret_here"
 }
 
 {
-  "id": "wh_abc123",
+  "webhook_id": "wh_abc123",
   "url": "https://your-app.com/hooks/sentinelnet",
-  "events": ["score_update", "threat_alert", "verdict_change"],
+  "events": ["score_update", "verdict_changed", "sybil_detected", "trust_degraded"],
   "created_at": "2026-03-22T00:00:00Z",
   "active": true
 }</pre>
@@ -664,8 +664,9 @@ X-API-Key: sn_live_abc123...
         <table>
             <tr><th>Event</th><th>Fires When</th><th>Payload Includes</th></tr>
             <tr><td><code>score_update</code></td><td>Any agent's score is recomputed</td><td><code>agent_id</code>, <code>trust_score</code>, <code>previous_score</code>, <code>verdict</code></td></tr>
-            <tr><td><code>threat_alert</code></td><td>New threat detected</td><td><code>threat_type</code>, <code>severity</code>, <code>agent_ids</code>, <code>details</code></td></tr>
-            <tr><td><code>verdict_change</code></td><td>Agent verdict transitions (e.g., TRUST to CAUTION)</td><td><code>agent_id</code>, <code>old_verdict</code>, <code>new_verdict</code>, <code>trust_score</code></td></tr>
+            <tr><td><code>verdict_changed</code></td><td>Agent verdict transitions (e.g., TRUST to CAUTION)</td><td><code>agent_id</code>, <code>previous_verdict</code>, <code>verdict</code>, <code>trust_score</code></td></tr>
+            <tr><td><code>sybil_detected</code></td><td>Agent flagged as sybil</td><td><code>agent_id</code>, <code>sybil_flagged</code>, <code>trust_score</code></td></tr>
+            <tr><td><code>trust_degraded</code></td><td>Agent score drops from previous score</td><td><code>agent_id</code>, <code>trust_score</code>, <code>previous_score</code></td></tr>
         </table>
 
         <h3>Webhook Payload</h3>
@@ -688,7 +689,7 @@ X-SentinelNet-Delivery: del_xyz789
 }</pre>
 
         <h3>Signature Verification</h3>
-        <p>Each webhook delivery is signed with HMAC-SHA256 using your <code>secret</code>. Verify the <code>X-SentinelNet-Signature</code> header to ensure authenticity:</p>
+        <p>If you provide a <code>secret</code> when registering, each delivery is signed with HMAC-SHA256. Verify the <code>X-SentinelNet-Signature</code> header to ensure authenticity:</p>
 <pre>import hmac, hashlib
 
 def verify_webhook(payload_bytes, signature_header, secret):

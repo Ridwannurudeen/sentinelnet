@@ -315,13 +315,16 @@ async def _handle_verify(args):
             "error": f"Agent {agent_id} not scored yet",
             "agent_id": agent_id,
         }))]
+    attestation_uid = score.get("attestation_uid", "")
+    evidence_uri = score.get("evidence_uri", "")
     return [TextContent(type="text", text=json.dumps({
         "agent_id": agent_id,
         "trust_score": score["trust_score"],
         "verdict": score["verdict"],
-        "on_chain_verified": score.get("on_chain_verified", False),
-        "trustgate_contract": score.get("trustgate_contract"),
-        "last_updated": score.get("updated_at"),
+        "on_chain_verified": bool(attestation_uid),
+        "attestation_uid": attestation_uid or None,
+        "evidence_uri": evidence_uri or None,
+        "last_updated": score.get("scored_at"),
     }, default=str))]
 
 

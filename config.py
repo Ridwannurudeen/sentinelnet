@@ -47,6 +47,7 @@ class Settings(BaseSettings):
 
     # API Key Authentication
     API_KEYS: str = ""  # Comma-separated valid API keys
+    ADMIN_KEY: str = ""  # Admin key for scoring/management endpoints
 
     class Config:
         env_file = ".env"

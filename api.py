@@ -1,5 +1,8 @@
 import asyncio
+import hashlib
+import hmac
 import ipaddress
+import json as json_module
 import logging
 import math
 import os
@@ -11,7 +14,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List
 from urllib.parse import urlparse
-from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Path, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -27,6 +30,16 @@ engine = TrustEngine()
 logger = logging.getLogger("sentinelnet.api")
 _settings = Settings()
 _api_keys: dict = {}  # key -> {email, created_at} — dynamically registered keys
+
+# Agent ID bounds (ERC-8004 uses uint256 but realistic IDs are much smaller)
+MAX_AGENT_ID = 2**32  # ~4 billion, well above current registry size
+
+
+def _validate_agent_id(agent_id: int) -> None:
+    """Raise 400 if agent_id is out of valid range."""
+    if agent_id < 0 or agent_id > MAX_AGENT_ID:
+        raise HTTPException(400, f"Invalid agent_id: must be between 0 and {MAX_AGENT_ID}")
+
 
 # Anomaly detection cache (TTL-based to avoid recomputing 2000+ anomalies per request)
 _anomaly_cache: dict = {"anomalies": None, "checked": 0, "ts": 0}
@@ -292,18 +305,38 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://sentinelnet.gudman.xyz",
+        "http://localhost:3000",
+        "http://localhost:8004",
+    ],
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+
+# ─── Security Headers Middleware ───
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 # ─── API Key Authentication Middleware ───
 
 # Paths that bypass API key authentication
 _AUTH_SKIP_EXACT = frozenset({
-    "/", "/dashboard", "/marketplace", "/graph", "/leaderboard",
-    "/docs-guide", "/api/health", "/api/keys", "/docs", "/swagger", "/openapi.json", "/redoc", "/metrics",
+    "/", "/dashboard", "/marketplace", "/graph", "/leaderboard", "/methodology",
+    "/docs-guide", "/api/health", "/docs", "/swagger", "/openapi.json", "/redoc", "/metrics",
 })
 _AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/")
 
@@ -311,21 +344,15 @@ _AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/")
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     """Enforces API key authentication on API routes.
 
-    Checks X-API-Key header or api_key query parameter. Skips auth for
-    page routes, docs, health, badges, static assets, and WebSocket
-    connections. If API_KEYS config is empty (not configured), all
-    requests are allowed through for graceful demo degradation.
+    Checks X-API-Key header. Skips auth for page routes, docs, health,
+    badges, static assets, and WebSocket connections. If API_KEYS config
+    is empty (not configured), all requests are allowed through for
+    graceful demo degradation.
     """
 
     async def dispatch(self, request: Request, call_next):
         # Always allow CORS preflight
         if request.method == "OPTIONS":
-            return await call_next(request)
-
-        # If no API keys are configured at all (neither in config nor
-        # dynamically registered), allow everything — demo / open mode
-        configured_keys = _settings.API_KEYS.strip()
-        if not configured_keys and not _api_keys:
             return await call_next(request)
 
         path = request.url.path
@@ -343,8 +370,12 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         if path.endswith(".svg") and "/badge/" in path:
             return await call_next(request)
 
-        # Extract API key from header or query param
-        api_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+        # If no API keys are configured, allow all requests (demo/test mode)
+        if not _settings.API_KEYS.strip() and not _api_keys:
+            return await call_next(request)
+
+        # Extract API key from header only (never query params — they leak in logs)
+        api_key = request.headers.get("x-api-key", "")
 
         if not api_key:
             return JSONResponse(
@@ -542,6 +573,7 @@ async def compare_agents(agents: str = Query(..., description="Comma-separated a
 @app.get("/trust/{agent_id}", tags=["Trust"])
 async def get_trust(agent_id: int):
     """Get trust score for a specific agent with decay and explanation."""
+    _validate_agent_id(agent_id)
     score = await db.get_score(agent_id)
     if not score:
         raise HTTPException(404, f"Agent {agent_id} not scored yet")
@@ -553,6 +585,7 @@ async def get_trust(agent_id: int):
 @app.get("/trust/{agent_id}/history", tags=["Trust"])
 async def get_trust_history(agent_id: int, limit: int = Query(50, ge=1, le=200)):
     """Get scoring history for an agent to see trust trends over time."""
+    _validate_agent_id(agent_id)
     history = await db.get_score_history(agent_id, limit=limit)
     if not history:
         raise HTTPException(404, f"No history for agent {agent_id}")
@@ -562,6 +595,7 @@ async def get_trust_history(agent_id: int, limit: int = Query(50, ge=1, le=200))
 @app.get("/trust/graph/{agent_id}", tags=["Trust"])
 async def get_trust_graph(agent_id: int):
     """Get an agent's counterparty trust neighborhood."""
+    _validate_agent_id(agent_id)
     edges = await db.get_edges(agent_id)
     return {"agent_id": agent_id, "neighbors": edges, "total_neighbors": len(edges)}
 
@@ -575,6 +609,8 @@ async def batch_trust(request: Request):
         raise HTTPException(400, "Provide 1-100 agent_ids")
     if not all(isinstance(x, int) for x in agent_ids):
         raise HTTPException(400, "All agent_ids must be integers")
+    for aid in agent_ids:
+        _validate_agent_id(aid)
     results = {}
     for aid in agent_ids:
         score = await db.get_score(aid)
@@ -605,13 +641,13 @@ async def trust_badge(agent_id: int):
 # ─── Evidence ───
 
 @app.get("/evidence/{agent_id}", tags=["Evidence"])
-async def get_evidence(agent_id: int):
+async def get_evidence(agent_id: int, request: Request):
     """Verifiable evidence JSON for an agent's trust score.
-    Content-addressed: the hash in the query string can be verified against the response."""
+    Content-addressed: if ?hash= is provided, the response content hash is verified against it."""
     score = await db.get_score(agent_id)
     if not score:
         raise HTTPException(404, f"No evidence for agent {agent_id}")
-    return {
+    evidence = {
         "agent_id": score["agent_id"],
         "wallet": score["wallet"],
         "trust_score": score["trust_score"],
@@ -629,6 +665,20 @@ async def get_evidence(agent_id: int):
         "scorer": "sentinelnet-v1",
         "scored_at": score["scored_at"],
     }
+    # Verify content hash if provided
+    expected_hash = request.query_params.get("hash", "")
+    if expected_hash:
+        content_hash = hashlib.sha256(json_module.dumps(evidence).encode()).hexdigest()
+        if not content_hash.startswith(expected_hash):
+            raise HTTPException(
+                409,
+                detail={
+                    "error": "Content hash mismatch — evidence may have changed since publication",
+                    "expected_prefix": expected_hash,
+                    "actual_hash": content_hash[:16],
+                },
+            )
+    return evidence
 
 
 # ─── Threat Intelligence ───
@@ -1001,8 +1051,9 @@ MAX_WEBHOOKS = 50
 @app.post("/api/webhooks", tags=["Webhooks"])
 async def register_webhook(request: Request):
     """Register a webhook URL to receive trust alerts.
-    Body: {"url": "https://...", "events": ["score_update", "verdict_changed", "sybil_detected", "trust_degraded"]}
-    If events is omitted, all events are subscribed."""
+    Body: {"url": "https://...", "events": [...], "secret": "optional_signing_secret"}
+    If events is omitted, all events are subscribed.
+    Webhooks are scoped to your API key — you can only list/delete your own."""
     body = await request.json()
     url = body.get("url", "")
     if not url or not url.startswith("http"):
@@ -1016,33 +1067,44 @@ async def register_webhook(request: Request):
     for e in events:
         if e not in VALID_WEBHOOK_EVENTS:
             raise HTTPException(400, f"Invalid event '{e}'. Valid: {VALID_WEBHOOK_EVENTS}")
+    wh_secret = body.get("secret", "")
+    owner_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
     wh_id = f"wh_{secrets.token_hex(8)}"
-    await db.save_webhook(wh_id, url, events)
+    await db.save_webhook(wh_id, url, events, owner_key=owner_key, secret=wh_secret)
     return {"webhook_id": wh_id, "url": url, "events": events, "status": "registered"}
 
 
 @app.get("/api/webhooks", tags=["Webhooks"])
-async def list_webhooks():
-    """List all registered webhooks."""
-    webhooks = await db.get_webhooks()
+async def list_webhooks(request: Request):
+    """List webhooks owned by the caller's API key."""
+    owner_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+    webhooks = await db.get_webhooks(owner_key=owner_key)
     return {"webhooks": webhooks, "total": len(webhooks)}
 
 
 @app.delete("/api/webhooks/{webhook_id}", tags=["Webhooks"])
-async def delete_webhook(webhook_id: str):
-    """Remove a registered webhook."""
-    deleted = await db.delete_webhook(webhook_id)
+async def delete_webhook(webhook_id: str, request: Request):
+    """Remove a webhook. Only the owner (by API key) can delete it."""
+    owner_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+    deleted = await db.delete_webhook(webhook_id, owner_key=owner_key)
     if not deleted:
-        raise HTTPException(404, f"Webhook {webhook_id} not found")
+        raise HTTPException(404, f"Webhook {webhook_id} not found or not owned by you")
     return {"status": "deleted", "webhook_id": webhook_id}
 
 
-async def _deliver_webhook(url: str, payload: dict, max_retries: int = 3):
-    """Deliver a single webhook with retry + exponential backoff."""
+async def _deliver_webhook(url: str, payload: dict, wh_secret: str = "", max_retries: int = 3):
+    """Deliver a single webhook with HMAC signature and retry + exponential backoff."""
+    payload_bytes = json_module.dumps(payload).encode()
+    headers = {"Content-Type": "application/json"}
+    if wh_secret:
+        signature = "sha256=" + hmac.new(
+            wh_secret.encode(), payload_bytes, hashlib.sha256
+        ).hexdigest()
+        headers["X-SentinelNet-Signature"] = signature
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(url, json=payload)
+                resp = await client.post(url, content=payload_bytes, headers=headers)
                 if resp.status_code < 400:
                     return True
                 if resp.status_code < 500:
@@ -1058,7 +1120,7 @@ async def _deliver_webhook(url: str, payload: dict, max_retries: int = 3):
 
 async def _fire_webhooks(event: str, payload: dict):
     """Fire webhooks for matching events. Detects derived events from payload context."""
-    webhooks = await db.get_webhooks()
+    webhooks = await db.get_webhooks_with_secrets()
     if not webhooks:
         return
 
@@ -1089,7 +1151,7 @@ async def _fire_webhooks(event: str, payload: dict):
     for wh in webhooks:
         subscribed = set(wh["events"])
         if triggered_events & subscribed:
-            tasks.append(_deliver_webhook(wh["url"], delivery_payload))
+            tasks.append(_deliver_webhook(wh["url"], delivery_payload, wh_secret=wh.get("secret", "")))
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -1100,9 +1162,20 @@ async def _fire_webhooks(event: str, payload: dict):
 _agent_ref = None
 
 
+def _require_admin(request: Request):
+    """Verify the request carries a valid admin key."""
+    admin_key = _settings.ADMIN_KEY.strip()
+    if not admin_key:
+        raise HTTPException(503, "Admin endpoint not configured")
+    provided = request.headers.get("x-admin-key", "") or request.query_params.get("admin_key", "")
+    if not provided or not hmac.compare_digest(provided, admin_key):
+        raise HTTPException(403, "Invalid or missing admin key")
+
+
 @app.post("/api/score/{agent_id}", tags=["Admin"])
-async def trigger_score(agent_id: int):
-    """Trigger on-demand scoring for a specific agent. Used for self-scoring and manual rescores."""
+async def trigger_score(agent_id: int, request: Request):
+    """Trigger on-demand scoring for a specific agent. Requires admin key (X-Admin-Key header)."""
+    _require_admin(request)
     if not _agent_ref:
         raise HTTPException(503, "Agent not initialized yet")
     try:
@@ -1222,9 +1295,13 @@ def _check_rate_limit(ip: str, api_key: str = None) -> tuple:
     cutoff = now - 3600
     limit = RATE_LIMIT_AUTH if (api_key and _is_valid_api_key(api_key)) else RATE_LIMIT_FREE
     # Clean old entries
-    _rate_limits[ip] = [t for t in _rate_limits[ip] if t > cutoff]
+    _rate_limits[ip] = sorted(t for t in _rate_limits[ip] if t > cutoff)
     remaining = max(0, limit - len(_rate_limits[ip]))
-    reset = int(cutoff + 3600)
+    # Reset = when the oldest request in the window expires (frees a slot)
+    if _rate_limits[ip]:
+        reset = int(_rate_limits[ip][0] + 3600)
+    else:
+        reset = int(now + 3600)
     if remaining <= 0:
         return False, limit, 0, reset
     _rate_limits[ip].append(now)
@@ -1264,15 +1341,28 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 
+_key_registrations: dict = defaultdict(list)  # ip -> [timestamps]
+MAX_KEY_REGISTRATIONS = 3  # per IP per hour
+
+
 @app.post("/api/keys", tags=["Auth"])
 async def register_api_key(request: Request):
     """Register for an API key. Grants authenticated API access and higher
     rate limits (1000 req/hr). The key is stored in memory and valid for the
-    lifetime of the server process.
+    lifetime of the server process. Limited to 3 registrations per IP per hour.
 
     Body: {"email": "dev@example.com"}
     Returns: {"api_key": "sk-sn-...", "rate_limit": 1000, "note": "..."}
     """
+    # Rate-limit key registrations per IP
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    cutoff = now - 3600
+    _key_registrations[ip] = [t for t in _key_registrations[ip] if t > cutoff]
+    if len(_key_registrations[ip]) >= MAX_KEY_REGISTRATIONS:
+        raise HTTPException(429, "Too many key registrations. Try again later.")
+    _key_registrations[ip].append(now)
+
     body = await request.json()
     email = body.get("email", "")
     if not email or "@" not in email:

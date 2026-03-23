@@ -4,6 +4,9 @@ import pytest_asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 from httpx import AsyncClient, ASGITransport
 from api import app, db, _fire_webhooks, _deliver_webhook, VALID_WEBHOOK_EVENTS
+from tests.conftest import TEST_API_KEY
+
+AUTH = {"x-api-key": TEST_API_KEY}
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -24,7 +27,7 @@ async def test_register_webhook():
         r = await client.post("/api/webhooks", json={
             "url": "https://example.com/hook",
             "events": ["score_update", "verdict_changed"],
-        })
+        }, headers=AUTH)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "registered"
@@ -39,7 +42,7 @@ async def test_register_webhook_defaults_all_events():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         r = await client.post("/api/webhooks", json={
             "url": "https://example.com/hook",
-        })
+        }, headers=AUTH)
     assert r.status_code == 200
     assert set(r.json()["events"]) == set(VALID_WEBHOOK_EVENTS)
 
@@ -48,7 +51,7 @@ async def test_register_webhook_defaults_all_events():
 async def test_register_webhook_rejects_invalid_url():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.post("/api/webhooks", json={"url": "not-a-url"})
+        r = await client.post("/api/webhooks", json={"url": "not-a-url"}, headers=AUTH)
     assert r.status_code == 400
 
 
@@ -56,7 +59,7 @@ async def test_register_webhook_rejects_invalid_url():
 async def test_register_webhook_rejects_private_url():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.post("/api/webhooks", json={"url": "http://127.0.0.1/hook"})
+        r = await client.post("/api/webhooks", json={"url": "http://127.0.0.1/hook"}, headers=AUTH)
     assert r.status_code == 400
 
 
@@ -67,7 +70,7 @@ async def test_register_webhook_rejects_invalid_event():
         r = await client.post("/api/webhooks", json={
             "url": "https://example.com/hook",
             "events": ["not_real_event"],
-        })
+        }, headers=AUTH)
     assert r.status_code == 400
 
 
@@ -78,7 +81,7 @@ async def test_register_webhook_rejects_invalid_event():
 async def test_list_webhooks_empty():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/api/webhooks")
+        r = await client.get("/api/webhooks", headers=AUTH)
     assert r.status_code == 200
     assert r.json()["total"] == 0
     assert r.json()["webhooks"] == []
@@ -88,9 +91,9 @@ async def test_list_webhooks_empty():
 async def test_list_webhooks_after_register():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        await client.post("/api/webhooks", json={"url": "https://a.com/h1"})
-        await client.post("/api/webhooks", json={"url": "https://b.com/h2"})
-        r = await client.get("/api/webhooks")
+        await client.post("/api/webhooks", json={"url": "https://a.com/h1"}, headers=AUTH)
+        await client.post("/api/webhooks", json={"url": "https://b.com/h2"}, headers=AUTH)
+        r = await client.get("/api/webhooks", headers=AUTH)
     assert r.status_code == 200
     assert r.json()["total"] == 2
 
@@ -102,9 +105,9 @@ async def test_list_webhooks_after_register():
 async def test_delete_webhook():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        reg = await client.post("/api/webhooks", json={"url": "https://a.com/h"})
+        reg = await client.post("/api/webhooks", json={"url": "https://a.com/h"}, headers=AUTH)
         wh_id = reg.json()["webhook_id"]
-        r = await client.delete(f"/api/webhooks/{wh_id}")
+        r = await client.delete(f"/api/webhooks/{wh_id}", headers=AUTH)
     assert r.status_code == 200
     assert r.json()["status"] == "deleted"
 
@@ -113,7 +116,7 @@ async def test_delete_webhook():
 async def test_delete_webhook_not_found():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.delete("/api/webhooks/wh_nonexistent")
+        r = await client.delete("/api/webhooks/wh_nonexistent", headers=AUTH)
     assert r.status_code == 404
 
 
@@ -121,10 +124,10 @@ async def test_delete_webhook_not_found():
 async def test_delete_removes_from_list():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        reg = await client.post("/api/webhooks", json={"url": "https://a.com/h"})
+        reg = await client.post("/api/webhooks", json={"url": "https://a.com/h"}, headers=AUTH)
         wh_id = reg.json()["webhook_id"]
-        await client.delete(f"/api/webhooks/{wh_id}")
-        r = await client.get("/api/webhooks")
+        await client.delete(f"/api/webhooks/{wh_id}", headers=AUTH)
+        r = await client.get("/api/webhooks", headers=AUTH)
     assert r.json()["total"] == 0
 
 

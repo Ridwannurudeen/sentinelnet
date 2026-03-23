@@ -2,6 +2,9 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from api import app, db
+from tests.conftest import TEST_API_KEY
+
+AUTH = {"x-api-key": TEST_API_KEY}
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -26,7 +29,7 @@ async def test_health():
 async def test_trust_endpoint_404_for_unknown():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/trust/99999")
+        r = await client.get("/trust/99999", headers=AUTH)
     assert r.status_code == 404
 
 
@@ -36,7 +39,7 @@ async def test_scores_endpoint_includes_verdicts():
     await db.save_score(2, "0xb", 30, 30, 30, 30, 30, "REJECT", "", "", agent_identity=20)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/api/scores?apply_decay=false")
+        r = await client.get("/api/scores?apply_decay=false", headers=AUTH)
     data = r.json()
     assert data["total"] == 2
     assert data["verdicts"]["TRUST"] >= 1
@@ -48,7 +51,7 @@ async def test_stats_endpoint():
     await db.save_score(1, "0xa", 80, 80, 80, 80, 80, "TRUST", "", "", agent_identity=75)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/api/stats")
+        r = await client.get("/api/stats", headers=AUTH)
     data = r.json()
     assert data["agents_scored"] == 1
     assert "sybil_flagged" in data
@@ -61,7 +64,7 @@ async def test_trust_history_endpoint():
     await db.save_score(1, "0xa", 70, 70, 70, 70, 70, "TRUST", "", "", agent_identity=60)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/trust/1/history")
+        r = await client.get("/trust/1/history", headers=AUTH)
     data = r.json()
     assert data["entries"] == 2
 
@@ -70,7 +73,7 @@ async def test_trust_history_endpoint():
 async def test_trust_history_404_for_unknown():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/trust/99999/history")
+        r = await client.get("/trust/99999/history", headers=AUTH)
     assert r.status_code == 404
 
 
@@ -79,7 +82,7 @@ async def test_trust_graph_endpoint():
     await db.save_edge(1, "0xdef", 3, False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/trust/graph/1")
+        r = await client.get("/trust/graph/1", headers=AUTH)
     data = r.json()
     assert data["total_neighbors"] == 1
 
@@ -95,7 +98,7 @@ async def test_score_decay_applied():
     await db.conn.commit()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        r = await client.get("/trust/1")
+        r = await client.get("/trust/1", headers=AUTH)
     data = r.json()
     # After 30 days decay: 90 * e^(-0.01*30) ≈ 67
     assert data["trust_score"] < 90

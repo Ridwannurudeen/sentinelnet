@@ -71,6 +71,8 @@ class Database:
                 id TEXT PRIMARY KEY,
                 url TEXT NOT NULL,
                 events TEXT NOT NULL,
+                owner_key TEXT NOT NULL DEFAULT '',
+                secret TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )
         """)
@@ -83,6 +85,14 @@ class Database:
         ]:
             try:
                 await self.conn.execute(f"ALTER TABLE trust_scores ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass
+        for col, typedef in [
+            ("owner_key", "TEXT NOT NULL DEFAULT ''"),
+            ("secret", "TEXT NOT NULL DEFAULT ''"),
+        ]:
+            try:
+                await self.conn.execute(f"ALTER TABLE webhooks ADD COLUMN {col} {typedef}")
             except Exception:
                 pass
         await self.conn.commit()
@@ -189,19 +199,39 @@ class Database:
 
     # ─── Webhooks ───
 
-    async def save_webhook(self, wh_id, url, events):
+    async def save_webhook(self, wh_id, url, events, owner_key="", secret=""):
         """Persist a webhook registration."""
         import json
         now = datetime.now(timezone.utc).isoformat()
         await self.conn.execute(
-            "INSERT INTO webhooks (id, url, events, created_at) VALUES (?, ?, ?, ?)",
-            (wh_id, url, json.dumps(events), now),
+            "INSERT INTO webhooks (id, url, events, owner_key, secret, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (wh_id, url, json.dumps(events), owner_key, secret, now),
         )
         await self.conn.commit()
         return {"id": wh_id, "url": url, "events": events, "created_at": now}
 
-    async def get_webhooks(self):
-        """Return all registered webhooks."""
+    async def get_webhooks(self, owner_key=None):
+        """Return webhooks. If owner_key is provided, only return that owner's webhooks."""
+        import json
+        if owner_key:
+            cursor = await self.conn.execute(
+                "SELECT * FROM webhooks WHERE owner_key = ? ORDER BY created_at DESC",
+                (owner_key,),
+            )
+        else:
+            cursor = await self.conn.execute("SELECT * FROM webhooks ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        results = []
+        for r in rows:
+            d = dict(r)
+            d["events"] = json.loads(d["events"])
+            # Never expose the secret in list responses
+            d.pop("secret", None)
+            results.append(d)
+        return results
+
+    async def get_webhooks_with_secrets(self):
+        """Return all webhooks including secrets (for delivery signing)."""
         import json
         cursor = await self.conn.execute("SELECT * FROM webhooks ORDER BY created_at DESC")
         rows = await cursor.fetchall()
@@ -223,9 +253,14 @@ class Database:
         d["events"] = json.loads(d["events"])
         return d
 
-    async def delete_webhook(self, wh_id):
-        """Delete a webhook by id. Returns True if it existed."""
-        cursor = await self.conn.execute("DELETE FROM webhooks WHERE id = ?", (wh_id,))
+    async def delete_webhook(self, wh_id, owner_key=None):
+        """Delete a webhook by id. If owner_key given, only delete if owned. Returns True if deleted."""
+        if owner_key:
+            cursor = await self.conn.execute(
+                "DELETE FROM webhooks WHERE id = ? AND owner_key = ?", (wh_id, owner_key),
+            )
+        else:
+            cursor = await self.conn.execute("DELETE FROM webhooks WHERE id = ?", (wh_id,))
         await self.conn.commit()
         return cursor.rowcount > 0
 
