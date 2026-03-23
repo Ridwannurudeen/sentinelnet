@@ -342,12 +342,12 @@ _AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/")
 
 
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
-    """Enforces API key authentication on API routes.
+    """Enforces API key authentication on mutating API routes.
 
-    Checks X-API-Key header. Skips auth for page routes, docs, health,
-    badges, static assets, and WebSocket connections. If API_KEYS config
-    is empty (not configured), all requests are allowed through for
-    graceful demo degradation.
+    GET requests are always allowed (read-only, safe for public demo).
+    POST/DELETE require a valid API key via X-API-Key header or api_key query param.
+    Skips auth entirely for page routes, docs, health, badges, static assets,
+    WebSocket connections, and the key self-registration endpoint.
     """
 
     async def dispatch(self, request: Request, call_next):
@@ -369,13 +369,16 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         # Badge SVGs
         if path.endswith(".svg") and "/badge/" in path:
             return await call_next(request)
-
-        # If no API keys are configured, allow all requests (demo/test mode)
-        if not _settings.API_KEYS.strip() and not _api_keys:
+        # Key self-registration (rate-limited separately)
+        if path == "/api/keys" and request.method == "POST":
             return await call_next(request)
 
-        # Extract API key from header only (never query params — they leak in logs)
-        api_key = request.headers.get("x-api-key", "")
+        # GET requests are read-only — allow without auth for public demo
+        if request.method == "GET":
+            return await call_next(request)
+
+        # POST/DELETE require API key authentication
+        api_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
 
         if not api_key:
             return JSONResponse(
