@@ -13,6 +13,10 @@ contracts/forge-out/
 .pytest_cache/
 submit.py
 publish.py
+scripts/transfer_agent_nft.py
+scripts/write_single_score.py
+scripts/write_trustgate_scores.py
+scripts/bulk_trustgate.py
 landing/.next/
 landing/out/
 landing/node_modules/
