@@ -419,8 +419,12 @@ async def health():
 
 
 @app.get("/api/scores", tags=["Scores"])
-async def list_scores(apply_decay: bool = Query(True, description="Apply time-based trust decay")):
-    """Get all scored agents with verdict breakdown and sybil count."""
+async def list_scores(
+    apply_decay: bool = Query(True, description="Apply time-based trust decay"),
+    limit: int = Query(100, ge=1, le=1000, description="Max agents to return"),
+    offset: int = Query(0, ge=0, description="Number of agents to skip"),
+):
+    """Get scored agents with verdict breakdown and sybil count (paginated)."""
     scores = await db.get_all_scores()
     if apply_decay:
         scores = [_apply_decay(s) for s in scores]
@@ -430,9 +434,14 @@ async def list_scores(apply_decay: bool = Query(True, description="Apply time-ba
         if v in verdicts:
             verdicts[v] += 1
     sybil_count = sum(1 for s in scores if s.get("sybil_flagged"))
+    total = len(scores)
+    page = scores[offset:offset + limit]
     return {
-        "scores": scores,
-        "total": len(scores),
+        "scores": page,
+        "total": total,
+        "returned": len(page),
+        "limit": limit,
+        "offset": offset,
         "verdicts": verdicts,
         "sybil_flagged": sybil_count,
     }
@@ -1141,6 +1150,16 @@ class ConnectionManager:
 ws_manager = ConnectionManager()
 _last_broadcast_time: str | None = None
 _broadcast_count: int = 0
+
+
+@app.get("/ws/scores", tags=["WebSocket"])
+async def ws_scores_info():
+    """Informational response when /ws/scores is accessed over plain HTTP."""
+    return {
+        "error": "WebSocket endpoint",
+        "usage": "Connect via ws:// or wss:// protocol",
+        "example": "wss://sentinelnet.gudman.xyz/ws/scores",
+    }
 
 
 @app.websocket("/ws/scores")

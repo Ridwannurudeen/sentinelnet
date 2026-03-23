@@ -1,11 +1,15 @@
 __pycache__/
 *.pyc
 .env
+contracts/.env
 venv/
 *.db
 node_modules/
 artifacts/
 cache/
+contracts/artifacts/
+contracts/cache/
+contracts/forge-out/
 .pytest_cache/
 submit.py
 publish.py
