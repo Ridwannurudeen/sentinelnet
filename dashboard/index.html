@@ -676,25 +676,26 @@
                     '</div>';
                 }).join('');
 
-                // Ecosystem health score
-                if (total > 0) {
-                    var avgS = allScores.reduce(function(a, s) { return a + s.trust_score; }, 0) / total;
-                    var trustPct = t / total;
-                    var sybilPct = (data.sybil_flagged || 0) / total;
-                    var health = Math.round(avgS * 0.4 + trustPct * 100 * 0.3 + (1 - sybilPct) * 100 * 0.3);
-                    var hCol = health >= 55 ? 'var(--trust)' : health >= 40 ? 'var(--caution)' : 'var(--reject)';
-                    document.getElementById('health-score').textContent = health;
-                    document.getElementById('health-score').style.color = hCol;
-                    var label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'Critical — SentinelNet Found This';
-                    document.getElementById('health-label').textContent = label;
-                    document.getElementById('health-label').style.color = hCol;
-                    var subtitle = document.getElementById('health-subtitle');
-                    if (health < 45) {
-                        subtitle.style.display = 'block';
-                    } else {
-                        subtitle.style.display = 'none';
+                // Ecosystem health score (fetch from /api/stats for accurate calculation across all agents)
+                try {
+                    var statsR = await fetch('/api/stats');
+                    if (statsR.ok) {
+                        var statsData = await statsR.json();
+                        var health = statsData.ecosystem_health || 0;
+                        var hCol = health >= 55 ? 'var(--trust)' : health >= 40 ? 'var(--caution)' : 'var(--reject)';
+                        document.getElementById('health-score').textContent = health;
+                        document.getElementById('health-score').style.color = hCol;
+                        var label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'Critical — SentinelNet Found This';
+                        document.getElementById('health-label').textContent = label;
+                        document.getElementById('health-label').style.color = hCol;
+                        var subtitle = document.getElementById('health-subtitle');
+                        if (health < 45) {
+                            subtitle.style.display = 'block';
+                        } else {
+                            subtitle.style.display = 'none';
+                        }
                     }
-                }
+                } catch (e) { console.error('Stats fetch failed:', e); }
 
                 applyFilters();
                 updateLastUpdatedDisplay();
