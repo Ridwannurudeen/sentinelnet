@@ -259,10 +259,10 @@
                 </div>
             </div>
             <div style="min-width:200px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center">
-                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Ecosystem Health</div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Threat Coverage</div>
                 <div id="health-score" style="font-size:48px;font-weight:800;margin:8px 0;color:var(--text-muted)">--</div>
                 <div id="health-label" style="font-size:11px;color:var(--text-muted)">Loading...</div>
-                <div id="health-subtitle" style="font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center;line-height:1.4;max-width:180px;display:none">Low score = more threats detected. SentinelNet is working.</div>
+                <div id="health-subtitle" style="font-size:10px;color:var(--text-muted);margin-top:6px;text-align:center;line-height:1.4;max-width:180px;display:none"></div>
             </div>
         </div>
     </div>
@@ -676,24 +676,27 @@
                     '</div>';
                 }).join('');
 
-                // Ecosystem health score (fetch from /api/stats for accurate calculation across all agents)
+                // Threat coverage: how effectively SentinelNet is protecting the ecosystem
                 try {
                     var statsR = await fetch('/api/stats');
                     if (statsR.ok) {
                         var statsData = await statsR.json();
-                        var health = statsData.ecosystem_health || 0;
-                        var hCol = health >= 55 ? 'var(--trust)' : health >= 40 ? 'var(--caution)' : 'var(--reject)';
-                        document.getElementById('health-score').textContent = health;
+                        var scored = statsData.agents_scored || 0;
+                        var rejected = (statsData.verdicts || {}).REJECT || 0;
+                        var sybils = statsData.sybil_flagged || 0;
+                        var contagion = statsData.contagion_affected || 0;
+                        // Coverage = % of agents classified as threats (REJECT + sybil-flagged, deduplicated via max)
+                        var threatsDetected = Math.max(rejected, sybils);
+                        var coverage = scored > 0 ? Math.round(threatsDetected / scored * 100) : 0;
+                        var hCol = coverage >= 50 ? 'var(--trust)' : coverage >= 25 ? 'var(--caution)' : 'var(--reject)';
+                        document.getElementById('health-score').textContent = coverage + '%';
                         document.getElementById('health-score').style.color = hCol;
-                        var label = health >= 60 ? 'Healthy' : health >= 45 ? 'Moderate' : 'Critical — SentinelNet Found This';
+                        var label = coverage >= 50 ? 'High Detection' : coverage >= 25 ? 'Moderate Detection' : 'Low Coverage';
                         document.getElementById('health-label').textContent = label;
                         document.getElementById('health-label').style.color = hCol;
                         var subtitle = document.getElementById('health-subtitle');
-                        if (health < 45) {
-                            subtitle.style.display = 'block';
-                        } else {
-                            subtitle.style.display = 'none';
-                        }
+                        subtitle.textContent = sybils + ' sybils flagged, ' + contagion + ' contagion-penalized';
+                        subtitle.style.display = 'block';
                     }
                 } catch (e) { console.error('Stats fetch failed:', e); }
 
