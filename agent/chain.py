@@ -220,30 +220,38 @@ class ChainFetcher:
         }
 
     async def _fetch_tx_history(self, address: str, chain: str) -> list:
-        """Fetch transaction history from Blockscout API."""
+        """Fetch transaction history from Blockscout API (paginated, up to 1000 txns)."""
         if chain == "base":
             base_url = "https://base.blockscout.com/api"
         else:
             base_url = "https://eth.blockscout.com/api"
 
-        params = {
-            "module": "account",
-            "action": "txlist",
-            "address": address,
-            "startblock": 0,
-            "endblock": 99999999,
-            "page": 1,
-            "offset": 100,
-            "sort": "desc",
-        }
+        PAGE_SIZE = 100
+        MAX_PAGES = 10  # 1000 txns max
+        all_txs = []
 
         try:
             async with httpx.AsyncClient(timeout=20) as client:
-                resp = await client.get(base_url, params=params)
-                data = resp.json()
-                if data.get("status") == "1" and data.get("result"):
-                    return data["result"]
-                return []
+                for page in range(1, MAX_PAGES + 1):
+                    params = {
+                        "module": "account",
+                        "action": "txlist",
+                        "address": address,
+                        "startblock": 0,
+                        "endblock": 99999999,
+                        "page": page,
+                        "offset": PAGE_SIZE,
+                        "sort": "desc",
+                    }
+                    resp = await client.get(base_url, params=params)
+                    data = resp.json()
+                    if data.get("status") != "1" or not data.get("result"):
+                        break
+                    batch = data["result"]
+                    all_txs.extend(batch)
+                    if len(batch) < PAGE_SIZE:
+                        break  # last page
         except Exception as e:
             logger.warning(f"Failed to fetch tx history for {address} on {chain}: {e}")
-            return []
+
+        return all_txs

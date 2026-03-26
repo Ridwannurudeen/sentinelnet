@@ -23,6 +23,7 @@ contract TrustGate {
     address public sentinel;
     uint8 public trustThreshold = 55;   // >= 55 = TRUST
     uint8 public cautionThreshold = 40; // >= 40 = CAUTION, < 40 = REJECT
+    uint40 public maxStaleness = 14 days; // Scores older than this are rejected
 
     mapping(uint256 => TrustRecord) public trustRecords;
     uint256 public totalScored;
@@ -30,10 +31,12 @@ contract TrustGate {
 
     event TrustUpdated(uint256 indexed agentId, uint8 score, uint8 verdict, string evidenceURI);
     event ThresholdUpdated(uint8 trustThreshold, uint8 cautionThreshold);
+    event StalenessUpdated(uint40 maxStaleness);
     event SentinelTransferred(address indexed previousSentinel, address indexed newSentinel);
 
     error AgentNotTrusted(uint256 agentId, uint8 score, uint8 verdict);
     error AgentNotScored(uint256 agentId);
+    error AgentScoreStale(uint256 agentId, uint40 updatedAt);
     error OnlySentinel();
 
     modifier onlySentinel() {
@@ -44,6 +47,7 @@ contract TrustGate {
     modifier onlyTrusted(uint256 agentId) {
         TrustRecord storage r = trustRecords[agentId];
         if (r.updatedAt == 0) revert AgentNotScored(agentId);
+        if (block.timestamp - r.updatedAt > maxStaleness) revert AgentScoreStale(agentId, r.updatedAt);
         if (r.verdict != 1) revert AgentNotTrusted(agentId, r.score, r.verdict);
         _;
     }
@@ -120,9 +124,12 @@ contract TrustGate {
 
     // ─── View Functions (for other contracts to query) ───
 
-    /// @notice Check if an agent is trusted. Returns true if verdict == TRUST.
+    /// @notice Check if an agent is trusted. Returns true if verdict == TRUST and score is not stale.
     function isTrusted(uint256 agentId) external view returns (bool) {
-        return trustRecords[agentId].verdict == 1;
+        TrustRecord storage r = trustRecords[agentId];
+        if (r.updatedAt == 0) return false;
+        if (block.timestamp - r.updatedAt > maxStaleness) return false;
+        return r.verdict == 1;
     }
 
     /// @notice Get the trust score for an agent (0-100).
@@ -154,6 +161,12 @@ contract TrustGate {
         trustThreshold = _trust;
         cautionThreshold = _caution;
         emit ThresholdUpdated(_trust, _caution);
+    }
+
+    function updateStaleness(uint40 _maxStaleness) external onlySentinel {
+        require(_maxStaleness >= 1 days, "Min 1 day");
+        maxStaleness = _maxStaleness;
+        emit StalenessUpdated(_maxStaleness);
     }
 
     function transferSentinel(address newSentinel) external onlySentinel {

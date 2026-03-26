@@ -88,11 +88,12 @@ async def test_list_webhooks_empty():
 
 
 @pytest.mark.asyncio
-async def test_list_webhooks_after_register():
+@patch("api._is_private_url", return_value=False)
+async def test_list_webhooks_after_register(_mock):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        await client.post("/api/webhooks", json={"url": "https://a.com/h1"}, headers=AUTH)
-        await client.post("/api/webhooks", json={"url": "https://b.com/h2"}, headers=AUTH)
+        await client.post("/api/webhooks", json={"url": "https://hook1.example.com/h1"}, headers=AUTH)
+        await client.post("/api/webhooks", json={"url": "https://hook2.example.com/h2"}, headers=AUTH)
         r = await client.get("/api/webhooks", headers=AUTH)
     assert r.status_code == 200
     assert r.json()["total"] == 2
@@ -102,10 +103,11 @@ async def test_list_webhooks_after_register():
 
 
 @pytest.mark.asyncio
-async def test_delete_webhook():
+@patch("api._is_private_url", return_value=False)
+async def test_delete_webhook(_mock):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        reg = await client.post("/api/webhooks", json={"url": "https://a.com/h"}, headers=AUTH)
+        reg = await client.post("/api/webhooks", json={"url": "https://hook.example.com/h"}, headers=AUTH)
         wh_id = reg.json()["webhook_id"]
         r = await client.delete(f"/api/webhooks/{wh_id}", headers=AUTH)
     assert r.status_code == 200
@@ -121,10 +123,11 @@ async def test_delete_webhook_not_found():
 
 
 @pytest.mark.asyncio
-async def test_delete_removes_from_list():
+@patch("api._is_private_url", return_value=False)
+async def test_delete_removes_from_list(_mock):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        reg = await client.post("/api/webhooks", json={"url": "https://a.com/h"}, headers=AUTH)
+        reg = await client.post("/api/webhooks", json={"url": "https://hook.example.com/h"}, headers=AUTH)
         wh_id = reg.json()["webhook_id"]
         await client.delete(f"/api/webhooks/{wh_id}", headers=AUTH)
         r = await client.get("/api/webhooks", headers=AUTH)

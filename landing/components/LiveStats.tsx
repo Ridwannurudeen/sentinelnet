@@ -67,14 +67,15 @@ const iconBgMap: Record<string, string> = {
 export default function LiveStats() {
   const [stats, setStats] = useState<Stats | null>(null);
 
+  const [failed, setFailed] = useState(false);
+
   useEffect(() => {
     fetch("/api/stats")
       .then((r) => r.json())
       .then((d) => setStats(d))
-      .catch(() => {});
+      .catch(() => setFailed(true));
   }, []);
 
-  // Fallback to known-good defaults so first paint never shows zeros
   const values = stats
     ? [
         stats.agents_scored,
@@ -82,7 +83,7 @@ export default function LiveStats() {
         stats.verdicts.CAUTION,
         stats.verdicts.REJECT,
       ]
-    : [3535, 219, 723, 2593];
+    : [0, 0, 0, 0];
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -108,7 +109,13 @@ export default function LiveStats() {
                   </span>
                 </div>
                 <div className="text-3xl sm:text-4xl font-bold tabular-nums">
-                  <AnimatedCounter target={values[i]} />
+                  {!stats && !failed ? (
+                    <span className="text-sec text-lg">Loading...</span>
+                  ) : failed && !stats ? (
+                    <span className="text-sec text-lg">--</span>
+                  ) : (
+                    <AnimatedCounter target={values[i]} />
+                  )}
                 </div>
               </motion.div>
             );

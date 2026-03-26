@@ -64,13 +64,26 @@ def invalidate_score_caches():
     _graph_cache["ts"] = 0
 
 
-def _is_valid_api_key(key: str) -> bool:
-    """Check if an API key is valid (either from config or dynamically registered)."""
-    if key in _api_keys:
+def _is_admin_key(key: str) -> bool:
+    """Check if key is an admin/configured key (grants write access)."""
+    if key == _settings.ADMIN_KEY and key:
         return True
     configured = _settings.API_KEYS.strip()
     if configured:
         return key in [k.strip() for k in configured.split(",") if k.strip()]
+    return False
+
+
+def _is_valid_api_key(key: str) -> bool:
+    """Check if an API key is valid (admin or self-registered).
+
+    Self-registered keys only grant higher rate limits on GET requests.
+    Write access (POST/DELETE) requires an admin key — see middleware.
+    """
+    if _is_admin_key(key):
+        return True
+    if key in _api_keys:
+        return True
     return False
 
 
@@ -404,7 +417,7 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         if request.method == "GET":
             return await call_next(request)
 
-        # POST/DELETE require API key authentication
+        # POST/DELETE require an admin API key (configured keys only, not self-registered)
         api_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
 
         if not api_key:
@@ -413,10 +426,10 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
                 content={"error": "Missing API key", "docs": "/docs-guide#authentication"},
             )
 
-        if not _is_valid_api_key(api_key):
+        if not _is_admin_key(api_key):
             return JSONResponse(
                 status_code=403,
-                content={"error": "Invalid API key"},
+                content={"error": "Invalid or insufficient API key. Write access requires an admin key."},
             )
 
         return await call_next(request)
@@ -1077,8 +1090,18 @@ async def classify_agent(agent_id: int):
 # ─── Webhooks ───
 
 
+def _is_private_ip(addr: str) -> bool:
+    """Check if an IP address string is private/loopback/link-local/reserved."""
+    try:
+        ip = ipaddress.ip_address(addr)
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+    except ValueError:
+        return False
+
+
 def _is_private_url(url: str) -> bool:
-    """Block webhooks to private/internal IPs."""
+    """Block webhooks to private/internal IPs (including DNS rebinding)."""
+    import socket
     try:
         parsed = urlparse(url)
         hostname = parsed.hostname or ""
@@ -1086,11 +1109,18 @@ def _is_private_url(url: str) -> bool:
             return True
         if hostname.endswith(".local") or hostname.endswith(".internal"):
             return True
+        # Check literal IP
+        if _is_private_ip(hostname):
+            return True
+        # Resolve DNS and check ALL resolved IPs — prevents DNS rebinding
         try:
-            ip = ipaddress.ip_address(hostname)
-            return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
-        except ValueError:
-            pass  # hostname, not IP — allow DNS names
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            results = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
+            for _, _, _, _, sockaddr in results:
+                if _is_private_ip(sockaddr[0]):
+                    return True
+        except socket.gaierror:
+            return True  # unresolvable hostname = block
     except Exception:
         return True
     return False
@@ -1250,21 +1280,31 @@ async def trigger_score(agent_id: int, request: Request):
 
 class ConnectionManager:
     """Manages WebSocket connections for live score updates."""
+    MAX_PER_IP = 5
+
     def __init__(self, max_connections: int = 100):
         self.active: List[WebSocket] = []
         self.max_connections = max_connections
+        self._ip_map: dict = defaultdict(int)  # ip -> count
 
-    async def connect(self, ws: WebSocket):
+    async def connect(self, ws: WebSocket, ip: str = "unknown"):
         if len(self.active) >= self.max_connections:
             await ws.close(code=1013, reason="Too many connections")
             return False
+        if self._ip_map[ip] >= self.MAX_PER_IP:
+            await ws.close(code=1008, reason="Too many connections from this IP")
+            return False
         await ws.accept()
         self.active.append(ws)
+        self._ip_map[ip] += 1
+        ws._sentinel_ip = ip  # stash for disconnect cleanup
         return True
 
     def disconnect(self, ws: WebSocket):
         if ws in self.active:
             self.active.remove(ws)
+            ip = getattr(ws, "_sentinel_ip", "unknown")
+            self._ip_map[ip] = max(0, self._ip_map[ip] - 1)
 
     async def broadcast(self, data: dict):
         dead = []
@@ -1295,7 +1335,8 @@ async def ws_scores_info():
 @app.websocket("/ws/scores")
 async def ws_scores(websocket: WebSocket):
     """WebSocket endpoint streaming real-time score updates."""
-    if not await ws_manager.connect(websocket):
+    ip = websocket.client.host if websocket.client else "unknown"
+    if not await ws_manager.connect(websocket, ip=ip):
         return
     try:
         while True:

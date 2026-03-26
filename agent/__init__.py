@@ -455,15 +455,12 @@ class SentinelNetAgent:
 
         data = await self.chain.fetch_wallet(wallet)
 
-        # Track wallet sharing for identity scoring
+        # Track wallet→agents for sybil wallet-sharing detection and identity scoring
         wallet_lower = wallet.lower()
-        self._wallet_agent_count[wallet_lower] = self._wallet_agent_count.get(wallet_lower, 0) + 1
-        agents_sharing = self._wallet_agent_count[wallet_lower]
-
-        # Track wallet→agents for sybil wallet-sharing detection
         self._wallet_agents.setdefault(wallet_lower, [])
         if agent_id not in self._wallet_agents[wallet_lower]:
             self._wallet_agents[wallet_lower].append(agent_id)
+        agents_sharing = len(self._wallet_agents[wallet_lower])
 
         # Collect edges for sybil detection (batch processed after sweep)
         self._sweep_edges[agent_id] = set(data.counterparties)
