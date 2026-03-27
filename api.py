@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.responses import StreamingResponse
 import httpx
 from web3 import Web3
 from db import Database
@@ -30,6 +31,7 @@ db = Database()
 engine = TrustEngine()
 logger = logging.getLogger("sentinelnet.api")
 _settings = Settings()
+os.makedirs("static", exist_ok=True)
 _api_keys: dict = {}  # key -> {email, created_at} — dynamically registered keys
 
 # Agent ID bounds (ERC-8004 uses uint256 but realistic IDs are much smaller)
@@ -441,6 +443,8 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # ─── Pages ───
 
+app.mount("/static", StaticFiles(directory="static"), name="static_assets")
+
 _next_dir = os.path.join("landing", "out", "_next")
 if os.path.isdir(_next_dir):
     app.mount("/_next", StaticFiles(directory=_next_dir), name="next-static")
@@ -531,6 +535,164 @@ async def agent_registration():
         },
         media_type="application/json",
     )
+
+
+# ─── MCP HTTP Bridge ───
+# Lightweight HTTP transport for MCP tools (JSON-RPC compatible)
+
+@app.get("/mcp", include_in_schema=False)
+async def mcp_info():
+    """MCP server info and available tools."""
+    return JSONResponse({
+        "name": "sentinelnet",
+        "version": "1.0.0",
+        "protocol": "MCP",
+        "transport": "http-sse",
+        "tools": [
+            {"name": "check_trust", "description": "Check trust score of an ERC-8004 agent"},
+            {"name": "list_scored_agents", "description": "List agents with trust verdicts"},
+            {"name": "get_ecosystem_stats", "description": "Aggregate trust statistics"},
+            {"name": "get_score_history", "description": "Score history for an agent"},
+            {"name": "get_threat_feed", "description": "Real-time threat intelligence"},
+            {"name": "compare_agents", "description": "Compare multiple agents"},
+            {"name": "check_sybil_status", "description": "Check sybil cluster membership"},
+            {"name": "verify_on_chain", "description": "TrustGate verification status"},
+        ],
+    })
+
+
+@app.get("/mcp/sse", include_in_schema=False)
+async def mcp_sse(request: Request):
+    """SSE stream for MCP events (score updates, threats)."""
+    async def event_stream():
+        # Send initial connection event
+        yield "event: endpoint\ndata: /mcp/messages\n\n"
+        # Keep-alive loop
+        while True:
+            if await request.is_disconnected():
+                break
+            yield "event: ping\ndata: {}\n\n"
+            await asyncio.sleep(30)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/mcp/messages", include_in_schema=False)
+async def mcp_messages(request: Request):
+    """Handle MCP tool calls via HTTP POST (JSON-RPC style)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    method = body.get("method", "")
+    params = body.get("params", {})
+    msg_id = body.get("id", 1)
+
+    if method == "tools/list":
+        tools = [
+            {"name": "check_trust", "description": "Check trust score of an ERC-8004 agent",
+             "inputSchema": {"type": "object", "properties": {"agent_id": {"type": "integer"}}, "required": ["agent_id"]}},
+            {"name": "list_scored_agents", "description": "List agents with trust verdicts",
+             "inputSchema": {"type": "object", "properties": {"verdict": {"type": "string"}, "limit": {"type": "integer"}}}},
+            {"name": "get_ecosystem_stats", "description": "Aggregate trust statistics",
+             "inputSchema": {"type": "object", "properties": {}}},
+            {"name": "get_score_history", "description": "Score history for an agent",
+             "inputSchema": {"type": "object", "properties": {"agent_id": {"type": "integer"}}, "required": ["agent_id"]}},
+            {"name": "get_threat_feed", "description": "Real-time threat intelligence",
+             "inputSchema": {"type": "object", "properties": {"limit": {"type": "integer"}}}},
+            {"name": "compare_agents", "description": "Compare multiple agents",
+             "inputSchema": {"type": "object", "properties": {"agent_ids": {"type": "array", "items": {"type": "integer"}}}, "required": ["agent_ids"]}},
+            {"name": "check_sybil_status", "description": "Check sybil cluster membership",
+             "inputSchema": {"type": "object", "properties": {"agent_id": {"type": "integer"}}, "required": ["agent_id"]}},
+            {"name": "verify_on_chain", "description": "TrustGate verification status",
+             "inputSchema": {"type": "object", "properties": {"agent_id": {"type": "integer"}}, "required": ["agent_id"]}},
+        ]
+        return JSONResponse({"jsonrpc": "2.0", "id": msg_id, "result": {"tools": tools}})
+
+    elif method == "tools/call":
+        tool_name = params.get("name", "")
+        arguments = params.get("arguments", {})
+        result_text = ""
+
+        if tool_name == "check_trust":
+            agent_id = arguments.get("agent_id")
+            if not isinstance(agent_id, int) or agent_id < 0:
+                result_text = json_module.dumps({"error": "agent_id must be a non-negative integer"})
+            else:
+                score = await db.get_score(agent_id)
+                result_text = json_module.dumps(score if score else {"error": f"Agent {agent_id} not scored yet"}, default=str)
+        elif tool_name == "list_scored_agents":
+            verdict_filter = arguments.get("verdict")
+            limit = arguments.get("limit", 50)
+            scores = await db.get_all_scores()
+            if verdict_filter:
+                scores = [s for s in scores if s.get("verdict", "").upper() == verdict_filter.upper()]
+            scores = scores[:limit]
+            result_text = json_module.dumps({"agents": [{"agent_id": s["agent_id"], "trust_score": s["trust_score"], "verdict": s["verdict"]} for s in scores], "count": len(scores)}, default=str)
+        elif tool_name == "get_ecosystem_stats":
+            scores = await db.get_all_scores()
+            verdicts = {"TRUST": 0, "CAUTION": 0, "REJECT": 0}
+            for s in scores:
+                v = s.get("verdict", "").upper()
+                if v in verdicts:
+                    verdicts[v] += 1
+            trust_scores = [s["trust_score"] for s in scores]
+            result_text = json_module.dumps({"agents_scored": len(scores), "avg_trust_score": round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0, "verdicts": verdicts})
+        elif tool_name == "get_score_history":
+            agent_id = arguments.get("agent_id")
+            if not isinstance(agent_id, int) or agent_id < 0:
+                result_text = json_module.dumps({"error": "agent_id must be a non-negative integer"})
+            else:
+                history = await db.get_score_history(agent_id, limit=arguments.get("limit", 20))
+                result_text = json_module.dumps({"agent_id": agent_id, "history": history or [], "entries": len(history or [])}, default=str)
+        elif tool_name == "get_threat_feed":
+            threats = await db.get_threats(limit=arguments.get("limit", 20))
+            result_text = json_module.dumps({"threats": threats, "count": len(threats)}, default=str)
+        elif tool_name == "compare_agents":
+            agent_ids = arguments.get("agent_ids", [])
+            results = []
+            for aid in agent_ids[:10]:
+                score = await db.get_score(aid)
+                if score:
+                    results.append({"agent_id": aid, "trust_score": score["trust_score"], "verdict": score["verdict"]})
+                else:
+                    results.append({"agent_id": aid, "error": "Not scored yet"})
+            result_text = json_module.dumps({"comparison": results, "count": len(results)}, default=str)
+        elif tool_name == "check_sybil_status":
+            agent_id = arguments.get("agent_id")
+            if not isinstance(agent_id, int) or agent_id < 0:
+                result_text = json_module.dumps({"error": "agent_id must be a non-negative integer"})
+            else:
+                score = await db.get_score(agent_id)
+                result_text = json_module.dumps({"agent_id": agent_id, "sybil_flagged": score.get("sybil_flagged", False) if score else None, "trust_score": score["trust_score"] if score else None}, default=str)
+        elif tool_name == "verify_on_chain":
+            agent_id = arguments.get("agent_id")
+            if not isinstance(agent_id, int) or agent_id < 0:
+                result_text = json_module.dumps({"error": "agent_id must be a non-negative integer"})
+            else:
+                score = await db.get_score(agent_id)
+                if score:
+                    result_text = json_module.dumps({"agent_id": agent_id, "trust_score": score["trust_score"], "verdict": score["verdict"], "on_chain_verified": bool(score.get("attestation_uid")), "evidence_uri": score.get("evidence_uri")}, default=str)
+                else:
+                    result_text = json_module.dumps({"error": f"Agent {agent_id} not scored yet"}, default=str)
+        else:
+            result_text = json_module.dumps({"error": f"Unknown tool: {tool_name}"})
+
+        return JSONResponse({"jsonrpc": "2.0", "id": msg_id, "result": {"content": [{"type": "text", "text": result_text}]}})
+
+    elif method == "initialize":
+        return JSONResponse({"jsonrpc": "2.0", "id": msg_id, "result": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "sentinelnet", "version": "1.0.0"},
+        }})
+
+    return JSONResponse({"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32601, "message": f"Unknown method: {method}"}})
 
 
 # ─── API ───
@@ -1312,6 +1474,22 @@ async def trigger_score(agent_id: int, request: Request):
         raise
     except Exception:
         raise HTTPException(500, "Scoring failed")
+
+
+@app.post("/api/validate/{agent_id}", tags=["On-Chain"])
+async def request_validation(agent_id: int):
+    """Request SentinelNet to validate/re-score an agent. Returns the score."""
+    _validate_agent_id(agent_id)
+    score = await db.get_score(agent_id)
+    if not score:
+        raise HTTPException(404, f"Agent {agent_id} not scored yet")
+    return {
+        "agent_id": agent_id,
+        "trust_score": score["trust_score"],
+        "verdict": score["verdict"],
+        "evidence_uri": score.get("evidence_uri", ""),
+        "validated": True,
+    }
 
 
 # ─── WebSocket Live Feed ───
