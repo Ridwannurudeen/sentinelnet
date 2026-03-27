@@ -380,7 +380,7 @@ _AUTH_SKIP_EXACT = frozenset({
     "/", "/dashboard", "/marketplace", "/graph", "/leaderboard", "/methodology", "/demo",
     "/docs-guide", "/api/health", "/docs", "/swagger", "/openapi.json", "/redoc", "/metrics",
 })
-_AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/")
+_AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/", "/mcp")
 
 
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
