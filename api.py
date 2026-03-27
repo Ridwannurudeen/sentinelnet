@@ -495,6 +495,44 @@ async def demo_page():
     return FileResponse("dashboard/demo.html")
 
 
+# ─── ERC-8004 Well-Known ───
+
+@app.get("/.well-known/agent-registration.json", tags=["System"], include_in_schema=False)
+async def agent_registration():
+    """ERC-8004 agent registration endpoint for domain verification."""
+    return JSONResponse(
+        content={
+            "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+            "name": "SentinelNet",
+            "description": (
+                "Autonomous agent reputation watchdog for ERC-8004 on Base. "
+                "Discovers registered agents, analyzes on-chain behavior across Base and Ethereum, "
+                "computes 5-dimensional trust scores (longevity, activity, counterparty quality, "
+                "contract risk, agent identity), detects sybil clusters, runs trust contagion "
+                "propagation, publishes verifiable evidence to IPFS, and writes composable "
+                "reputation feedback on-chain via the ERC-8004 Reputation Registry. Scores are "
+                "backed by ETH stakes with 72-hour challenge windows."
+            ),
+            "image": "https://sentinelnet.gudman.xyz/static/og-image.png",
+            "services": [
+                {"name": "web", "endpoint": "https://sentinelnet.gudman.xyz/dashboard"},
+                {"name": "MCP", "endpoint": "https://sentinelnet.gudman.xyz/mcp", "version": "2025-06-18"},
+                {"name": "REST API", "endpoint": "https://sentinelnet.gudman.xyz/api"},
+            ],
+            "x402Support": False,
+            "active": True,
+            "registrations": [
+                {
+                    "agentId": _settings.SENTINELNET_AGENT_ID,
+                    "agentRegistry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+                }
+            ],
+            "supportedTrust": ["reputation"],
+        },
+        media_type="application/json",
+    )
+
+
 # ─── API ───
 
 @app.get("/api/health", tags=["System"])

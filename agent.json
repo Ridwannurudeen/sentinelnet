@@ -71,5 +71,14 @@
     "Graceful fallback when ETH RPC is unavailable",
     "Score clamping to 0-100 range",
     "72-hour challenge window on staked scores"
-  ]
+  ],
+  "erc8004Registration": {
+    "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+    "services": [
+      {"name": "web", "endpoint": "https://sentinelnet.gudman.xyz/dashboard"},
+      {"name": "MCP", "endpoint": "https://sentinelnet.gudman.xyz/mcp", "version": "2025-06-18"},
+      {"name": "REST API", "endpoint": "https://sentinelnet.gudman.xyz/api"}
+    ],
+    "supportedTrust": ["reputation"]
+  }
 }

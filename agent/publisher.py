@@ -15,13 +15,15 @@ class Publisher:
     def __init__(self, pinata_api_key: str, pinata_secret_key: str,
                  erc8004_client=None, pinata_jwt: str = "",
                  lighthouse_api_key: str = "",
-                 base_url: str = "https://sentinelnet.gudman.xyz"):
+                 base_url: str = "https://sentinelnet.gudman.xyz",
+                 scorer_address: str = ""):
         self.pinata_api_key = pinata_api_key
         self.pinata_secret_key = pinata_secret_key
         self.pinata_jwt = pinata_jwt
         self.lighthouse_api_key = lighthouse_api_key
         self.erc8004 = erc8004_client
         self.base_url = base_url
+        self._scorer_address = scorer_address
 
     async def publish(self, agent_id: int, wallet: str, trust_score: int,
                       longevity: int, activity: int, counterparty: int,
@@ -126,6 +128,7 @@ class Publisher:
                         activity, counterparty, contract_risk, verdict, chains,
                         agent_identity=0):
         return {
+            # Existing SentinelNet fields (backwards compatible)
             "agent_id": agent_id,
             "wallet": wallet,
             "trust_score": trust_score,
@@ -140,4 +143,13 @@ class Publisher:
             "chains_analyzed": chains,
             "scorer": "sentinelnet-v1",
             "scored_at": datetime.now(timezone.utc).isoformat(),
+            # ERC-8004 off-chain feedback file spec fields
+            "agentRegistry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+            "agentId": agent_id,
+            "clientAddress": f"eip155:8453:{self._scorer_address}" if self._scorer_address else None,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "value": trust_score,
+            "valueDecimals": 0,
+            "tag1": "trustScore",
+            "tag2": "sentinelnet-v1",
         }
