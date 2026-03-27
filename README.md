@@ -30,7 +30,7 @@ This is not theoretical. SentinelNet found real threats in the live ecosystem:
 
 ## Live Deployment
 
-SentinelNet is running in production on Base Mainnet as **Agent #31253**.
+SentinelNet is running in production on Base Mainnet as **Agent #37506**.
 
 ![Landing Page](docs/images/landing.png)
 
@@ -182,7 +182,7 @@ from sentinelnet import SentinelNet
 sn = SentinelNet()
 
 # Get trust score
-score = sn.get_trust(31253)
+score = sn.get_trust(37506)
 print(f"Score: {score['trust_score']}, Verdict: {score['verdict']}")
 
 # Gate an interaction — only proceed if agent is trustworthy
@@ -195,7 +195,7 @@ results = sn.batch_trust([1, 2, 3, 100, 200])
 # Async support
 from sentinelnet import AsyncSentinelNet
 async with AsyncSentinelNet() as sn:
-    score = await sn.get_trust(31253)
+    score = await sn.get_trust(37506)
 ```
 
 ### JavaScript SDK
@@ -226,7 +226,16 @@ Full TypeScript types included.
 
 ### MCP Integration
 
-8 tools via Model Context Protocol for agent-to-agent trust queries:
+8 tools via Model Context Protocol for agent-to-agent trust queries.
+
+**HTTP transport** (no SDK needed):
+- `GET /mcp` — Server info and tool list
+- `GET /mcp/sse` — SSE event stream
+- `POST /mcp/messages` — JSON-RPC tool dispatch
+
+**stdio transport** also available via `mcp/server.py`.
+
+Tools:
 
 | Tool | Description |
 |------|-------------|
@@ -295,7 +304,7 @@ Real-time feed of ecosystem threats detected autonomously:
 
 | Artifact | Address | Purpose |
 |----------|---------|---------|
-| Agent identity | [Identity Registry](https://base.blockscout.com/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #31253 registered via ERC-8004 |
+| Agent identity | [Identity Registry](https://base.blockscout.com/address/0x8004A169FB4a3325136EB29fA0ceB6D2e539a432) | Agent #37506 registered via ERC-8004 |
 | Trust scores | [Reputation Registry](https://base.blockscout.com/address/0x8004BAa17C55a88189AE136b182e5fdA19dE9b63) | `giveFeedback()` per agent with IPFS URI |
 | Score stakes | [SentinelNetStaking](https://basescan.org/address/0xEe1A8f34F1320D534b9a547f882762EABCB4f96d) | ETH staked per score, 72h challenge window |
 | Trust oracle | [TrustGate](https://base.blockscout.com/address/0xE3b6069f632ab439ef5B084C769F21b4beeE3506) | `isTrusted()`, `getTrustScore()` — composable queries |
@@ -363,6 +372,10 @@ sentinelnet/
 | Visualization | D3.js force-directed graph |
 | SDKs | Python (httpx), JavaScript (fetch, TypeScript) |
 | Chains | Base (registries + scoring), Ethereum (behavioral data) |
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full 5-phase plan — from foundation hardening through multi-ecosystem expansion, DeFi composability, governance, and intelligence layer.
 
 ## License
 
