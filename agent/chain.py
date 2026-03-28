@@ -2,10 +2,64 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Set, List
+from typing import Set, List, Optional
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+class RPCPool:
+    """Round-robin RPC pool with automatic failover on errors."""
+
+    def __init__(self, urls: List[str], chain_name: str = "unknown"):
+        if not urls:
+            raise ValueError(f"RPCPool for {chain_name}: at least one URL required")
+        self.urls = urls
+        self.chain_name = chain_name
+        self._active_idx = 0
+        self._max_retries = len(urls)
+
+    @property
+    def active_url(self) -> str:
+        return self.urls[self._active_idx]
+
+    def _rotate(self):
+        old = self.urls[self._active_idx]
+        self._active_idx = (self._active_idx + 1) % len(self.urls)
+        logger.warning(
+            f"RPCPool[{self.chain_name}]: rotating from {old} -> {self.urls[self._active_idx]}"
+        )
+
+    def get_web3(self):
+        """Return a Web3 instance for the currently active URL."""
+        from web3 import Web3
+        return Web3(Web3.HTTPProvider(self.active_url))
+
+    async def call(self, fn, *args, **kwargs):
+        """Execute an async-wrapped RPC call with retry + failover.
+
+        `fn` receives a Web3 instance and should return a result.
+        Example: await pool.call(lambda w3: w3.eth.get_balance(addr))
+        """
+        last_err = None
+        for attempt in range(self._max_retries):
+            w3 = self.get_web3()
+            try:
+                result = await asyncio.to_thread(fn, w3)
+                return result
+            except Exception as e:
+                last_err = e
+                err_str = str(e).lower()
+                is_rpc_error = any(t in err_str for t in [
+                    "429", "too many requests", "timeout", "timed out",
+                    "connection", "502", "503", "504", "rate limit",
+                ])
+                if is_rpc_error and attempt < self._max_retries - 1:
+                    self._rotate()
+                    await asyncio.sleep(1)
+                else:
+                    raise
+        raise last_err
 
 
 @dataclass
@@ -64,16 +118,26 @@ KNOWN_VERIFIED = {
 
 class ChainFetcher:
     def __init__(self, base_rpc: str, eth_rpc: str,
-                 basescan_api_key: str = "", etherscan_api_key: str = ""):
+                 basescan_api_key: str = "", etherscan_api_key: str = "",
+                 base_rpc_urls: Optional[List[str]] = None,
+                 eth_rpc_urls: Optional[List[str]] = None):
         self.base_rpc = base_rpc
         self.eth_rpc = eth_rpc
         self.basescan_api_key = basescan_api_key
         self.etherscan_api_key = etherscan_api_key
 
+        # Multi-RPC pools (fall back to single URL if no list provided)
+        self.base_pool = RPCPool(
+            base_rpc_urls if base_rpc_urls else [base_rpc], chain_name="base"
+        )
+        self.eth_pool = RPCPool(
+            eth_rpc_urls if eth_rpc_urls else [eth_rpc], chain_name="ethereum"
+        )
+
     async def fetch_wallet(self, address: str) -> WalletData:
-        base_data = await self._fetch_chain(address, self.base_rpc, "base")
+        base_data = await self._fetch_chain(address, self.base_pool, "base")
         try:
-            eth_data = await self._fetch_chain(address, self.eth_rpc, "ethereum")
+            eth_data = await self._fetch_chain(address, self.eth_pool, "ethereum")
         except Exception as e:
             logger.warning(f"ETH RPC failed for {address}, using Base-only data: {e}")
             eth_data = {
@@ -83,13 +147,13 @@ class ChainFetcher:
                 "tx_timestamps": [], "funding_source": "unknown",
             }
 
-        # Fetch ETH balance on Base
+        # Fetch ETH balance on Base (via pool with failover)
         eth_balance = 0.0
         try:
             from web3 import Web3
-            w3 = Web3(Web3.HTTPProvider(self.base_rpc))
-            bal_wei = await asyncio.to_thread(
-                w3.eth.get_balance, Web3.to_checksum_address(address)
+            checksum = Web3.to_checksum_address(address)
+            bal_wei = await self.base_pool.call(
+                lambda w3: w3.eth.get_balance(checksum)
             )
             eth_balance = bal_wei / 1e18
         except Exception as e:
@@ -135,14 +199,14 @@ class ChainFetcher:
             funding_source=funding_source,
         )
 
-    async def _fetch_chain(self, address: str, rpc_url: str, chain: str) -> dict:
+    async def _fetch_chain(self, address: str, pool: RPCPool, chain: str) -> dict:
         """Fetch wallet data from a single chain via block explorer API."""
         from web3 import Web3
 
-        # Get tx count from RPC
-        w3 = Web3(Web3.HTTPProvider(rpc_url))
-        tx_count = await asyncio.to_thread(
-            w3.eth.get_transaction_count, Web3.to_checksum_address(address)
+        # Get tx count from RPC (with failover)
+        checksum = Web3.to_checksum_address(address)
+        tx_count = await pool.call(
+            lambda w3: w3.eth.get_transaction_count(checksum)
         )
 
         # Fetch transaction history from block explorer

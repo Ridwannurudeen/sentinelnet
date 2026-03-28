@@ -3,7 +3,7 @@ import json
 import logging
 from config import Settings
 from db import Database
-from agent.chain import ChainFetcher
+from agent.chain import ChainFetcher, RPCPool
 from agent.trust_engine import TrustEngine
 from agent.sybil import SybilDetector
 from agent.contagion import ContagionEngine
@@ -32,10 +32,22 @@ class SentinelNetAgent:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.db = Database()
+
+        # Parse multi-RPC URL lists (fall back to single URL for backwards compat)
+        base_rpc_urls = [u.strip() for u in settings.BASE_RPC_URLS.split(",") if u.strip()] if settings.BASE_RPC_URLS else []
+        eth_rpc_urls = [u.strip() for u in settings.ETH_RPC_URLS.split(",") if u.strip()] if settings.ETH_RPC_URLS else []
+        # If no multi-URL list, fall back to single URL
+        if not base_rpc_urls:
+            base_rpc_urls = [settings.BASE_RPC_URL]
+        if not eth_rpc_urls:
+            eth_rpc_urls = [settings.ETH_RPC_URL]
+
         self.chain = ChainFetcher(
             settings.BASE_RPC_URL, settings.ETH_RPC_URL,
             basescan_api_key=settings.BASESCAN_API_KEY,
             etherscan_api_key=settings.ETHERSCAN_API_KEY,
+            base_rpc_urls=base_rpc_urls,
+            eth_rpc_urls=eth_rpc_urls,
         )
         self.engine = TrustEngine()
         self.sybil = SybilDetector()
@@ -58,8 +70,11 @@ class SentinelNetAgent:
         # Wallet → [agent_ids] for sybil wallet-sharing detection
         self._wallet_agents = {}
 
-        # Web3 + ERC-8004
-        self.w3 = Web3(Web3.HTTPProvider(settings.BASE_RPC_URL))
+        # Web3 + ERC-8004 (use Base RPC pool for main w3 instance)
+        self.base_pool = RPCPool(base_rpc_urls, chain_name="base-main")
+        self.w3 = self.base_pool.get_web3()
+        logger.info(f"Base RPC pool: {len(base_rpc_urls)} URLs, active: {self.base_pool.active_url}")
+        logger.info(f"ETH RPC pool: {len(eth_rpc_urls)} URLs")
 
         # Paymaster for gasless transactions
         self.paymaster = None
@@ -189,23 +204,36 @@ class SentinelNetAgent:
                 evidence_uris = [s[2] for s in batch]
 
                 try:
+                    paymaster_ok = False
                     if use_paymaster:
                         # Gasless via CDP Paymaster
-                        data = self.trustgate.functions.batchUpdateTrust(
-                            agent_ids, scores, evidence_uris
-                        )._encode_transaction_data()
-                        tx_hash = await self.paymaster.send_call(
-                            to=self.trustgate.address, data=data
-                        )
-                        if tx_hash:
-                            written += len(batch)
-                            logger.info(
-                                f"TrustGate paymaster batch {i // BATCH_SIZE + 1} "
-                                f"({len(batch)} agents): {tx_hash}"
+                        try:
+                            data = self.trustgate.functions.batchUpdateTrust(
+                                agent_ids, scores, evidence_uris
+                            )._encode_transaction_data()
+                            tx_hash = await self.paymaster.send_call(
+                                to=self.trustgate.address, data=data
                             )
-                        else:
-                            logger.warning(f"TrustGate paymaster batch {i // BATCH_SIZE + 1} returned empty hash")
-                    else:
+                            if tx_hash:
+                                written += len(batch)
+                                paymaster_ok = True
+                                logger.info(
+                                    f"TrustGate paymaster batch {i // BATCH_SIZE + 1} "
+                                    f"({len(batch)} agents): {tx_hash}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"TrustGate paymaster batch {i // BATCH_SIZE + 1} "
+                                    f"returned empty hash, falling back to EOA"
+                                )
+                        except Exception as pm_err:
+                            logger.warning(
+                                f"TrustGate paymaster batch {i // BATCH_SIZE + 1} "
+                                f"failed, falling back to EOA: {pm_err}"
+                            )
+                            use_paymaster = False
+
+                    if not paymaster_ok:
                         # Direct EOA fallback
                         sender = self.erc8004.account.address
                         balance = await asyncio.to_thread(

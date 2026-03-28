@@ -240,10 +240,13 @@ class ERC8004Client:
 
         try:
             results = await self.paymaster.send_calls(calls)
+            # Treat all-empty results as failure (paymaster returned but didn't submit)
+            if not results or all(r == "" for r in results):
+                raise RuntimeError("Paymaster returned empty results")
             logger.info(f"Batch feedback via paymaster: {len(calls)} calls -> {results[0] if results else 'none'}")
             return results
         except Exception as e:
-            logger.warning(f"Batch paymaster failed, falling back to individual: {e}")
+            logger.warning(f"Batch paymaster failed, falling back to individual EOA: {e}")
             results = []
             for f in feedbacks:
                 r = await self.give_feedback(*f)

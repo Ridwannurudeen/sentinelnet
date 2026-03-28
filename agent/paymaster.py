@@ -83,7 +83,7 @@ class PaymasterTransactor:
 
         except Exception as e:
             logger.error(f"Paymaster transaction failed: {e}")
-            return [""] * len(calls)
+            raise
 
     async def send_call(self, to: str, data: str, value: int = 0) -> str:
         """Send a single contract call through the paymaster."""

@@ -2,9 +2,13 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    # RPC
+    # RPC (single URL — kept for backwards compat)
     BASE_RPC_URL: str = "https://mainnet.base.org"
     ETH_RPC_URL: str = "https://eth.llamarpc.com"
+
+    # Multi-RPC failover (comma-separated, takes priority over single URL above)
+    BASE_RPC_URLS: str = "https://base.drpc.org,https://base.publicnode.com,https://base.llamarpc.com,https://mainnet.base.org"
+    ETH_RPC_URLS: str = "https://ethereum-rpc.publicnode.com,https://eth.drpc.org,https://cloudflare-eth.com/v1/mainnet,https://eth.llamarpc.com"
 
     # ERC-8004
     IDENTITY_REGISTRY: str = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
