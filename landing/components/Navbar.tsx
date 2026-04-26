@@ -1,91 +1,103 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { NAV_LINKS } from "@/lib/constants";
-import { ExternalLink, Menu, X } from "lucide-react";
-import { useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 12);
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <motion.nav
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/30"
+    <header
+      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "backdrop-blur-md bg-bg/80 border-b border-border"
+          : "bg-transparent border-b border-transparent"
+      }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <a href="/" className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan to-blue flex items-center justify-center">
-              <span className="text-sm font-bold text-white">S</span>
-            </div>
-            <span className="text-lg font-bold text-cyan">SentinelNet</span>
+          <a href="/" className="inline-flex items-center gap-2 group">
+            <span
+              className="font-display text-2xl font-medium leading-none text-text"
+              style={{ letterSpacing: "-0.05em" }}
+            >
+              SN
+            </span>
+            <span className="text-sm text-muted hidden sm:inline">
+              SentinelNet
+            </span>
           </a>
 
-          {/* Desktop links */}
-          <div className="hidden md:flex items-center gap-6">
-            {NAV_LINKS.map((link) => (
+          <nav className="hidden md:flex items-center gap-7">
+            {NAV_LINKS.filter((l) => !("external" in l) || !l.external).slice(0, 4).map((link) => (
               <a
                 key={link.label}
                 href={link.href}
-                {...("external" in link && link.external
-                  ? { target: "_blank", rel: "noopener noreferrer" }
-                  : {})}
-                className="text-sm text-sec hover:text-text transition-colors flex items-center gap-1"
+                className="text-sm text-muted hover:text-text transition-colors"
               >
                 {link.label}
-                {"external" in link && link.external && (
-                  <ExternalLink className="w-3 h-3" />
-                )}
               </a>
             ))}
-            <div className="flex items-center gap-2 ml-4 px-3 py-1.5 rounded-full bg-trust/10 border border-trust/30">
-              <span className="w-2 h-2 rounded-full bg-trust animate-pulse" />
-              <span className="text-xs font-medium text-trust">Base Mainnet</span>
-            </div>
-          </div>
+          </nav>
 
-          {/* Mobile toggle */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="md:hidden text-sec hover:text-text"
-          >
-            {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline-flex items-center gap-2 text-xs text-muted mr-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-trust animate-pulse" />
+              Base mainnet
+            </span>
+            <ThemeToggle />
+            <a
+              href="/dashboard"
+              className="hidden sm:inline-flex items-center px-3.5 h-9 rounded-full bg-text text-bg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Open dashboard
+            </a>
+            <button
+              onClick={() => setOpen(!open)}
+              className="md:hidden text-text p-2 -mr-2"
+              aria-label="Menu"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                {open ? <path d="M6 6l12 12M6 18L18 6" /> : <path d="M4 6h16M4 12h16M4 18h16" />}
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mobile menu */}
       {open && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          className="md:hidden glass border-t border-border/30"
-        >
-          <div className="px-4 py-4 space-y-3">
+        <div className="md:hidden border-t border-border bg-bg">
+          <div className="px-6 py-4 space-y-3">
             {NAV_LINKS.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
-                {...("external" in link && link.external
-                  ? { target: "_blank", rel: "noopener noreferrer" }
-                  : {})}
-                className="block text-sm text-sec hover:text-text transition-colors"
+                className="block text-sm text-muted hover:text-text"
                 onClick={() => setOpen(false)}
               >
                 {link.label}
               </a>
             ))}
-            <div className="flex items-center gap-2 pt-2">
-              <span className="w-2 h-2 rounded-full bg-trust animate-pulse" />
-              <span className="text-xs font-medium text-trust">Base Mainnet — Live</span>
-            </div>
+            <a
+              href="/dashboard"
+              className="inline-flex items-center px-3.5 h-9 rounded-full bg-text text-bg text-sm font-medium mt-2"
+            >
+              Open dashboard
+            </a>
           </div>
-        </motion.div>
+        </div>
       )}
-    </motion.nav>
+    </header>
   );
 }

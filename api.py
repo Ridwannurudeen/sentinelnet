@@ -23,9 +23,11 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.responses import StreamingResponse
 import httpx
 from web3 import Web3
+from rpc_provider import make_web3
 from db import Database
 from config import Settings
 from agent.trust_engine import TrustEngine, DECAY_LAMBDA
+from agent.virtuals import VirtualsClient
 
 db = Database()
 engine = TrustEngine()
@@ -492,6 +494,18 @@ async def leaderboard_page():
 @app.get("/methodology", response_class=HTMLResponse, include_in_schema=False)
 async def methodology_page():
     return FileResponse("dashboard/methodology.html")
+
+
+@app.get('/get-started', response_class=HTMLResponse, include_in_schema=False)
+async def get_started_page():
+    return FileResponse('landing/out/get-started.html')
+
+
+@app.get('/og-image.png', include_in_schema=False)
+async def og_image():
+    return FileResponse('static/og-image.png', media_type='image/png')
+
+
 
 
 @app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
@@ -1022,7 +1036,7 @@ def _get_trustgate():
         return _trustgate
     if not _settings.TRUSTGATE_CONTRACT:
         return None
-    _w3 = Web3(Web3.HTTPProvider(_settings.BASE_RPC_URL))
+    _w3 = make_web3(_settings.BASE_RPC_URLS, _settings.BASE_RPC_URL)
     _trustgate = _w3.eth.contract(
         address=Web3.to_checksum_address(_settings.TRUSTGATE_CONTRACT),
         abi=TRUSTGATE_ABI_VIEWS,
@@ -2054,3 +2068,121 @@ async def marketplace_list(
         "per_page": per_page,
         "pages": math.ceil(total / per_page) if total else 0,
     }
+
+
+# --- Virtual Protocol integration -------------------------------------------
+
+_virtuals_client = VirtualsClient()
+
+
+async def _score_wallet(wallet: str) -> dict:
+    """Run the full SentinelNet trust pipeline on a raw wallet address.
+
+    Used by the Virtuals endpoint — no ERC-8004 metadata is available, so
+    agent_identity is fixed at 0.
+    """
+    if not _agent_ref:
+        raise HTTPException(503, "Agent not initialised")
+    data = await _agent_ref.chain.fetch_wallet(wallet)
+    longevity = _agent_ref.longevity.score(data.wallet_age_days, data.wallet_age_days)
+    activity = _agent_ref.activity.score(
+        data.tx_count, data.active_days, data.total_days,
+        eth_balance=data.eth_balance, tx_timestamps=data.tx_timestamps,
+    )
+    counterparty = _agent_ref.counterparty_analyzer.score(
+        len(data.counterparties), data.verified_counterparties, data.flagged_counterparties,
+        funding_source=data.funding_source,
+    )
+    contract_risk = _agent_ref.contract_risk_analyzer.score(
+        len(data.contracts), data.malicious_contracts, data.unverified_contracts,
+    )
+    result = _agent_ref.engine.compute(
+        longevity, activity, counterparty, contract_risk,
+        agent_identity=0, sybil_risk=False,
+    )
+    return {
+        "trust_score": result.trust_score,
+        "verdict": result.verdict,
+        "longevity": longevity,
+        "activity": activity,
+        "counterparty": counterparty,
+        "contract_risk": contract_risk,
+        "agent_identity": 0,
+        "tx_count": data.tx_count,
+        "wallet_age_days": data.wallet_age_days,
+        "eth_balance": data.eth_balance,
+    }
+
+
+@app.get("/api/virtual/{virtual_id}", tags=["Virtuals"])
+async def get_virtual_trust(virtual_id: int, fresh: bool = Query(False)):
+    """Trust score for a Virtual Protocol agent on Base.
+
+    Maps the Virtual's sentient wallet (the AI's autonomous operating wallet)
+    through the full SentinelNet scoring pipeline. Falls back to the creator
+    wallet when no sentient wallet is set. Cached results are returned unless
+    `fresh=true`.
+    """
+    if virtual_id <= 0:
+        raise HTTPException(400, "virtual_id must be positive")
+
+    if not fresh:
+        cached = await db.get_virtual(virtual_id)
+        if cached and cached.get("trust_score") is not None:
+            return _virtual_response(cached)
+
+    try:
+        v = await _virtuals_client.fetch_one(virtual_id)
+    except Exception as e:
+        raise HTTPException(502, f"Virtuals API error: {e}")
+    if not v:
+        raise HTTPException(404, f"Virtual {virtual_id} not found on Base")
+    if not v.primary_wallet:
+        raise HTTPException(422, f"Virtual {virtual_id} has no scorable wallet")
+
+    score = await _score_wallet(v.primary_wallet)
+    await db.upsert_virtual(v)
+    await db.update_virtual_score(virtual_id, score["trust_score"], score["verdict"])
+
+    cached = await db.get_virtual(virtual_id)
+    return _virtual_response(cached, score=score, source_wallet=v.primary_wallet)
+
+
+@app.get("/api/virtuals", tags=["Virtuals"])
+async def list_scored_virtuals(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    """List Virtual Protocol agents that SentinelNet has scored, sorted by mcap."""
+    rows = await db.list_virtuals(limit=limit, offset=offset)
+    return {"count": len(rows), "virtuals": [_virtual_response(r) for r in rows]}
+
+
+@app.get("/api/virtuals/stats", tags=["Virtuals"])
+async def virtuals_stats():
+    """Ecosystem stats for the Virtual Protocol slice of SentinelNet coverage."""
+    s = await db.virtuals_stats()
+    return {**s, "ecosystem_total_on_base": 39323, "source": "https://api.virtuals.io"}
+
+
+def _virtual_response(row: dict, score: dict | None = None, source_wallet: str | None = None) -> dict:
+    out = {
+        "virtual_id": row.get("virtual_id"),
+        "name": row.get("name"),
+        "symbol": row.get("symbol"),
+        "trust_score": row.get("trust_score"),
+        "verdict": row.get("verdict"),
+        "sentient_wallet": row.get("sentient_wallet") or None,
+        "creator_wallet": row.get("creator_wallet") or None,
+        "token_address": row.get("token_address"),
+        "mcap_in_virtual": row.get("mcap_in_virtual"),
+        "holder_count": row.get("holder_count"),
+        "last_scored_at": row.get("last_scored_at"),
+        "source": "virtuals.io",
+    }
+    if score:
+        out["dimensions"] = {
+            k: score.get(k) for k in
+            ("longevity", "activity", "counterparty", "contract_risk",
+             "agent_identity", "tx_count", "wallet_age_days", "eth_balance")
+        }
+        out["scored_wallet"] = source_wallet
+    return out
+

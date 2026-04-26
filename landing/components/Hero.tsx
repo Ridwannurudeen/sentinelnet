@@ -1,93 +1,121 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ArrowRight, BookOpen } from "lucide-react";
+import { useEffect, useState } from "react";
+import CountUp from "./CountUp";
+import TrustGraph from "./TrustGraph";
+
+type Stats = {
+  agents_scored: number;
+  sybil_flagged: number;
+  contagion_affected: number;
+  ecosystem_health?: number;
+  verdicts?: { TRUST?: number; CAUTION?: number; REJECT?: number };
+};
+
+const FALLBACK: Stats = {
+  agents_scored: 39852,
+  sybil_flagged: 20138,
+  contagion_affected: 13648,
+};
 
 export default function Hero() {
-  return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
-      {/* Animated background blobs */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-cyan/5 blur-[120px] animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-blue/5 blur-[100px] animate-pulse [animation-delay:1s]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-trust/5 blur-[150px] animate-pulse [animation-delay:2s]" />
-      </div>
+  const [stats, setStats] = useState<Stats>(FALLBACK);
 
-      {/* Grid pattern overlay */}
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setStats({
+          agents_scored: d.agents_scored ?? FALLBACK.agents_scored,
+          sybil_flagged: d.sybil_flagged ?? FALLBACK.sybil_flagged,
+          contagion_affected: d.contagion_affected ?? FALLBACK.contagion_affected,
+          ecosystem_health: d.ecosystem_health,
+          verdicts: d.verdicts,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <section className="relative pt-28 sm:pt-36 pb-16 overflow-hidden">
+      <div className="absolute inset-0 -z-10 opacity-50 dark:opacity-30 text-text/30 pointer-events-none">
+        <TrustGraph className="w-full h-full" />
+      </div>
       <div
-        className="absolute inset-0 -z-10 opacity-[0.03]"
+        className="absolute inset-0 -z-10 pointer-events-none"
         style={{
-          backgroundImage:
-            "linear-gradient(rgba(0,204,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,204,255,0.3) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
+          background:
+            "radial-gradient(ellipse at center top, transparent 0%, var(--bg) 70%)",
         }}
       />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-        >
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan/5 border border-cyan/20 mb-8"
+      <div className="max-w-6xl mx-auto px-6 lg:px-8">
+        <div className="max-w-4xl">
+          <p className="text-sm text-muted mb-6 inline-flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-trust animate-pulse" />
+            Production on Base mainnet
+          </p>
+          <h1
+            className="font-display font-light text-text"
+            style={{
+              fontSize: "clamp(3rem, 9vw, 7.5rem)",
+              lineHeight: "0.95",
+              letterSpacing: "-0.045em",
+            }}
           >
-            <span className="w-2 h-2 rounded-full bg-trust animate-pulse" />
-            <span className="text-sm text-sec">Synthesis 2026 Hackathon</span>
-          </motion.div>
-
-          {/* Heading */}
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
-            The{" "}
-            <span className="text-gradient">trust layer</span>
+            Reputation,
             <br />
-            for ERC-8004 agents
+            <span className="italic">on-chain,</span>
             <br />
-            <span className="text-sec text-3xl sm:text-4xl md:text-5xl font-medium">
-              on Base
-            </span>
+            for every agent.
           </h1>
-
-          {/* Subtitle */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="max-w-2xl mx-auto text-lg sm:text-xl text-sec leading-relaxed mb-10"
-          >
-            SentinelNet scores every agent&apos;s trustworthiness across 5
-            dimensions, pins evidence to IPFS, and writes composable reputation
-            on-chain. One query. One trust score. Zero human involvement.
-          </motion.p>
-
-          {/* CTAs */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.6 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
-          >
+          <p className="mt-8 max-w-xl text-lg sm:text-xl text-muted leading-relaxed font-light">
+            SentinelNet scores every ERC-8004 agent on Base — autonomous,
+            slashable, composable in a single line of Solidity.
+          </p>
+          <div className="mt-10 flex flex-wrap items-center gap-3">
             <a
               href="/dashboard"
-              className="group inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan to-blue text-white font-semibold text-sm transition-all hover:shadow-[0_0_30px_rgba(0,204,255,0.4)] hover:scale-[1.02]"
+              className="inline-flex items-center gap-2 h-12 px-6 rounded-full bg-text text-bg text-sm font-medium hover:opacity-90 transition-opacity magnetic"
             >
-              Live Dashboard
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              Open live dashboard
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <path d="M5 12h14M13 5l7 7-7 7" />
+              </svg>
             </a>
             <a
               href="/docs"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl border border-border hover:border-cyan/40 text-sec hover:text-text font-semibold text-sm transition-all"
+              className="inline-flex items-center h-12 px-6 rounded-full border border-border hover:border-text/40 text-text text-sm font-medium transition-colors"
             >
-              <BookOpen className="w-4 h-4" />
-              API Docs
+              Read the API
             </a>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
+
+        <div className="mt-20 sm:mt-28 grid grid-cols-3 gap-6 sm:gap-12 max-w-3xl">
+          <Stat value={stats.agents_scored} label="agents scored" />
+          <Stat value={stats.sybil_flagged} label="sybils flagged" />
+          <Stat value={stats.contagion_affected} label="contagion-penalised" />
+        </div>
       </div>
     </section>
+  );
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div>
+      <div className="ticker text-text font-light" style={{ fontSize: "clamp(2rem, 5vw, 3.75rem)", letterSpacing: "-0.03em" }}>
+        <CountUp to={value} />
+      </div>
+      <div className="mt-2 text-xs sm:text-sm text-muted leading-snug">
+        {label}
+      </div>
+    </div>
   );
 }

@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from typing import Set, List, Optional
 import httpx
 
+from agent.verification_check import filter_verified
+
 logger = logging.getLogger(__name__)
 
 
@@ -172,7 +174,14 @@ class ChainFetcher:
         verified = sum(1 for c in all_counterparties if c.lower() in KNOWN_VERIFIED)
         flagged = sum(1 for c in all_counterparties if c.lower() in KNOWN_FLAGGED)
         malicious = sum(1 for c in all_contracts if c.lower() in KNOWN_FLAGGED)
-        unverified = len(all_contracts) - sum(1 for c in all_contracts if c.lower() in KNOWN_VERIFIED)
+        # Verified contracts: hand-curated list + live BaseScan source-code check (cached 7d)
+        try:
+            basescan_verified = await filter_verified(all_contracts, self.basescan_api_key)
+        except Exception as e:
+            logger.debug(f'verification check failed for {address}: {e}')
+            basescan_verified = set()
+        verified_contracts = {c.lower() for c in all_contracts if c.lower() in KNOWN_VERIFIED} | basescan_verified
+        unverified = max(0, len(set(c.lower() for c in all_contracts)) - len(verified_contracts))
 
         # Merge tx timestamps from both chains
         all_timestamps = base_data.get("tx_timestamps", []) + eth_data.get("tx_timestamps", [])

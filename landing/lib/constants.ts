@@ -134,10 +134,8 @@ async def check_trust(agent_id: int) -> dict:
 
 export const NAV_LINKS = [
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Marketplace", href: "/marketplace" },
-  { label: "Trust Network", href: "/graph" },
-  { label: "How It Works", href: "/methodology" },
-  { label: "API Docs", href: "/docs" },
-  { label: "Leaderboard", href: "/leaderboard" },
+  { label: "Get started", href: "/get-started" },
+  { label: "Methodology", href: "/methodology" },
+  { label: "Docs", href: "/docs" },
   { label: "GitHub", href: "https://github.com/Ridwannurudeen/sentinelnet", external: true },
 ] as const;

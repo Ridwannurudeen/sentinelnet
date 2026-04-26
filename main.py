@@ -1,14 +1,12 @@
 import asyncio
 import logging
 import uvicorn
+import logging_config
+logging_config.configure("INFO")
 from config import Settings
 from agent import SentinelNetAgent
 from api import app, db
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-)
 logger = logging.getLogger("sentinelnet")
 
 
@@ -70,7 +68,7 @@ async def main():
     asyncio.create_task(_self_score())
 
     # Start API server
-    config = uvicorn.Config(app, host="0.0.0.0", port=8004, log_level="info")
+    config = uvicorn.Config(app, host="0.0.0.0", port=8004, log_config=None, access_log=True)
     server = uvicorn.Server(config)
     await server.serve()
 
