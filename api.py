@@ -375,14 +375,49 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 
+# ─── Request body size limit ───
+# Starlette has no default cap. Without one, an attacker can POST 100MB and
+# OOM-kill the worker via `await request.json()`. Cap at 64KB for /api/* and
+# /mcp/* — the largest legitimate payload (webhook registration with secret)
+# is well under 1KB.
+_MAX_BODY_BYTES = 64 * 1024
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        method = request.method
+        path = request.url.path
+        if method in ("POST", "PUT", "PATCH", "DELETE") and (
+            path.startswith("/api/") or path.startswith("/mcp/")
+        ):
+            cl = request.headers.get("content-length")
+            if cl is not None:
+                try:
+                    if int(cl) > _MAX_BODY_BYTES:
+                        return JSONResponse(
+                            {"error": "request body too large", "max_bytes": _MAX_BODY_BYTES},
+                            status_code=413,
+                        )
+                except ValueError:
+                    return JSONResponse({"error": "invalid content-length"}, status_code=400)
+        return await call_next(request)
+
+
+app.add_middleware(BodySizeLimitMiddleware)
+
+
 # ─── API Key Authentication Middleware ───
 
 # Paths that bypass API key authentication
 _AUTH_SKIP_EXACT = frozenset({
     "/", "/dashboard", "/marketplace", "/graph", "/leaderboard", "/methodology", "/demo",
     "/docs-guide", "/api/health", "/docs", "/swagger", "/openapi.json", "/redoc", "/metrics",
+    "/mcp",
 })
-_AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/", "/mcp")
+# Trailing slash is intentional — `/mcp` (bare info) is in _AUTH_SKIP_EXACT,
+# but a bare `/mcp` prefix would also exempt any future `/mcphealth` /
+# `/mcp_admin` route from auth.
+_AUTH_SKIP_PREFIXES = ("/_next/", "/badge/", "/ws/", "/agent/", "/mcp/")
 
 
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
@@ -1459,11 +1494,15 @@ _agent_ref = None
 
 
 def _require_admin(request: Request):
-    """Verify the request carries a valid admin key."""
+    """Verify the request carries a valid admin key.
+
+    Header-only — query params get logged by nginx/uvicorn and persist the
+    master credential into log files indefinitely.
+    """
     admin_key = _settings.ADMIN_KEY.strip()
     if not admin_key:
         raise HTTPException(503, "Admin endpoint not configured")
-    provided = request.headers.get("x-admin-key", "") or request.query_params.get("admin_key", "")
+    provided = request.headers.get("x-admin-key", "")
     if not provided or not hmac.compare_digest(provided, admin_key):
         raise HTTPException(403, "Invalid or missing admin key")
 
@@ -1970,47 +2009,6 @@ async def get_anomalies(
         "offset": offset,
         "checked": checked,
     }
-
-
-# ─── Prometheus Metrics ───
-
-_metrics = {
-    "agents_scored_total": 0,
-    "verdicts": {"TRUST": 0, "CAUTION": 0, "REJECT": 0},
-    "api_requests_total": 0,
-    "sybil_detections_total": 0,
-    "ws_connections_active": 0,
-}
-
-
-@app.get("/metrics", tags=["System"], response_class=Response)
-async def prometheus_metrics():
-    """Prometheus-compatible metrics endpoint."""
-    scores = await db.get_all_scores()
-    verdicts = {"TRUST": 0, "CAUTION": 0, "REJECT": 0}
-    for s in scores:
-        v = s.get("verdict", "").upper()
-        if v in verdicts:
-            verdicts[v] += 1
-    sybil_count = sum(1 for s in scores if s.get("sybil_flagged"))
-
-    lines = [
-        "# HELP sentinelnet_agents_scored_total Total number of agents scored",
-        "# TYPE sentinelnet_agents_scored_total gauge",
-        f"sentinelnet_agents_scored_total {len(scores)}",
-        "# HELP sentinelnet_verdicts_total Verdict distribution",
-        "# TYPE sentinelnet_verdicts_total gauge",
-        f'sentinelnet_verdicts_total{{verdict="TRUST"}} {verdicts["TRUST"]}',
-        f'sentinelnet_verdicts_total{{verdict="CAUTION"}} {verdicts["CAUTION"]}',
-        f'sentinelnet_verdicts_total{{verdict="REJECT"}} {verdicts["REJECT"]}',
-        "# HELP sentinelnet_sybil_detections_total Number of agents flagged as sybil",
-        "# TYPE sentinelnet_sybil_detections_total gauge",
-        f"sentinelnet_sybil_detections_total {sybil_count}",
-        "# HELP sentinelnet_websocket_connections_active Active WebSocket connections",
-        "# TYPE sentinelnet_websocket_connections_active gauge",
-        f"sentinelnet_websocket_connections_active {len(ws_manager.active)}",
-    ]
-    return Response(content="\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
 
 # ─── Marketplace ───

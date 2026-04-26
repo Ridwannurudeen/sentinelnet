@@ -361,7 +361,10 @@ class SentinelNetAgent:
                         f"({base_score} -> {new_score})"
                     )
 
-                # Update the score in DB with contagion adjustment
+                # Update the score in DB with contagion adjustment.
+                # IMPORTANT: pass attestation_uid through — save_score defaults
+                # it to "" and would otherwise wipe a real EAS UID on every
+                # contagion sweep.
                 await self.db.save_score(
                     agent_id, s["wallet"], new_score,
                     s["longevity"], s["activity"], s["counterparty"],
@@ -370,6 +373,7 @@ class SentinelNetAgent:
                     agent_identity=s.get("agent_identity", 0),
                     sybil_flagged=bool(s.get("sybil_flagged")),
                     contagion_adjustment=adj,
+                    attestation_uid=s.get("attestation_uid", ""),
                 )
                 logger.info(f"Contagion applied to agent {agent_id}: {base_score} -> {new_score} (adj={adj})")
 

@@ -82,7 +82,21 @@ class PaymasterTransactor:
                 return [result.user_op_hash] * len(calls)
 
         except Exception as e:
-            logger.error(f"Paymaster transaction failed: {e}")
+            # CDP returns 402 payment_method_required when the account has no
+            # billing source. This won't fix itself — disable the paymaster for
+            # the rest of the process to stop log spam. Restart fixes it once
+            # the operator adds a payment method.
+            msg = str(e)
+            if "402" in msg or "payment_method_required" in msg:
+                if self._enabled:
+                    logger.error(
+                        "Paymaster disabled for this run: CDP requires a payment "
+                        "method. Set one at https://portal.cdp.coinbase.com and "
+                        "restart the service."
+                    )
+                self._enabled = False
+            else:
+                logger.error(f"Paymaster transaction failed: {e}")
             raise
 
     async def send_call(self, to: str, data: str, value: int = 0) -> str:

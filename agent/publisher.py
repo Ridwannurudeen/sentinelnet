@@ -5,7 +5,16 @@ from datetime import datetime, timezone
 from typing import Optional
 import httpx
 
+from agent.circuit_breaker import CircuitBreaker
+
 logger = logging.getLogger(__name__)
+
+# Module-level breakers shared across Publisher instances. 403 / 401 from a
+# pinning provider means the credential is dead — exponential retry won't fix
+# it. Open for 1 hour after 3 consecutive failures to give an operator window
+# to rotate the key.
+_pinata_breaker = CircuitBreaker("pinata", failure_threshold=3, open_seconds=3600.0)
+_lighthouse_breaker = CircuitBreaker("lighthouse", failure_threshold=3, open_seconds=3600.0)
 
 
 class Publisher:
@@ -38,17 +47,20 @@ class Publisher:
 
         # Try IPFS pinning: Pinata -> Lighthouse -> self-hosted fallback
         evidence_uri = ""
-        if self.pinata_jwt or (self.pinata_api_key and self.pinata_secret_key):
+        if (self.pinata_jwt or (self.pinata_api_key and self.pinata_secret_key)) \
+                and await _pinata_breaker.allow():
             try:
                 evidence_uri = await self.pin_json(evidence)
+                await _pinata_breaker.record_success()
             except Exception as e:
-                logger.warning(f"Pinata IPFS pin failed: {e}")
+                await _pinata_breaker.record_failure(str(e))
 
-        if not evidence_uri and self.lighthouse_api_key:
+        if not evidence_uri and self.lighthouse_api_key and await _lighthouse_breaker.allow():
             try:
                 evidence_uri = await self.pin_json_lighthouse(evidence)
+                await _lighthouse_breaker.record_success()
             except Exception as e:
-                logger.warning(f"Lighthouse IPFS pin failed: {e}")
+                await _lighthouse_breaker.record_failure(str(e))
 
         # Fallback: self-hosted evidence endpoint with content hash
         if not evidence_uri:

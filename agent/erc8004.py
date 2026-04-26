@@ -1,10 +1,45 @@
 import asyncio
 import json
 import logging
+import time
 from typing import Optional
 from web3 import Web3
 
+from agent.circuit_breaker import CircuitBreaker
+
 logger = logging.getLogger(__name__)
+
+# Shared across all ERC8004Client instances in the process. Both feedback and
+# validation responses spend the same wallet balance, so they share fate.
+_eoa_breaker = CircuitBreaker("erc8004-eoa", failure_threshold=3, open_seconds=900.0)
+_paymaster_breaker = CircuitBreaker("erc8004-paymaster", failure_threshold=3, open_seconds=900.0)
+
+# Minimum gas + buffer required to attempt a feedback/validation EOA write.
+# At ~0.11 gwei * 300k gas this is ~3.3e13 wei; we use 5e13 as a small headroom.
+_MIN_BALANCE_WEI = 5 * 10**13
+
+# Cache the wallet balance for 30s so we don't hammer the RPC on every call.
+_balance_cache: dict = {}
+_BALANCE_TTL_SEC = 30.0
+
+
+async def _has_funds(w3, address: str) -> bool:
+    """Return True if the wallet has enough headroom for one EOA write.
+
+    Cached for ``_BALANCE_TTL_SEC`` per address.
+    """
+    cached = _balance_cache.get(address)
+    now = time.monotonic()
+    if cached and now - cached[1] < _BALANCE_TTL_SEC:
+        return cached[0] >= _MIN_BALANCE_WEI
+    try:
+        bal = await asyncio.to_thread(w3.eth.get_balance, address)
+    except Exception as e:
+        logger.debug(f"balance check failed for {address}: {e}")
+        # Be optimistic on RPC error — let the actual send surface the real error.
+        return True
+    _balance_cache[address] = (bal, now)
+    return bal >= _MIN_BALANCE_WEI
 
 # Minimal ABIs for ERC-8004 contracts (behind ERC1967 proxies)
 IDENTITY_ABI = json.loads('[{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"ownerOf","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"tokenURI","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getAgentWallet","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"string","name":"newURI","type":"string"}],"name":"setAgentURI","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"address","name":"newWallet","type":"address"},{"internalType":"uint256","name":"deadline","type":"uint256"},{"internalType":"bytes","name":"signature","type":"bytes"}],"name":"setAgentWallet","outputs":[],"stateMutability":"nonpayable","type":"function"}]')
@@ -170,17 +205,25 @@ class ERC8004Client:
         args = [agent_id, value, 0, tag1, tag2, "", feedback_uri, feedback_hash]
 
         # Try paymaster first (gasless via CDP Smart Account)
-        if self.paymaster and self.paymaster.enabled:
+        if self.paymaster and self.paymaster.enabled and await _paymaster_breaker.allow():
             try:
                 data = self.reputation.encode_abi(abi_element_identifier="giveFeedback", args=args)
                 tx_hash = await self.paymaster.send_call(to=self.reputation_addr, data=data)
                 if tx_hash:
+                    await _paymaster_breaker.record_success()
                     logger.info(f"Feedback via paymaster for agent {agent_id} tag={tag1}: {tx_hash}")
                     return tx_hash
             except Exception as e:
-                logger.warning(f"Paymaster feedback failed for agent {agent_id}, falling back to EOA: {e}")
+                await _paymaster_breaker.record_failure(str(e))
 
         # Fallback: direct EOA transaction (requires ETH for gas)
+        if not await _eoa_breaker.allow():
+            return ""
+        if not await _has_funds(self.w3, self.account.address):
+            await _eoa_breaker.record_failure("insufficient funds")
+            return ""
+
+        nonce = None
         try:
             async with self._nonce_lock:
                 if self._current_nonce is None:
@@ -188,7 +231,6 @@ class ERC8004Client:
                         self.w3.eth.get_transaction_count, self.account.address
                     )
                 nonce = self._current_nonce
-                self._current_nonce += 1
 
             tx = self.reputation.functions.giveFeedback(*args).build_transaction({
                 "from": self.account.address,
@@ -202,10 +244,17 @@ class ERC8004Client:
             tx_hash = await asyncio.to_thread(
                 self.w3.eth.send_raw_transaction, signed.raw_transaction
             )
+            # Only advance the nonce on a successful broadcast.
+            async with self._nonce_lock:
+                self._current_nonce = nonce + 1
+            await _eoa_breaker.record_success()
             logger.info(f"Feedback tx sent for agent {agent_id} tag={tag1}: {tx_hash.hex()}")
             return tx_hash.hex()
         except Exception as e:
-            logger.error(f"Failed to send feedback for agent {agent_id}: {e}")
+            await _eoa_breaker.record_failure(str(e))
+            # Force-refresh the on-chain nonce next call so we don't drift.
+            async with self._nonce_lock:
+                self._current_nonce = None
             return ""
 
     async def give_feedback_batch(self, feedbacks: list) -> list:
@@ -238,15 +287,23 @@ class ERC8004Client:
             )
             calls.append({"to": self.reputation_addr, "data": data})
 
+        if not await _paymaster_breaker.allow():
+            results = []
+            for f in feedbacks:
+                r = await self.give_feedback(*f)
+                results.append(r)
+            return results
+
         try:
             results = await self.paymaster.send_calls(calls)
             # Treat all-empty results as failure (paymaster returned but didn't submit)
             if not results or all(r == "" for r in results):
                 raise RuntimeError("Paymaster returned empty results")
+            await _paymaster_breaker.record_success()
             logger.info(f"Batch feedback via paymaster: {len(calls)} calls -> {results[0] if results else 'none'}")
             return results
         except Exception as e:
-            logger.warning(f"Batch paymaster failed, falling back to individual EOA: {e}")
+            await _paymaster_breaker.record_failure(str(e))
             results = []
             for f in feedbacks:
                 r = await self.give_feedback(*f)
@@ -270,17 +327,25 @@ class ERC8004Client:
         args = [request_hash, response, response_uri, response_hash, tag]
 
         # Try paymaster first
-        if self.paymaster and self.paymaster.enabled:
+        if self.paymaster and self.paymaster.enabled and await _paymaster_breaker.allow():
             try:
                 data = self.validation.encode_abi(abi_element_identifier="validationResponse", args=args)
                 tx_hash = await self.paymaster.send_call(to=self.validation_addr, data=data)
                 if tx_hash:
+                    await _paymaster_breaker.record_success()
                     logger.info(f"Validation response via paymaster: {tx_hash}")
                     return tx_hash
             except Exception as e:
-                logger.warning(f"Paymaster validation response failed, falling back: {e}")
+                await _paymaster_breaker.record_failure(str(e))
 
         # Fallback: EOA
+        if not await _eoa_breaker.allow():
+            return ""
+        if not await _has_funds(self.w3, self.account.address):
+            await _eoa_breaker.record_failure("insufficient funds")
+            return ""
+
+        nonce = None
         try:
             async with self._nonce_lock:
                 if self._current_nonce is None:
@@ -288,7 +353,6 @@ class ERC8004Client:
                         self.w3.eth.get_transaction_count, self.account.address
                     )
                 nonce = self._current_nonce
-                self._current_nonce += 1
 
             tx = self.validation.functions.validationResponse(*args).build_transaction({
                 "from": self.account.address,
@@ -301,10 +365,15 @@ class ERC8004Client:
             tx_hash = await asyncio.to_thread(
                 self.w3.eth.send_raw_transaction, signed.raw_transaction
             )
+            async with self._nonce_lock:
+                self._current_nonce = nonce + 1
+            await _eoa_breaker.record_success()
             logger.info(f"Validation response tx: {tx_hash.hex()}")
             return tx_hash.hex()
         except Exception as e:
-            logger.error(f"Validation response failed: {e}")
+            await _eoa_breaker.record_failure(str(e))
+            async with self._nonce_lock:
+                self._current_nonce = None
             return ""
 
     async def get_validation_status(self, request_hash: bytes) -> dict:
