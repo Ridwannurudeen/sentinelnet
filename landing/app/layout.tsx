@@ -41,6 +41,11 @@ export const metadata: Metadata = {
       "Autonomous agent reputation infrastructure on Base. Slashable, composable, in one line of Solidity.",
     images: ["/og-image.png"],
   },
+  other: {
+    // Talent Protocol project ownership verification
+    "talentapp:project_verification":
+      "5805f4ccfd04a9e8ae5b9d6a6c3cd6fe2f4e4a7e1ba6c318ebf7d0221d40c9b34100b8979c54b5a9f7f364572b857c7e565fda0f5ce61da717470f99e315ecec",
+  },
 };
 
 export default function RootLayout({
