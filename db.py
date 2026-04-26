@@ -67,6 +67,23 @@ class Database:
             )
         """)
         await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS virtual_agents (
+                virtual_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                symbol TEXT NOT NULL DEFAULT '',
+                sentient_wallet TEXT NOT NULL DEFAULT '',
+                creator_wallet TEXT NOT NULL DEFAULT '',
+                token_address TEXT,
+                tba_address TEXT,
+                mcap_in_virtual REAL DEFAULT 0,
+                holder_count INTEGER DEFAULT 0,
+                trust_score INTEGER,
+                verdict TEXT,
+                last_synced_at TEXT NOT NULL,
+                last_scored_at TEXT
+            )
+        """)
+        await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS webhooks (
                 id TEXT PRIMARY KEY,
                 url TEXT NOT NULL,
@@ -76,11 +93,21 @@ class Database:
                 created_at TEXT NOT NULL
             )
         """)
+        await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_keys (
+                key TEXT PRIMARY KEY,
+                email TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                last_used_at TEXT
+            )
+        """)
         # Indexes for query performance
         await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_score_history_agent ON score_history(agent_id)")
         await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_agent ON graph_edges(agent_id)")
         await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_threats_created ON threats(created_at DESC)")
         await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_trust_scores_scored ON trust_scores(scored_at DESC)")
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_virtual_agents_mcap ON virtual_agents(mcap_in_virtual DESC)")
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_virtual_agents_sentient ON virtual_agents(sentient_wallet)")
         # Migrations for existing DBs
         for col, typedef in [
             ("agent_identity", "INTEGER NOT NULL DEFAULT 0"),
@@ -290,6 +317,77 @@ class Database:
         row = await cursor.fetchone()
         return row[0] if row else 0
 
+    async def save_api_key(self, key: str, email: str):
+        """Persist a self-registered API key. Survives restarts."""
+        await self.conn.execute(
+            "INSERT OR REPLACE INTO api_keys (key, email, created_at) VALUES (?, ?, ?)",
+            (key, email, datetime.now(timezone.utc).isoformat()),
+        )
+        await self.conn.commit()
+
+    async def load_api_keys(self) -> dict:
+        """Return all persisted self-registered keys as {key: {email, created_at}}."""
+        cursor = await self.conn.execute("SELECT key, email, created_at FROM api_keys")
+        rows = await cursor.fetchall()
+        return {r["key"]: {"email": r["email"], "created_at": r["created_at"]} for r in rows}
+
     async def close(self):
         if self.conn:
             await self.conn.close()
+
+    # --- Virtuals ---
+    async def upsert_virtual(self, v):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        await self.conn.execute("""
+            INSERT INTO virtual_agents
+              (virtual_id, name, symbol, sentient_wallet, creator_wallet,
+               token_address, tba_address, mcap_in_virtual, holder_count,
+               last_synced_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(virtual_id) DO UPDATE SET
+              name=excluded.name,
+              symbol=excluded.symbol,
+              sentient_wallet=excluded.sentient_wallet,
+              creator_wallet=excluded.creator_wallet,
+              token_address=excluded.token_address,
+              tba_address=excluded.tba_address,
+              mcap_in_virtual=excluded.mcap_in_virtual,
+              holder_count=excluded.holder_count,
+              last_synced_at=excluded.last_synced_at
+        """, (v.virtual_id, v.name, v.symbol, v.sentient_wallet, v.creator_wallet,
+              v.token_address, v.tba_address, v.mcap_in_virtual, v.holder_count, now))
+        await self.conn.commit()
+
+    async def update_virtual_score(self, virtual_id, trust_score, verdict):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        await self.conn.execute("""
+            UPDATE virtual_agents
+               SET trust_score=?, verdict=?, last_scored_at=?
+             WHERE virtual_id=?
+        """, (trust_score, verdict, now, virtual_id))
+        await self.conn.commit()
+
+    async def get_virtual(self, virtual_id):
+        cur = await self.conn.execute(
+            "SELECT * FROM virtual_agents WHERE virtual_id=?", (virtual_id,))
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def list_virtuals(self, limit=50, offset=0):
+        cur = await self.conn.execute(
+            "SELECT * FROM virtual_agents ORDER BY mcap_in_virtual DESC LIMIT ? OFFSET ?",
+            (limit, offset))
+        rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+    async def virtuals_stats(self):
+        cur = await self.conn.execute(
+            "SELECT COUNT(*) AS total, COUNT(trust_score) AS scored FROM virtual_agents")
+        row = await cur.fetchone()
+        cur2 = await self.conn.execute(
+            "SELECT verdict, COUNT(*) AS n FROM virtual_agents WHERE verdict IS NOT NULL GROUP BY verdict")
+        verdicts = {r["verdict"]: r["n"] for r in await cur2.fetchall()}
+        return {"total": row["total"], "scored": row["scored"], "verdicts": verdicts}
+

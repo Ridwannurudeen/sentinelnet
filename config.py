@@ -30,7 +30,12 @@ class Settings(BaseSettings):
     LIGHTHOUSE_API_KEY: str = ""
 
     # Staking
-    STAKE_AMOUNT_ETH: float = 0.001
+    # STAKING_ENABLED is the master kill switch. STAKE_ON_RESCORE keeps
+    # rescore-based staking off by default — at the prior 0.001 ETH default
+    # × 100 agents/sweep × 48 sweeps/day this would have burned ~5 ETH/day.
+    STAKING_ENABLED: bool = False
+    STAKE_ON_RESCORE: bool = False
+    STAKE_AMOUNT_ETH: float = 0.0001
     STAKING_CONTRACT: str = "0xEe1A8f34F1320D534b9a547f882762EABCB4f96d"
 
     # TrustGate on-chain oracle

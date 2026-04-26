@@ -2,21 +2,23 @@
 
 > Autonomous Agent Reputation Watchdog for ERC-8004 on Base
 
-Last updated: March 27, 2026
+Last updated: April 25, 2026
 
 ---
 
 ## Where We Are Today
 
-SentinelNet is a fully autonomous reputation system scoring 3,700+ ERC-8004 agents on Base. It runs 24/7 with zero human intervention — discovering agents, analyzing on-chain behavior across Base and Ethereum, detecting sybil networks, propagating trust contagion, publishing verifiable evidence to IPFS, and writing composable reputation feedback on-chain.
+SentinelNet is a fully autonomous reputation system scoring 39,800+ ERC-8004 agents on Base. It runs 24/7 with zero human intervention — discovering agents, analyzing on-chain behavior across Base and Ethereum, detecting sybil networks, propagating trust contagion, publishing verifiable evidence to IPFS, and writing composable reputation feedback on-chain.
 
 **Key numbers:**
-- 3,769 agents scored across 5 behavioral dimensions
-- 84 sybil networks detected, 2,119 sybil agents flagged (56% of ecosystem)
-- 754 agents penalized via trust contagion propagation
+- 39,852 agents scored across 5 behavioral dimensions
+- 20,138 sybil agents flagged (51% of ecosystem)
+- 13,672 agents affected by trust contagion propagation
 - 8 integration paths (smart contract, Python SDK, JS SDK, REST, MCP, WebSocket, webhooks, Prometheus)
 - 2 deployed contracts (TrustGate oracle + SentinelNetStaking)
-- 147 tests passing
+- Python SDK on PyPI (pip install sentinelnet), JS SDK on npm (npm install sentinelnet)
+- Multi-RPC failover (4 endpoints), structured JSON logging, BaseScan-verified contract weighting
+- Coinbase CDP Paymaster sponsoring all on-chain writes (zero gas cost)
 
 ---
 
@@ -25,8 +27,8 @@ SentinelNet is a fully autonomous reputation system scoring 3,700+ ERC-8004 agen
 *Make what exists bulletproof before expanding scope.*
 
 ### SDK Publishing
-- [ ] Publish Python SDK to PyPI (`pip install sentinelnet`)
-- [ ] Publish JavaScript SDK to npm (`npm install sentinelnet`)
+- [x] Publish Python SDK to PyPI (`pip install sentinelnet`)
+- [x] Publish JavaScript SDK to npm (`npm install sentinelnet`)
 - [ ] Add versioned API documentation (OpenAPI spec already exists at `/docs`)
 - [ ] Write integration guides with code examples for each path
 
@@ -34,17 +36,20 @@ SentinelNet is a fully autonomous reputation system scoring 3,700+ ERC-8004 agen
 - [ ] Internal transaction analysis (traces, not just top-level transfers)
 - [ ] Failed transaction pattern detection (repeated reverts = suspicious)
 - [ ] Gas usage profiling (abnormal gas patterns as a signal)
-- [ ] Contract verification status weighting (verified source on Basescan = trust boost)
+- [x] Contract verification status weighting (verified source on BaseScan = trust boost, 7-day cache)
 - [ ] Historical score calibration — backtest scoring model against known-good and known-bad agents
 
 ### Operational Resilience
-- [ ] Multi-RPC failover (Base: Alchemy, QuickNode, LlamaRPC fallback chain)
+- [x] Multi-RPC failover (Base: drpc, publicnode, llamarpc, mainnet.base.org)
 - [ ] IPFS pinning redundancy (Pinata primary, Lighthouse backup, local IPFS node tertiary)
 - [ ] Database migration from SQLite to PostgreSQL for concurrent writes and better durability
-- [ ] Structured logging with log aggregation (Loki or similar)
+- [x] Structured JSON logging (one JSON object per line, ready for Loki/Vector ingestion)
 - [ ] Automated alerting on agent downtime, scoring failures, and wallet balance depletion
 
-### Challenge System Activation
+### Challenge System Activation *(deferred — gated on grant/treasury funding)*
+
+The SentinelNetStaking contract is deployed with full challenge/resolve/slash mechanics. Activation requires per-score ETH stakes (which scale linearly with the agent population), so this milestone is paused until grant or treasury funding is secured. Contracts are ready; only the bot + funding need to come online.
+
 - [ ] Build challenger bot that monitors staked scores and disputes outliers
 - [ ] Implement dispute resolution pipeline (evidence submission, voting, slash/reward)
 - [ ] Deploy challenger pool contract for community participation

@@ -3,50 +3,78 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-bg text-text antialiased;
+  :root {
+    --bg: #FAFAF7;
+    --surface: #FFFFFF;
+    --text: #0A0A0B;
+    --muted: #6B6B70;
+    --border: #E8E8E3;
+    --pastel-blue: #E0ECFF;
+    --pastel-peach: #FFECE2;
+    --pastel-sage: #EBF0E7;
+  }
+
+  .dark {
+    --bg: #0A0A0B;
+    --surface: #14141A;
+    --text: #FAFAF7;
+    --muted: #8B8B95;
+    --border: #1F1F26;
+    --pastel-blue: #1A2540;
+    --pastel-peach: #3A2A20;
+    --pastel-sage: #1F2820;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
   }
 
   ::selection {
-    @apply bg-cyan/20 text-white;
+    background: #0052FF;
+    color: white;
   }
 
   ::-webkit-scrollbar {
-    @apply w-2;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-bg;
+    background: var(--bg);
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full hover:bg-muted;
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
   }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-cyan via-blue to-cyan;
+  .font-display {
+    font-family: var(--font-fraunces), Fraunces, ui-serif, Georgia, serif;
   }
 
-  .glow-cyan {
-    box-shadow: 0 0 20px rgba(0, 204, 255, 0.3), 0 0 60px rgba(0, 204, 255, 0.1);
+  .ticker {
+    font-family: var(--font-geist-mono), "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+    font-feature-settings: "tnum" 1, "ss01" 1;
+    letter-spacing: -0.02em;
   }
 
-  .glow-green {
-    box-shadow: 0 0 20px rgba(0, 221, 119, 0.3), 0 0 60px rgba(0, 221, 119, 0.1);
+  .surface-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
   }
 
-  .glass {
-    @apply bg-card/60 backdrop-blur-xl border border-border/50;
-  }
+  .pastel-blue { background: var(--pastel-blue); }
+  .pastel-peach { background: var(--pastel-peach); }
+  .pastel-sage { background: var(--pastel-sage); }
 
-  .glass-hover {
-    @apply glass transition-all duration-300;
-  }
-
-  .glass-hover:hover {
-    @apply border-cyan/30;
-    box-shadow: 0 0 30px rgba(0, 204, 255, 0.08);
+  .magnetic {
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }

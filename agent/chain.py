@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from typing import Set, List, Optional
 import httpx
 
+from agent.verification_check import filter_verified
+
 logger = logging.getLogger(__name__)
 
 
@@ -172,7 +174,14 @@ class ChainFetcher:
         verified = sum(1 for c in all_counterparties if c.lower() in KNOWN_VERIFIED)
         flagged = sum(1 for c in all_counterparties if c.lower() in KNOWN_FLAGGED)
         malicious = sum(1 for c in all_contracts if c.lower() in KNOWN_FLAGGED)
-        unverified = len(all_contracts) - sum(1 for c in all_contracts if c.lower() in KNOWN_VERIFIED)
+        # Verified contracts: hand-curated list + live BaseScan source-code check (cached 7d)
+        try:
+            basescan_verified = await filter_verified(all_contracts, self.basescan_api_key)
+        except Exception as e:
+            logger.debug(f'verification check failed for {address}: {e}')
+            basescan_verified = set()
+        verified_contracts = {c.lower() for c in all_contracts if c.lower() in KNOWN_VERIFIED} | basescan_verified
+        unverified = max(0, len(set(c.lower() for c in all_contracts)) - len(verified_contracts))
 
         # Merge tx timestamps from both chains
         all_timestamps = base_data.get("tx_timestamps", []) + eth_data.get("tx_timestamps", [])
@@ -283,8 +292,23 @@ class ChainFetcher:
             "funding_source": funding_source,
         }
 
+    # Cache tx history per (address, chain) for 1h. Bounds attacker amplification:
+    # an ERC-8004 agent registrant can set their wallet to a hot address (e.g. an
+    # exchange) so every score sweep would otherwise fan out to 1000 Blockscout
+    # calls per chain. With caching, repeated scores within 1h read from memory.
+    _tx_cache: dict = {}
+    _TX_CACHE_TTL_SEC = 3600.0
+    _TX_CACHE_MAX_ENTRIES = 5000  # ~80MB ceiling at 16KB/entry
+
     async def _fetch_tx_history(self, address: str, chain: str) -> list:
         """Fetch transaction history from Blockscout API (paginated, up to 1000 txns)."""
+        import time
+        key = (address.lower(), chain)
+        now = time.monotonic()
+        cached = self._tx_cache.get(key)
+        if cached and now - cached[1] < self._TX_CACHE_TTL_SEC:
+            return cached[0]
+
         if chain == "base":
             base_url = "https://base.blockscout.com/api"
         else:
@@ -309,13 +333,30 @@ class ChainFetcher:
                     }
                     resp = await client.get(base_url, params=params)
                     data = resp.json()
-                    if data.get("status") != "1" or not data.get("result"):
-                        break
-                    batch = data["result"]
+                    # Distinguish "no transactions" from "rate limited / API error".
+                    # status=="0" with message=="No transactions found" → empty result, stop.
+                    # status=="0" with anything else → API problem, don't poison the cache.
+                    if data.get("status") != "1":
+                        msg = (data.get("message") or "").lower()
+                        if "no transactions" in msg:
+                            break
+                        if not data.get("result"):
+                            logger.debug(
+                                f"blockscout {chain} returned status={data.get('status')} "
+                                f"message={data.get('message')!r} for {address}; not caching"
+                            )
+                            return all_txs  # do not cache a partial / errored result
+                    batch = data.get("result") or []
                     all_txs.extend(batch)
                     if len(batch) < PAGE_SIZE:
                         break  # last page
         except Exception as e:
             logger.warning(f"Failed to fetch tx history for {address} on {chain}: {e}")
+            return all_txs  # do not cache on exception
 
+        # Bounded LRU-ish: drop the oldest entry if at cap.
+        if len(self._tx_cache) >= self._TX_CACHE_MAX_ENTRIES:
+            oldest_key = min(self._tx_cache, key=lambda k: self._tx_cache[k][1])
+            self._tx_cache.pop(oldest_key, None)
+        self._tx_cache[key] = (all_txs, now)
         return all_txs
