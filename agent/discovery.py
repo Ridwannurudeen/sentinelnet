@@ -67,7 +67,12 @@ class Discovery:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=self.rescore_after_hours)
         stale = []
         for s in scores:
-            scored_at = datetime.fromisoformat(s["scored_at"])
+            try:
+                scored_at = datetime.fromisoformat(s["scored_at"])
+            except (KeyError, TypeError, ValueError):
+                # Skip rows with missing/malformed scored_at — used to crash the
+                # entire stale sweep on a single corrupt row.
+                continue
             if scored_at < cutoff:
                 stale.append(s["agent_id"])
         return stale[:STALE_CAP]

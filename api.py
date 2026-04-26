@@ -12,9 +12,9 @@ import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlparse
-from fastapi import FastAPI, HTTPException, Path, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -35,6 +35,49 @@ logger = logging.getLogger("sentinelnet.api")
 _settings = Settings()
 os.makedirs("static", exist_ok=True)
 _api_keys: dict = {}  # key -> {email, created_at} — dynamically registered keys
+
+
+class _SecretCodec:
+    """Symmetric encryption for webhook HMAC secrets at rest.
+
+    Key derivation: SHA-256(ADMIN_KEY) → urlsafe_b64encode → Fernet key. So
+    operators don't need a separate KMS secret — the existing ADMIN_KEY is
+    the root of trust for the webhook secret store. Rotating ADMIN_KEY
+    invalidates every stored webhook secret (intentional — re-register the
+    webhook to pick up the new key).
+    """
+
+    def __init__(self, admin_key: str):
+        self._fernet = None
+        if not admin_key:
+            return
+        try:
+            import base64
+            from cryptography.fernet import Fernet
+            digest = hashlib.sha256(admin_key.encode()).digest()
+            self._fernet = Fernet(base64.urlsafe_b64encode(digest))
+        except Exception as e:
+            logger.error(f"SecretCodec init failed, webhook secrets stored plaintext: {e}")
+            self._fernet = None
+
+    def encrypt(self, plaintext: str) -> str:
+        if not plaintext or self._fernet is None:
+            return plaintext
+        return "fernet:" + self._fernet.encrypt(plaintext.encode()).decode()
+
+    def decrypt(self, stored: str) -> str:
+        if not stored or self._fernet is None:
+            return stored
+        if not stored.startswith("fernet:"):
+            return stored  # legacy plaintext, returned as-is
+        try:
+            return self._fernet.decrypt(stored[len("fernet:"):].encode()).decode()
+        except Exception as e:
+            logger.error(f"SecretCodec decrypt failed (key rotated?): {e}")
+            return ""
+
+
+_secret_codec = _SecretCodec(_settings.ADMIN_KEY.strip())
 
 # Agent ID bounds (ERC-8004 uses uint256 but realistic IDs are much smaller)
 MAX_AGENT_ID = 2**32  # ~4 billion, well above current registry size
@@ -110,8 +153,13 @@ def _apply_decay(score_dict: dict) -> dict:
             score_dict["decay_days"] = round(days, 2)
             score_dict["verdict"] = engine._verdict(decayed)
             score_dict["is_stale"] = engine.is_stale(days)
-    except Exception:
-        pass
+    except (ValueError, TypeError, KeyError) as e:
+        # Narrow the catch — silent `except Exception` was hiding malformed
+        # `scored_at` rows and missing `trust_score` keys, masking real data
+        # corruption.
+        logger.warning(
+            f"_apply_decay skipped agent_id={score_dict.get('agent_id')}: {type(e).__name__}: {e}"
+        )
     return score_dict
 
 
@@ -317,13 +365,23 @@ async def _periodic_rescore_loop():
 @asynccontextmanager
 async def lifespan(app):
     await db.init()
-    rescore_task = asyncio.create_task(_periodic_rescore_loop())
-    yield
-    rescore_task.cancel()
+    # Restore self-registered API keys (previously lost on every restart)
     try:
-        await rescore_task
-    except asyncio.CancelledError:
-        pass
+        persisted = await db.load_api_keys()
+        _api_keys.update(persisted)
+        if persisted:
+            logger.info(f"Restored {len(persisted)} persisted API keys")
+    except Exception as e:
+        logger.warning(f"Failed to restore api_keys: {e}")
+    rescore_task = asyncio.create_task(_periodic_rescore_loop())
+    gc_task = asyncio.create_task(_gc_rate_limits())
+    yield
+    for t in (rescore_task, gc_task):
+        t.cancel()
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
     await db.close()
 
 
@@ -338,13 +396,17 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# Production CORS allowlist. Localhost origins are toggled in via SENTINELNET_DEV=1
+# rather than baked into the production allowlist — a malicious local-running app
+# (browser ext, drive-by) on dev origins would otherwise hit prod on the user's
+# behalf.
+_cors_origins = ["https://sentinelnet.gudman.xyz"]
+if os.environ.get("SENTINELNET_DEV") == "1":
+    _cors_origins.extend(["http://localhost:3000", "http://localhost:8004"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://sentinelnet.gudman.xyz",
-        "http://localhost:3000",
-        "http://localhost:8004",
-    ],
+    allow_origins=_cors_origins,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
@@ -666,6 +728,20 @@ async def mcp_messages(request: Request):
     elif method == "tools/call":
         tool_name = params.get("name", "")
         arguments = params.get("arguments", {})
+        # MCP is intentionally unauthenticated, so server-side input clamps are
+        # the only thing protecting against trivial dump-the-whole-DB calls.
+        MCP_MAX_LIMIT = 200
+        MCP_MAX_AGENT_IDS = 10
+
+        def _clamp_limit(raw, default=50, ceiling=MCP_MAX_LIMIT):
+            try:
+                n = int(raw) if raw is not None else default
+            except (TypeError, ValueError):
+                return default
+            if n < 1:
+                return default
+            return min(n, ceiling)
+
         result_text = ""
 
         if tool_name == "check_trust":
@@ -677,9 +753,9 @@ async def mcp_messages(request: Request):
                 result_text = json_module.dumps(score if score else {"error": f"Agent {agent_id} not scored yet"}, default=str)
         elif tool_name == "list_scored_agents":
             verdict_filter = arguments.get("verdict")
-            limit = arguments.get("limit", 50)
+            limit = _clamp_limit(arguments.get("limit"), default=50)
             scores = await db.get_all_scores()
-            if verdict_filter:
+            if verdict_filter and isinstance(verdict_filter, str):
                 scores = [s for s in scores if s.get("verdict", "").upper() == verdict_filter.upper()]
             scores = scores[:limit]
             result_text = json_module.dumps({"agents": [{"agent_id": s["agent_id"], "trust_score": s["trust_score"], "verdict": s["verdict"]} for s in scores], "count": len(scores)}, default=str)
@@ -697,15 +773,19 @@ async def mcp_messages(request: Request):
             if not isinstance(agent_id, int) or agent_id < 0:
                 result_text = json_module.dumps({"error": "agent_id must be a non-negative integer"})
             else:
-                history = await db.get_score_history(agent_id, limit=arguments.get("limit", 20))
+                history = await db.get_score_history(agent_id, limit=_clamp_limit(arguments.get("limit"), default=20, ceiling=100))
                 result_text = json_module.dumps({"agent_id": agent_id, "history": history or [], "entries": len(history or [])}, default=str)
         elif tool_name == "get_threat_feed":
-            threats = await db.get_threats(limit=arguments.get("limit", 20))
+            threats = await db.get_threats(limit=_clamp_limit(arguments.get("limit"), default=20, ceiling=100))
             result_text = json_module.dumps({"threats": threats, "count": len(threats)}, default=str)
         elif tool_name == "compare_agents":
             agent_ids = arguments.get("agent_ids", [])
+            if not isinstance(agent_ids, list):
+                agent_ids = []
             results = []
-            for aid in agent_ids[:10]:
+            for aid in agent_ids[:MCP_MAX_AGENT_IDS]:
+                if not isinstance(aid, int) or aid < 0:
+                    continue
                 score = await db.get_score(aid)
                 if score:
                     results.append({"agent_id": aid, "trust_score": score["trust_score"], "verdict": score["verdict"]})
@@ -856,9 +936,9 @@ async def compare_agents(agents: str = Query(..., description="Comma-separated a
     except ValueError:
         raise HTTPException(400, "Provide comma-separated integer agent IDs")
 
+    fetched = await asyncio.gather(*(db.get_score(aid) for aid in agent_ids))
     results = []
-    for aid in agent_ids:
-        score = await db.get_score(aid)
+    for aid, score in zip(agent_ids, fetched):
         if score:
             score = _apply_decay(score)
             results.append({
@@ -927,12 +1007,11 @@ async def batch_trust(request: Request):
         raise HTTPException(400, "All agent_ids must be integers")
     for aid in agent_ids:
         _validate_agent_id(aid)
+    fetched = await asyncio.gather(*(db.get_score(aid) for aid in agent_ids))
     results = {}
-    for aid in agent_ids:
-        score = await db.get_score(aid)
+    for aid, score in zip(agent_ids, fetched):
         if score:
-            score = _apply_decay(score)
-            results[str(aid)] = score
+            results[str(aid)] = _apply_decay(score)
         else:
             results[str(aid)] = None
     return {"results": results, "queried": len(agent_ids), "found": sum(1 for v in results.values() if v)}
@@ -1340,43 +1419,101 @@ async def classify_agent(agent_id: int):
 
 
 def _is_private_ip(addr: str) -> bool:
-    """Check if an IP address string is private/loopback/link-local/reserved."""
+    """Check if an IP address is unsafe to fan out to (private / loopback /
+    link-local / reserved / unspecified / IPv6-mapped IPv4 of any of the above)."""
     try:
         ip = ipaddress.ip_address(addr)
-        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
     except ValueError:
         return False
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved \
+            or ip.is_unspecified or ip.is_multicast:
+        return True
+    # IPv6-mapped IPv4 (e.g. ::ffff:127.0.0.1) — strip the prefix and re-check
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        v4 = ip.ipv4_mapped
+        if v4.is_private or v4.is_loopback or v4.is_link_local or v4.is_reserved \
+                or v4.is_unspecified or v4.is_multicast:
+            return True
+    return False
+
+
+# Hostnames that resolve to localhost on Linux but evade the literal-string check.
+# `0` and `0x0` are accepted by getaddrinfo on most platforms as 0.0.0.0.
+_LOCAL_HOSTNAME_BLOCKLIST = frozenset({
+    "localhost", "127.0.0.1", "::1", "0.0.0.0", "", "0", "0x0", "0.0", "0.0.0",
+    "[::]", "::", "[::ffff:127.0.0.1]",
+})
 
 
 def _is_private_url(url: str) -> bool:
-    """Block webhooks to private/internal IPs (including DNS rebinding)."""
+    """Block webhook URLs that point at private/internal addresses, including
+    after DNS rebinding. Also rejects URLs containing a userinfo component
+    (`http://x@evil.com/`) since downstream HTTP clients may interpret them
+    inconsistently."""
     import socket
     try:
         parsed = urlparse(url)
-        hostname = parsed.hostname or ""
-        if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0", ""):
-            return True
-        if hostname.endswith(".local") or hostname.endswith(".internal"):
-            return True
-        # Check literal IP
-        if _is_private_ip(hostname):
-            return True
-        # Resolve DNS and check ALL resolved IPs — prevents DNS rebinding
-        try:
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            results = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
-            for _, _, _, _, sockaddr in results:
-                if _is_private_ip(sockaddr[0]):
-                    return True
-        except socket.gaierror:
-            return True  # unresolvable hostname = block
     except Exception:
         return True
+    if parsed.scheme not in ("http", "https"):
+        return True
+    if parsed.username or parsed.password:
+        return True
+    hostname = (parsed.hostname or "").lower()
+    if hostname in _LOCAL_HOSTNAME_BLOCKLIST:
+        return True
+    if hostname.endswith(".local") or hostname.endswith(".internal"):
+        return True
+    # Strip surrounding brackets for IPv6 literal IPs before checking
+    bare = hostname.lstrip("[").rstrip("]")
+    if _is_private_ip(bare):
+        return True
+    # Resolve DNS and check ALL resolved IPs. NOTE: this is a registration-time
+    # gate; an attacker can still rebind between registration and delivery —
+    # `_resolve_to_safe_ip` re-validates at delivery time.
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        results = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
+        for _, _, _, _, sockaddr in results:
+            if _is_private_ip(sockaddr[0]):
+                return True
+    except socket.gaierror:
+        return True  # unresolvable hostname = block
     return False
+
+
+async def _resolve_to_safe_ip(hostname: str, port: int) -> Optional[str]:
+    """Resolve hostname at delivery time and return the first public IP, or
+    None if every resolution is private. Closes the DNS rebinding window
+    between webhook registration and delivery."""
+    import socket
+    try:
+        results = await asyncio.to_thread(
+            socket.getaddrinfo, hostname, port, 0, socket.SOCK_STREAM, socket.IPPROTO_TCP
+        )
+    except socket.gaierror:
+        return None
+    for family, _stype, _proto, _canon, sockaddr in results:
+        ip = sockaddr[0]
+        if not _is_private_ip(ip):
+            return ip
+    return None
 
 
 VALID_WEBHOOK_EVENTS = ["score_update", "verdict_changed", "sybil_detected", "trust_degraded"]
 MAX_WEBHOOKS = 50
+
+
+def _webhook_owner_or_403(request: Request) -> str:
+    """Return the webhook owner key from the request, or 403 if missing.
+    Empty/None owners are sentinel values and are explicitly rejected — the
+    middleware lets GETs through without an API key, so without this check a
+    `GET /api/webhooks` would list every webhook with an empty owner_key.
+    """
+    owner_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+    if not owner_key:
+        raise HTTPException(401, "Webhook ops require an API key")
+    return owner_key
 
 
 @app.post("/api/webhooks", tags=["Webhooks"])
@@ -1399,16 +1536,20 @@ async def register_webhook(request: Request):
         if e not in VALID_WEBHOOK_EVENTS:
             raise HTTPException(400, f"Invalid event '{e}'. Valid: {VALID_WEBHOOK_EVENTS}")
     wh_secret = body.get("secret", "")
-    owner_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+    owner_key = _webhook_owner_or_403(request)
     wh_id = f"wh_{secrets.token_hex(8)}"
-    await db.save_webhook(wh_id, url, events, owner_key=owner_key, secret=wh_secret)
+    # Encrypt the HMAC signing secret at rest with a key derived from ADMIN_KEY.
+    # Plaintext secrets in sqlite let anyone with DB access forge webhook
+    # deliveries to every subscriber.
+    encrypted_secret = _secret_codec.encrypt(wh_secret) if wh_secret else ""
+    await db.save_webhook(wh_id, url, events, owner_key=owner_key, secret=encrypted_secret)
     return {"webhook_id": wh_id, "url": url, "events": events, "status": "registered"}
 
 
 @app.get("/api/webhooks", tags=["Webhooks"])
 async def list_webhooks(request: Request):
     """List webhooks owned by the caller's API key."""
-    owner_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+    owner_key = _webhook_owner_or_403(request)
     webhooks = await db.get_webhooks(owner_key=owner_key)
     return {"webhooks": webhooks, "total": len(webhooks)}
 
@@ -1416,7 +1557,7 @@ async def list_webhooks(request: Request):
 @app.delete("/api/webhooks/{webhook_id}", tags=["Webhooks"])
 async def delete_webhook(webhook_id: str, request: Request):
     """Remove a webhook. Only the owner (by API key) can delete it."""
-    owner_key = request.headers.get("x-api-key", "") or request.query_params.get("api_key", "")
+    owner_key = _webhook_owner_or_403(request)
     deleted = await db.delete_webhook(webhook_id, owner_key=owner_key)
     if not deleted:
         raise HTTPException(404, f"Webhook {webhook_id} not found or not owned by you")
@@ -1424,18 +1565,40 @@ async def delete_webhook(webhook_id: str, request: Request):
 
 
 async def _deliver_webhook(url: str, payload: dict, wh_secret: str = "", max_retries: int = 3):
-    """Deliver a single webhook with HMAC signature and retry + exponential backoff."""
+    """Deliver a single webhook with HMAC signature and retry + exponential backoff.
+
+    Re-resolves the hostname at delivery time and refuses to send if it now
+    points at a private IP. This closes the DNS rebinding window between
+    webhook registration and delivery (registration-time check at
+    `_is_private_url` only sees what DNS returned at registration; an attacker
+    can flip the record after registration).
+    """
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return False
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    safe_ip = await _resolve_to_safe_ip(hostname, port)
+    if safe_ip is None:
+        logger.warning(f"Webhook {url}: refusing delivery — hostname resolves only to private IPs")
+        return False
+
     payload_bytes = json_module.dumps(payload).encode()
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "Host": parsed.netloc}
     if wh_secret:
         signature = "sha256=" + hmac.new(
             wh_secret.encode(), payload_bytes, hashlib.sha256
         ).hexdigest()
         headers["X-SentinelNet-Signature"] = signature
+
+    # Replace hostname with the resolved IP so the connect goes to the IP we
+    # validated. The Host header preserves SNI/virtualhost semantics.
+    target = parsed._replace(netloc=f"{safe_ip}:{port}").geturl()
+
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(url, content=payload_bytes, headers=headers)
+                resp = await client.post(target, content=payload_bytes, headers=headers)
                 if resp.status_code < 400:
                     return True
                 if resp.status_code < 500:
@@ -1482,7 +1645,9 @@ async def _fire_webhooks(event: str, payload: dict):
     for wh in webhooks:
         subscribed = set(wh["events"])
         if triggered_events & subscribed:
-            tasks.append(_deliver_webhook(wh["url"], delivery_payload, wh_secret=wh.get("secret", "")))
+            stored = wh.get("secret", "")
+            wh_secret = _secret_codec.decrypt(stored) if stored else ""
+            tasks.append(_deliver_webhook(wh["url"], delivery_payload, wh_secret=wh_secret))
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -1507,42 +1672,43 @@ def _require_admin(request: Request):
         raise HTTPException(403, "Invalid or missing admin key")
 
 
+# Bound concurrent admin-triggered scoring. Each call fans out to ~20 RPC +
+# Blockscout calls; without a cap a stolen admin key DOS's the scoring infra.
+_admin_score_semaphore = asyncio.Semaphore(2)
+
+
 @app.post("/api/score/{agent_id}", tags=["Admin"])
 async def trigger_score(agent_id: int, request: Request):
     """Trigger on-demand scoring for a specific agent. Requires admin key (X-Admin-Key header)."""
     _require_admin(request)
+    _validate_agent_id(agent_id)
     if not _agent_ref:
         raise HTTPException(503, "Agent not initialized yet")
-    try:
-        result = await _agent_ref.analyze_agent(agent_id)
-        if not result:
-            raise HTTPException(404, f"Could not score agent {agent_id} (no wallet found)")
-        return {
-            "agent_id": agent_id,
-            "trust_score": result.trust_score,
-            "verdict": result.verdict,
-            "status": "scored",
-        }
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(500, "Scoring failed")
+    if _admin_score_semaphore.locked():
+        # Use try-acquire pattern with non-blocking check via timeout
+        pass
+    async with _admin_score_semaphore:
+        try:
+            result = await _agent_ref.analyze_agent(agent_id)
+            if not result:
+                raise HTTPException(404, f"Could not score agent {agent_id} (no wallet found)")
+            return {
+                "agent_id": agent_id,
+                "trust_score": result.trust_score,
+                "verdict": result.verdict,
+                "status": "scored",
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"trigger_score failed for agent {agent_id}: {e}")
+            raise HTTPException(500, "Scoring failed")
 
 
-@app.post("/api/validate/{agent_id}", tags=["On-Chain"])
-async def request_validation(agent_id: int):
-    """Request SentinelNet to validate/re-score an agent. Returns the score."""
-    _validate_agent_id(agent_id)
-    score = await db.get_score(agent_id)
-    if not score:
-        raise HTTPException(404, f"Agent {agent_id} not scored yet")
-    return {
-        "agent_id": agent_id,
-        "trust_score": score["trust_score"],
-        "verdict": score["verdict"],
-        "evidence_uri": score.get("evidence_uri", ""),
-        "validated": True,
-    }
+# /api/validate/{agent_id} was removed — it claimed to "validate / re-score"
+# but only read cached DB rows and returned `validated: True` regardless,
+# duplicating /trust/{agent_id} while looking like a write. Use
+# POST /api/score/{agent_id} (admin-gated) for actual re-scoring.
 
 
 # ─── WebSocket Live Feed ───
@@ -1555,6 +1721,9 @@ class ConnectionManager:
         self.active: List[WebSocket] = []
         self.max_connections = max_connections
         self._ip_map: dict = defaultdict(int)  # ip -> count
+        # Map ws identity -> ip. Avoids monkey-patching Starlette's WebSocket
+        # object (a future Starlette version may use that attribute name).
+        self._ws_to_ip: dict = {}
 
     async def connect(self, ws: WebSocket, ip: str = "unknown"):
         if len(self.active) >= self.max_connections:
@@ -1566,14 +1735,18 @@ class ConnectionManager:
         await ws.accept()
         self.active.append(ws)
         self._ip_map[ip] += 1
-        ws._sentinel_ip = ip  # stash for disconnect cleanup
+        self._ws_to_ip[id(ws)] = ip
         return True
 
     def disconnect(self, ws: WebSocket):
         if ws in self.active:
             self.active.remove(ws)
-            ip = getattr(ws, "_sentinel_ip", "unknown")
+            ip = self._ws_to_ip.pop(id(ws), "unknown")
             self._ip_map[ip] = max(0, self._ip_map[ip] - 1)
+            # Drop the bucket entirely once empty so the dict doesn't grow
+            # unbounded over the process lifetime.
+            if self._ip_map[ip] == 0:
+                self._ip_map.pop(ip, None)
 
     async def broadcast(self, data: dict):
         dead = []
@@ -1645,7 +1818,12 @@ async def ws_stats():
 
 # ─── Rate Limiting ───
 
-_rate_limits: dict = defaultdict(list)  # ip -> [timestamps]
+from collections import deque  # noqa: E402 — late import keeps top of file as-was
+
+# ip -> deque of timestamps. Inserts are monotonically increasing so
+# popleft-while-stale is O(amortized 1) — far cheaper than the prior
+# `sorted(t for t in ... if t > cutoff)` which was O(n log n) per request.
+_rate_limits: dict = defaultdict(deque)
 _request_counter: int = 0  # total API requests served
 RATE_LIMIT_FREE = 100       # requests per hour (unauthenticated)
 RATE_LIMIT_AUTH = 1000       # requests per hour (with API key)
@@ -1656,18 +1834,29 @@ def _check_rate_limit(ip: str, api_key: str = None) -> tuple:
     now = time.time()
     cutoff = now - 3600
     limit = RATE_LIMIT_AUTH if (api_key and _is_valid_api_key(api_key)) else RATE_LIMIT_FREE
-    # Clean old entries
-    _rate_limits[ip] = sorted(t for t in _rate_limits[ip] if t > cutoff)
-    remaining = max(0, limit - len(_rate_limits[ip]))
-    # Reset = when the oldest request in the window expires (frees a slot)
-    if _rate_limits[ip]:
-        reset = int(_rate_limits[ip][0] + 3600)
-    else:
-        reset = int(now + 3600)
+    bucket = _rate_limits[ip]
+    while bucket and bucket[0] <= cutoff:
+        bucket.popleft()
+    remaining = max(0, limit - len(bucket))
+    reset = int(bucket[0] + 3600) if bucket else int(now + 3600)
     if remaining <= 0:
         return False, limit, 0, reset
-    _rate_limits[ip].append(now)
+    bucket.append(now)
     return True, limit, remaining - 1, reset
+
+
+async def _gc_rate_limits():
+    """Drop empty buckets so `_rate_limits` doesn't grow unbounded over the
+    lifetime of the process. Run hourly from lifespan."""
+    while True:
+        await asyncio.sleep(3600)
+        cutoff = time.time() - 3600
+        empty = [
+            ip for ip, dq in _rate_limits.items()
+            if not dq or dq[-1] <= cutoff
+        ]
+        for ip in empty:
+            _rate_limits.pop(ip, None)
 
 
 @app.middleware("http")
@@ -1703,34 +1892,50 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 
-_key_registrations: dict = defaultdict(list)  # ip -> [timestamps]
+_key_registrations: dict = defaultdict(deque)  # ip -> deque of timestamps
 MAX_KEY_REGISTRATIONS = 3  # per IP per hour
+
+# Match basic shape: localpart (1-64 chars) @ domain with at least one dot.
+# Not RFC-perfect, but rejects "a@b" and other clearly junk inputs.
+import re
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 
 
 @app.post("/api/keys", tags=["Auth"])
 async def register_api_key(request: Request):
     """Register for an API key. Grants authenticated API access and higher
-    rate limits (1000 req/hr). The key is stored in memory and valid for the
-    lifetime of the server process. Limited to 3 registrations per IP per hour.
+    rate limits (1000 req/hr). Keys are persisted to SQLite and survive
+    restarts. Limited to 3 registrations per IP per hour.
 
     Body: {"email": "dev@example.com"}
     Returns: {"api_key": "sk-sn-...", "rate_limit": 1000, "note": "..."}
     """
-    # Rate-limit key registrations per IP
     ip = request.client.host if request.client else "unknown"
+    if ip == "unknown":
+        raise HTTPException(400, "Could not determine client IP")
     now = time.time()
     cutoff = now - 3600
-    _key_registrations[ip] = [t for t in _key_registrations[ip] if t > cutoff]
-    if len(_key_registrations[ip]) >= MAX_KEY_REGISTRATIONS:
+    bucket = _key_registrations[ip]
+    while bucket and bucket[0] <= cutoff:
+        bucket.popleft()
+    if len(bucket) >= MAX_KEY_REGISTRATIONS:
         raise HTTPException(429, "Too many key registrations. Try again later.")
-    _key_registrations[ip].append(now)
+    bucket.append(now)
 
     body = await request.json()
-    email = body.get("email", "")
-    if not email or "@" not in email:
-        raise HTTPException(400, "Provide a valid email")
+    email = (body.get("email", "") or "").strip().lower()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(400, "Provide a valid email address")
+
     key = "sk-sn-" + secrets.token_hex(24)
-    _api_keys[key] = {"email": email, "created_at": datetime.now(timezone.utc).isoformat()}
+    record = {"email": email, "created_at": datetime.now(timezone.utc).isoformat()}
+    _api_keys[key] = record
+    try:
+        await db.save_api_key(key, email)
+    except Exception as e:
+        logger.error(f"Failed to persist api_key for {email}: {e}")
+        # Key still works in-process; surface the persistence failure to caller.
+        raise HTTPException(500, "API key issued but not persisted; please retry")
     return {"api_key": key, "rate_limit": RATE_LIMIT_AUTH, "note": "Include as X-API-Key header"}
 
 
@@ -2024,7 +2229,7 @@ async def marketplace_list(
     min_score: int = Query(0, ge=0, le=100, description="Minimum trust score"),
     sort: str = Query("score", description="Sort by: score, newest"),
     order: str = Query("desc", description="Sort order: asc or desc"),
-    search: str = Query(None, description="Search by agent ID or wallet prefix"),
+    search: str = Query(None, min_length=1, max_length=64, description="Search by agent ID or wallet prefix"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):

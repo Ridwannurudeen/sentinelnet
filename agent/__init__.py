@@ -380,12 +380,20 @@ class SentinelNetAgent:
         except Exception as e:
             logger.error(f"Contagion propagation failed: {e}")
 
-    async def _stake_score(self, agent_id: int, score: int):
-        """Stake ETH behind a published score. Requires wallet to hold ETH."""
+    async def _stake_score(self, agent_id: int, score: int, is_first_score: bool = True):
+        """Stake ETH behind a published score. Skipped on rescores by default —
+        the original audit math at STAKE_AMOUNT_ETH=0.001 with 30-min sweeps
+        would have burned ~10 ETH/day staking the same agents repeatedly.
+        Toggle with `STAKE_ON_RESCORE=true` if a wallet that can sustain it
+        is funded.
+        """
         if not self.staking or not self.erc8004.account:
             return
+        if not self.settings.STAKING_ENABLED:
+            return
+        if not is_first_score and not self.settings.STAKE_ON_RESCORE:
+            return
         try:
-            # Check balance first to avoid error spam
             balance = await asyncio.to_thread(
                 self.w3.eth.get_balance, self.erc8004.account.address
             )
@@ -572,8 +580,8 @@ class SentinelNetAgent:
             agent_identity=agent_identity,
         )
 
-        # Stake ETH behind the score
-        await self._stake_score(agent_id, result.trust_score)
+        # Stake ETH behind the score (first-score only by default — see _stake_score docstring)
+        await self._stake_score(agent_id, result.trust_score, is_first_score=(existing is None))
 
         # EAS attestation
         attestation_uid = await self._attest_trust(

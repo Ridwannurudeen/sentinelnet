@@ -67,8 +67,20 @@ async def main():
             logger.warning(f"Self-score failed: {e}")
     asyncio.create_task(_self_score())
 
-    # Start API server
-    config = uvicorn.Config(app, host="0.0.0.0", port=8004, log_config=None, access_log=True)
+    # Start API server.
+    # proxy_headers + forwarded_allow_ips are required so that request.client.host
+    # reflects the real client IP from X-Forwarded-For (set by nginx) instead of
+    # 127.0.0.1. Without this, the per-IP rate limiter has all real users sharing
+    # the same bucket — i.e. it does nothing useful in production.
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=8004,
+        log_config=None,
+        access_log=True,
+        proxy_headers=True,
+        forwarded_allow_ips="127.0.0.1",
+    )
     server = uvicorn.Server(config)
     await server.serve()
 

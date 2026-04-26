@@ -74,15 +74,25 @@ class ERC8004Client:
         self._nonce_lock = asyncio.Lock()
         self._current_nonce = None
 
+    # Cache total-agents fallback so a degraded RPC doesn't trigger ~16
+    # `ownerOf` binary-search calls on every sweep (every 30 minutes).
+    _total_agents_cache: tuple = (0, 0.0)  # (value, monotonic_timestamp)
+    _TOTAL_AGENTS_TTL_SEC = 600.0
+
     async def get_total_agents(self) -> int:
         """Get total registered agents from Identity Registry via totalSupply."""
         try:
             total = await asyncio.to_thread(self.identity.functions.totalSupply().call)
             return total
         except Exception as e:
+            cached_val, cached_ts = self._total_agents_cache
+            if cached_val and time.monotonic() - cached_ts < self._TOTAL_AGENTS_TTL_SEC:
+                logger.debug(f"totalSupply failed ({e}); using cached value {cached_val}")
+                return cached_val
             logger.warning(f"totalSupply failed, falling back to estimate: {e}")
-            # Fallback: try to binary search for the highest valid tokenId
-            return await self._estimate_total_agents()
+            estimate = await self._estimate_total_agents()
+            self._total_agents_cache = (estimate, time.monotonic())
+            return estimate
 
     async def _estimate_total_agents(self) -> int:
         """Binary search for highest valid agent ID."""
@@ -400,13 +410,24 @@ class ERC8004Client:
         """Parse ERC-8004 registration metadata from tokenURI.
 
         Handles both inline JSON and data:application/json;base64,... URIs.
+        Bounded at 64 KB to prevent a malicious registrant from posting a
+        100 MB data: URI and DOS'ing the scoring worker.
         """
         import base64
-        if raw.startswith("data:"):
-            # data:application/json;base64,<base64data>
-            _, encoded = raw.split(",", 1)
-            return json.loads(base64.b64decode(encoded))
-        return json.loads(raw)
+        MAX_RAW_BYTES = 64 * 1024
+        MAX_DECODED_BYTES = 256 * 1024
+        if not raw or len(raw) > MAX_RAW_BYTES:
+            return {}
+        try:
+            if raw.startswith("data:"):
+                _, encoded = raw.split(",", 1)
+                decoded = base64.b64decode(encoded, validate=False)
+                if len(decoded) > MAX_DECODED_BYTES:
+                    return {}
+                return json.loads(decoded)
+            return json.loads(raw)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return {}
 
     def _build_feedback_params(self, agent_id: int, value: int, tag1: str,
                                 tag2: str, feedback_uri: str,

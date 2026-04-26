@@ -93,6 +93,14 @@ class Database:
                 created_at TEXT NOT NULL
             )
         """)
+        await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS api_keys (
+                key TEXT PRIMARY KEY,
+                email TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                last_used_at TEXT
+            )
+        """)
         # Indexes for query performance
         await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_score_history_agent ON score_history(agent_id)")
         await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_agent ON graph_edges(agent_id)")
@@ -308,6 +316,20 @@ class Database:
         cursor = await self.conn.execute("SELECT COUNT(*) FROM webhooks")
         row = await cursor.fetchone()
         return row[0] if row else 0
+
+    async def save_api_key(self, key: str, email: str):
+        """Persist a self-registered API key. Survives restarts."""
+        await self.conn.execute(
+            "INSERT OR REPLACE INTO api_keys (key, email, created_at) VALUES (?, ?, ?)",
+            (key, email, datetime.now(timezone.utc).isoformat()),
+        )
+        await self.conn.commit()
+
+    async def load_api_keys(self) -> dict:
+        """Return all persisted self-registered keys as {key: {email, created_at}}."""
+        cursor = await self.conn.execute("SELECT key, email, created_at FROM api_keys")
+        rows = await cursor.fetchall()
+        return {r["key"]: {"email": r["email"], "created_at": r["created_at"]} for r in rows}
 
     async def close(self):
         if self.conn:
