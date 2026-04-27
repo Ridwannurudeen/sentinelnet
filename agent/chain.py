@@ -33,9 +33,13 @@ class RPCPool:
         )
 
     def get_web3(self):
-        """Return a Web3 instance for the currently active URL."""
-        from web3 import Web3
-        return Web3(Web3.HTTPProvider(self.active_url))
+        """Return a Web3 instance backed by the FailoverHTTPProvider so any
+        consumer (ERC8004Client, TrustGate reads, agent.fetch_wallet) gets
+        automatic 429 / 5xx rotation across all pool URLs without needing to
+        wrap each call in `pool.call(fn)`.
+        """
+        from rpc_provider import make_web3
+        return make_web3(",".join(self.urls))
 
     async def call(self, fn, *args, **kwargs):
         """Execute an async-wrapped RPC call with retry + failover.

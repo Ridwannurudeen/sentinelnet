@@ -206,6 +206,15 @@ class ERC8004Client:
             logger.warning("No reputation registry or account configured")
             return ""
 
+        # ERC-8004 Reputation Registry rejects self-feedback (msg.sender's
+        # agent_id == agentId). Skip silently — the score is still computed
+        # and stored locally; only the on-chain write is dropped. Without
+        # this guard, the self-score broadcasts a tx that always reverts,
+        # wasting gas budget and polluting the block explorer.
+        if agent_id == self.agent_id:
+            logger.debug(f"Skipping self-feedback for agent {agent_id}")
+            return ""
+
         # Ensure feedback_hash is bytes32
         if isinstance(feedback_hash, bytes) and len(feedback_hash) < 32:
             feedback_hash = feedback_hash.ljust(32, b'\x00')
@@ -286,6 +295,9 @@ class ERC8004Client:
 
         calls = []
         for agent_id, value, tag1, tag2, feedback_uri, feedback_hash in feedbacks:
+            # Skip self-feedback — ERC-8004 Reputation Registry reverts on it.
+            if agent_id == self.agent_id:
+                continue
             if isinstance(feedback_hash, bytes) and len(feedback_hash) < 32:
                 feedback_hash = feedback_hash.ljust(32, b'\x00')
             elif isinstance(feedback_hash, bytes) and len(feedback_hash) > 32:
